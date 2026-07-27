@@ -1,0 +1,8 @@
+^mediaplanr\.Rproj$
+^\.Rproj\.user$
+^LICENSE\.md$
+^\.DS_Store$
+^\.git$
+^\.gitignore$
+^\.Rcheck$
+^.*\.tar\.gz$

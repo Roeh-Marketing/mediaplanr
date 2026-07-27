@@ -1,0 +1,42 @@
+# R session artifacts
+.Rhistory
+.Rapp.history
+.RData
+.RDataTmp
+.Ruserdata
+
+# User-specific R config (local overrides, not project settings)
+.Rprofile
+.Renviron
+
+# RStudio project & IDE files
+*.Rproj
+.Rproj.user/
+.positai/
+
+# R CMD build / check output
+*-Ex.R
+/*.tar.gz
+/*.Rcheck/
+
+# Package build artifacts
+/doc/
+/Meta/
+inst/doc
+
+# pkgdown site output
+docs/
+
+# knitr / R Markdown cache and temp files
+*_cache/
+/cache/
+*.utf8.md
+*.knit.md
+
+# macOS
+.DS_Store
+
+# Local dev scratch (not part of the package)
+dev_*.R
+dev_*.rds
+Rplots.pdf

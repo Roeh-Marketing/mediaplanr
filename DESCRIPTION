@@ -1,0 +1,32 @@
+Package: mediaplanr
+Title: Typed Media Plans and Scenario Comparison
+Version: 0.1.0
+Authors@R:
+    person("Ben Denis", "Shaffer", , "my.blogdown@gmail.com", role = c("aut", "cre"))
+Description: A thin backend that turns an uploaded media plan into a validated,
+    typed object at a configurable grain, derives scenarios from it by editing
+    planned spend, and collects them into a comparable set for charting and
+    export. Holds plan intent only: it does not fit models, forecast, or
+    optimize. Response modeling and optimization live in the 'mrmopt' engine;
+    their results are joined to this package's output by scenario and grain.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.3
+Depends:
+    R (>= 4.1.0)
+Imports:
+    S7,
+    stats,
+    utils
+Suggests:
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Collate:
+    'mediaplanr-package.R'
+    'utils.R'
+    'media-plan.R'
+    'verbs.R'
+    'scenario-set.R'
+    'print.R'
+    'zzz.R'
