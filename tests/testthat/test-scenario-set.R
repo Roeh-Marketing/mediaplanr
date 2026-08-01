@@ -42,7 +42,7 @@ test_that("add_scenario rejects a grain mismatch", {
   expect_error(add_scenario(set, fine_plan()), "must match the set grain")
 })
 
-test_that("compare_scenarios summary reports spend deltas vs base", {
+test_that("compare_scenarios summary reports planned_spend deltas vs base", {
   p <- std_plan()
   set <- scenario_set(p, name = "base")
   set <- add_scenario(set, build_scenario(p, edits = c("Search" = 120),

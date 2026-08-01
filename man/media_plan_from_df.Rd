@@ -7,31 +7,31 @@
 media_plan_from_df(
   df,
   grain,
+  week = NULL,
   planned_spend = "planned_spend",
   name = "",
   objective = "",
-  valid_keys = NULL,
   id = NULL,
   parent_id = character(0)
 )
 }
 \arguments{
-\item{df}{A data frame holding the plan: grain columns plus a planned-spend
-column. All other columns are preserved on \verb{@data} untouched.}
+\item{df}{A data frame holding the plan: grain columns plus a spend column.
+All other columns are preserved on \verb{@data} untouched.}
 
-\item{grain}{Character vector naming the grain (key) columns.}
+\item{grain}{Character vector naming the columns that identify a row,
+including the week column when the plan is weekly.}
+
+\item{week}{Optional name of the week column. Must be among \code{grain}. Values
+are coerced to \code{Date} (the week start).}
 
 \item{planned_spend}{Name of the planned-spend column in \code{df}. Renamed to
-\code{planned_spend}. Default \code{"planned_spend"}.}
+\code{planned_spend}. Holds intent on every row, including past weeks. Default
+\code{"planned_spend"}.}
 
 \item{name}{Human-facing plan name.}
 
 \item{objective}{Human-facing objective / notes.}
-
-\item{valid_keys}{Optional coverage check for the plan's grain cells. Either
-a character vector of composite keys (as produced by \code{\link[=grain_key]{grain_key()}}) or a
-data frame containing the grain columns whose distinct rows are the allowed
-cells. Plan cells outside this set raise an error.}
 
 \item{id}{Optional explicit id; generated when \code{NULL}.}
 
@@ -42,9 +42,11 @@ A validated \link{MediaPlan}.
 }
 \description{
 The primary entry point for turning an uploaded plan into a \link{MediaPlan}.
-Normalizes the spend column name to the canonical \code{planned_spend}, optionally
-checks the plan's grain cells against a set of known-valid keys (e.g. the
-distinct keys of a decomp), and runs the full validator on construction.
+Normalises the spend column name to \code{planned_spend}, coerces the week column
+to \code{Date}, and runs the full validator on construction.
+}
+\details{
+It knows nothing about decomps: a plan is constructed from the plan alone.
 }
 \examples{
 df <- data.frame(

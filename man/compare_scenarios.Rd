@@ -15,14 +15,14 @@ compare_scenarios(set, level = c("summary", "cell"))
 A data frame.
 }
 \description{
-Collects the scenarios into a comparison table over \strong{planned spend} at one
+Collects the scenarios into a comparison table over \strong{planned planned_spend} at one
 of two levels:
 }
 \details{
 \itemize{
-\item \code{"summary"} (default): one row per scenario — total planned spend and the
+\item \code{"summary"} (default): one row per scenario — total planned_spend and the
 delta versus the baseline.
-\item \code{"cell"}: one row per scenario x grain cell — planned spend, that cell's
+\item \code{"cell"}: one row per scenario x plan row — planned_spend, that row's
 share of the scenario total, and the delta versus the same cell in the
 baseline.
 }

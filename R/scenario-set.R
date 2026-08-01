@@ -2,7 +2,7 @@
 #'
 #' `ScenarioSet` is the comparison registry: a base plan and the scenarios
 #' derived from it, all at one grain. Each entry is a [MediaPlan]; the set adds
-#' names, a designated baseline, and comparison over planned spend.
+#' names, a designated baseline, and comparison over planned_spend.
 #'
 #' Build one with [scenario_set()] and grow it with [add_scenario()]; both
 #' return new objects (value semantics — the set being compared against is never
@@ -10,7 +10,7 @@
 #'
 #' The set holds **plan intent only**. Predicted outcomes come from a separate
 #' modeling process (e.g. `mrmopt`); join them to [compare_scenarios()] output
-#' by scenario name and grain cell.
+#' by scenario name and grain columns.
 #'
 #' @param scenarios Named list of [MediaPlan] objects, all at the same grain.
 #' @param grain Character vector; the common plan grain.
@@ -135,12 +135,12 @@ add_scenario <- function(set, plan, name = NULL) {
 
 #' Compare the scenarios in a set
 #'
-#' Collects the scenarios into a comparison table over **planned spend** at one
+#' Collects the scenarios into a comparison table over **planned planned_spend** at one
 #' of two levels:
 #'
-#' * `"summary"` (default): one row per scenario — total planned spend and the
+#' * `"summary"` (default): one row per scenario — total planned_spend and the
 #'   delta versus the baseline.
-#' * `"cell"`: one row per scenario x grain cell — planned spend, that cell's
+#' * `"cell"`: one row per scenario x plan row — planned_spend, that row's
 #'   share of the scenario total, and the delta versus the same cell in the
 #'   baseline.
 #'
@@ -197,7 +197,7 @@ compare_scenarios <- function(set, level = c("summary", "cell")) {
   # level == "cell"
   base_plan <- scen[[set@base_name]]
   base_by_cell <- stats::setNames(
-    base_plan@data[["planned_spend"]], grain_key(base_plan@data, g)
+    base_plan@data[["planned_spend"]], line_item(base_plan@data, g)
   )
 
   rows <- lapply(nms, function(nm) {
@@ -208,7 +208,7 @@ compare_scenarios <- function(set, level = c("summary", "cell")) {
       d[, c(g, "planned_spend"), drop = FALSE]
     )
     out$share_of_total <- if (isTRUE(tot != 0)) d[["planned_spend"]] / tot else NA_real_
-    out$spend_vs_base <- d[["planned_spend"]] - as.numeric(base_by_cell[grain_key(d, g)])
+    out$spend_vs_base <- d[["planned_spend"]] - as.numeric(base_by_cell[line_item(d, g)])
     out
   })
   out <- do.call(rbind, rows)

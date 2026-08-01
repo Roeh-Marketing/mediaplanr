@@ -18,7 +18,7 @@ test_that("the base plan is never mutated", {
   expect_equal(p@data$planned_spend, before)
 })
 
-test_that("edits accept a named numeric vector keyed by grain_key", {
+test_that("edits accept a named numeric vector keyed by line_item", {
   p <- std_plan()
   s <- build_scenario(p, edits = c("TV" = 200))
   expect_equal(s@data$planned_spend[s@data$channel == "TV"], 200)

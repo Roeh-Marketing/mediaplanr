@@ -7,6 +7,7 @@
 MediaPlan(
   data = data.frame(),
   grain = character(0),
+  week_col = character(0),
   id = new_id("plan"),
   parent_id = character(0),
   name = "",
@@ -14,10 +15,14 @@ MediaPlan(
 )
 }
 \arguments{
-\item{data}{A data frame with the grain columns + \code{planned_spend}. One row
-per grain cell.}
+\item{data}{A data frame with the grain columns + \code{planned_spend}. One row per grain
+cell.}
 
-\item{grain}{Character vector naming the active key columns.}
+\item{grain}{Character vector naming the columns that identify a row. When
+the plan is weekly this includes the week column.}
+
+\item{week_col}{Optional name of the week column within \verb{@grain}. Must hold
+\code{Date} values (the week start). Empty means the plan has no time dimension.}
 
 \item{id}{Opaque synthetic id (identity/lineage only).}
 
@@ -33,12 +38,14 @@ A \code{MediaPlan} S7 object.
 }
 \description{
 \code{MediaPlan} is a typed wrapper around a flat plan table. \verb{@data} is a plain,
-directly accessible data frame of the grain key columns plus a
-\code{planned_spend} column; the class adds a validator, a synthetic identity
-(\verb{@id}), and lineage (\verb{@parent_id}). It holds \strong{intent only} — no actuals or
-attribution.
+directly accessible data frame of the grain columns plus a \code{planned_spend} column;
+the class adds a validator, a synthetic identity (\verb{@id}), and lineage
+(\verb{@parent_id}).
 }
 \details{
+\verb{@week_col} names the week column when the plan is weekly, so the time
+dimension is typed and validated rather than being an ordinary key column.
+
 Any other columns on the supplied data frame are carried through untouched.
 
 Construct one with \code{\link[=media_plan_from_df]{media_plan_from_df()}} rather than calling the constructor

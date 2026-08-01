@@ -16,9 +16,15 @@ S7::method(print, MediaPlan) <- function(x, ...) {
   cat(sprintf("<MediaPlan> %s  (%s)\n",
               if (nzchar(x@name)) x@name else "<unnamed>", short_id(x@id)))
   cat("  grain:  ", paste(x@grain, collapse = " + "), "\n", sep = "")
-  cat("  cells:  ", nrow(x@data), "\n", sep = "")
-  cat("  spend:  ", .fmt_num(sum(x@data[["planned_spend"]])),
-      " planned\n", sep = "")
+  cat("  rows:   ", nrow(x@data), "\n", sep = "")
+  if (length(x@week_col) && nrow(x@data)) {
+    wk <- range(x@data[[x@week_col]], na.rm = TRUE)
+    cat("  weeks:  ", format(wk[1]), " to ", format(wk[2]),
+        "  (", length(unique(x@data[[x@week_col]])), " weeks)\n", sep = "")
+    cat("  line items: ",
+        length(unique(line_item(x@data, line_item_grain(x)))), "\n", sep = "")
+  }
+  cat("  spend:  ", .fmt_num(sum(x@data[["planned_spend"]])), "\n", sep = "")
   if (length(x@parent_id) && nzchar(x@parent_id)) {
     cat("  parent: ", short_id(x@parent_id), "\n", sep = "")
   }

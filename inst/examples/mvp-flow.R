@@ -6,78 +6,91 @@
 # Run with:  source(system.file("examples", "mvp-flow.R", package = "mediaplanr"))
 #
 # Note what is NOT here: no model fitting, no forecasting, no optimization.
-# mediaplanr expresses plan *intent*. Predicted outcomes come from the mrmopt
-# engine and are joined to compare_scenarios() output by scenario + grain cell.
+# mediaplanr expresses plan intent. Predicted outcomes come from the mrmopt
+# engine and are joined to compare_scenarios() output by scenario + grain.
 
 library(mediaplanr)
 
 # ---- 1. Upload -> validated plan --------------------------------------------
+# The week is first-class: named by `week=`, typed as Date, and validated.
+
 plan_df <- data.frame(
-  channel       = c("TV", "Search", "Social"),
-  planned_spend = c(80, 40, 40),
+  week    = as.Date(c("2026-03-02", "2026-03-02",
+                      "2026-04-06", "2026-04-06", "2026-04-06")),
+  channel = c("TV", "Search", "TV", "TV", "Search"),
+  partner = c("NBC", "Google", "NBC", "Hulu", "Google"),
+  planned_spend   = c(30, 20, 35, 15, 25),
   stringsAsFactors = FALSE
 )
 
-# `valid_keys` is the coverage check: in the app, pass the decomp's distinct
-# keys so a plan naming an unknown channel fails here, at upload, with a
-# readable message — not silently, three steps later.
-decomp_keys <- data.frame(channel = c("TV", "Search", "Social", "Radio"))
-
 base_plan <- media_plan_from_df(
   plan_df,
-  grain = "channel",
-  name = "Q3 base",
-  valid_keys = decomp_keys
+  grain = c("channel", "partner", "week"),
+  week  = "week",
+  name  = "Q2 base"
 )
 print(base_plan)
 
-# @data is a plain, directly accessible data frame — no ceremony to get at it:
+# @data is a plain, directly accessible data frame:
 str(base_plan@data)
 
+# The line item grain is the time-free identity -- what models attach to:
+cat("\nline item grain:", paste(line_item_grain(base_plan), collapse = " + "), "\n")
+cat("distinct line items:",
+    paste(unique(line_item(base_plan@data, line_item_grain(base_plan))),
+          collapse = " / "), "\n")
+
 # ---- 2. Scenarios by edit ---------------------------------------------------
-# An analyst overrides one channel; everything else is held.
-manual_plan <- build_scenario(
+# Operations: state intent, the arithmetic happens in R. `target` may name any
+# subset of the grain, so this reaches every line item in one week.
+trim <- build_scenario(
   base_plan,
-  edits = data.frame(channel = "Search", planned_spend = 120),
-  name = "Manual: +Search"
+  edits = list(target = list(week = as.Date("2026-04-06")), scale = 0.8),
+  name  = "Trim April 6 by 20%"
 )
-print(manual_plan@data)
+print(trim@data)
+
+# "Set the total budget", holding the current mix:
+resized <- build_scenario(base_plan, edits = list(total = 150),
+                          name = "Budget 150")
 
 # An allocation computed elsewhere (e.g. by mrmopt::opt_mix()) comes back in
-# through the same door — mediaplanr does not care how the numbers were chosen.
-optimized_alloc <- data.frame(
-  channel       = c("TV", "Search", "Social"),
-  planned_spend = c(55, 70, 35)
-)
+# through the same door -- mediaplanr does not care how the numbers were chosen.
 opt_plan <- build_scenario(
   base_plan,
-  edits = optimized_alloc,
+  edits = data.frame(
+    channel = c("TV", "TV", "Search"),
+    partner = c("NBC", "Hulu", "Google"),
+    week    = as.Date(c("2026-04-06", "2026-04-06", "2026-04-06")),
+    planned_spend   = c(40, 20, 20)
+  ),
   name = "Optimized (external)",
-  objective = "max volume @ 160 budget, via mrmopt::opt_mix()"
+  objective = "max KPI @ 80 for w/c Apr 6, via mrmopt::opt_mix()"
 )
-print(opt_plan@data)
 
-# The base plan is untouched by either derivation:
-stopifnot(identical(base_plan@data$planned_spend, c(80, 40, 40)))
-
-# Lineage is preserved:
-cat("\nparent of 'Optimized' is the base plan:",
+# The base plan is untouched by any derivation, and lineage is preserved:
+cat("\nbase unchanged:", identical(base_plan@data$planned_spend, plan_df$planned_spend), "\n")
+cat("parent of 'Optimized' is the base plan:",
     identical(opt_plan@parent_id, base_plan@id), "\n")
 
-# ---- 3. Collect into a comparable set ---------------------------------------
+# ---- 3. Roll up to find a model ---------------------------------------------
+# TV | Hulu is new and has no fitted model. Roll up to the next coarsest level
+# to find one; the app does the model lookup and any prior specification.
+by_channel <- roll_up(base_plan, c("channel", "week"), name = "channel view")
+print(by_channel@data)
+
+# ---- 4. Collect into a comparable set ---------------------------------------
 set <- scenario_set(base_plan, name = "Base")
-set <- add_scenario(set, manual_plan)
+set <- add_scenario(set, trim)
+set <- add_scenario(set, resized)
 set <- add_scenario(set, opt_plan)
 print(set)
 
-# ---- 4. Compare (what the app charts / exports) -----------------------------
+# ---- 5. Compare (what the app charts / exports) -----------------------------
 cat("\n-- summary (one row per scenario, deltas vs base) --\n")
 print(compare_scenarios(set, "summary"))
 
-cat("\n-- cell (one row per scenario x grain cell) --\n")
-print(compare_scenarios(set, "cell"))
-
-# To compare modeled outcomes, forecast each scenario with mrmopt and join the
-# result onto the table above by `scenario` + the grain columns.
+cat("\n-- cell (one row per scenario x plan row) --\n")
+print(head(compare_scenarios(set, "cell"), 10))
 
 invisible(set)

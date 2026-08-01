@@ -100,7 +100,7 @@
 .apply_edits <- function(plan, edits) {
   d <- plan@data
   g <- plan@grain
-  base_key <- grain_key(d, g)
+  base_key <- line_item(d, g)
 
   if (is.data.frame(edits)) {
     miss <- setdiff(g, names(edits))
@@ -112,10 +112,10 @@
       stop("`edits` data frame must contain a 'planned_spend' column.",
            call. = FALSE)
     }
-    ek <- grain_key(edits, g)
+    ek <- line_item(edits, g)
     unknown <- setdiff(ek, base_key)
     if (length(unknown)) {
-      stop("`edits` reference grain cell(s) not in the plan: ",
+      stop("`edits` reference row(s) not in the plan: ",
            paste(utils::head(unknown, 5), collapse = "; "), call. = FALSE)
     }
     idx <- match(ek, base_key)
@@ -124,7 +124,7 @@
   } else if (is.numeric(edits) && !is.null(names(edits))) {
     unknown <- setdiff(names(edits), base_key)
     if (length(unknown)) {
-      stop("`edits` reference grain cell(s) not in the plan: ",
+      stop("`edits` reference row(s) not in the plan: ",
            paste(utils::head(unknown, 5), collapse = "; "), call. = FALSE)
     }
     idx <- match(names(edits), base_key)
@@ -142,7 +142,7 @@
   } else {
     stop("`edits` must be one of: a list of operations (target + ",
          paste(.op_keys, collapse = "/"), "), a data frame (grain columns + ",
-         "planned_spend), or a named numeric vector keyed by grain_key().",
+         "planned_spend), or a named numeric vector keyed by line_item().",
          call. = FALSE)
   }
   d
@@ -189,7 +189,7 @@
 #' **2. Data frame** — grain columns + `planned_spend`; matched cells are
 #' overridden with those absolute values. Natural for optimizer output.
 #'
-#' **3. Named numeric vector** — keyed by [grain_key()], e.g. `c("TV" = 100)`.
+#' **3. Named numeric vector** — keyed by [line_item()], e.g. `c("TV" = 100)`.
 #' Terse for one or two cells at a simple grain.
 #'
 #' @param plan The base [MediaPlan].
@@ -235,7 +235,7 @@ S7::method(build_scenario, MediaPlan) <- function(plan, edits, name = "", object
   if (missing(edits) || is.null(edits)) {
     stop("`edits` is required: supply a list of operations, a data frame ",
          "(grain columns + planned_spend), or a named numeric vector keyed ",
-         "by grain_key().", call. = FALSE)
+         "by line_item().", call. = FALSE)
   }
   MediaPlan(
     data      = .apply_edits(plan, edits),

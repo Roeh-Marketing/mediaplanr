@@ -62,7 +62,7 @@ up to 50.
 \strong{2. Data frame} — grain columns + \code{planned_spend}; matched cells are
 overridden with those absolute values. Natural for optimizer output.
 
-\strong{3. Named numeric vector} — keyed by \code{\link[=grain_key]{grain_key()}}, e.g. \code{c("TV" = 100)}.
+\strong{3. Named numeric vector} — keyed by \code{\link[=line_item]{line_item()}}, e.g. \code{c("TV" = 100)}.
 Terse for one or two cells at a simple grain.
 }
 

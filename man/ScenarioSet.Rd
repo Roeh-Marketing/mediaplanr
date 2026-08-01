@@ -26,7 +26,7 @@ A \code{ScenarioSet} S7 object.
 \description{
 \code{ScenarioSet} is the comparison registry: a base plan and the scenarios
 derived from it, all at one grain. Each entry is a \link{MediaPlan}; the set adds
-names, a designated baseline, and comparison over planned spend.
+names, a designated baseline, and comparison over planned_spend.
 }
 \details{
 Build one with \code{\link[=scenario_set]{scenario_set()}} and grow it with \code{\link[=add_scenario]{add_scenario()}}; both
@@ -35,5 +35,5 @@ mutated).
 
 The set holds \strong{plan intent only}. Predicted outcomes come from a separate
 modeling process (e.g. \code{mrmopt}); join them to \code{\link[=compare_scenarios]{compare_scenarios()}} output
-by scenario name and grain cell.
+by scenario name and grain columns.
 }
