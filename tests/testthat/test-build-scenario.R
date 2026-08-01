@@ -14,20 +14,20 @@ test_that("edits override matched cells and preserve lineage", {
 test_that("the base plan is never mutated", {
   p <- std_plan()
   before <- p@data$planned_spend
-  build_scenario(p, edits = c("Search" = 999))
+  build_scenario(p, edits = c("Search" = 999), name = "s")
   expect_equal(p@data$planned_spend, before)
 })
 
 test_that("edits accept a named numeric vector keyed by line_item", {
   p <- std_plan()
-  s <- build_scenario(p, edits = c("TV" = 200))
+  s <- build_scenario(p, edits = c("TV" = 200), name = "s")
   expect_equal(s@data$planned_spend[s@data$channel == "TV"], 200)
   expect_equal(s@data$planned_spend[s@data$channel == "Search"], 40)
 })
 
 test_that("edits work at a composite grain", {
   p <- fine_plan()
-  s <- build_scenario(p, edits = c("TV | B" = 75))
+  s <- build_scenario(p, edits = c("TV | B" = 75), name = "s")
   expect_equal(s@data$planned_spend[s@data$partner == "B"], 75)
   expect_equal(s@data$planned_spend[s@data$partner == "A"], 50)
 })
@@ -35,7 +35,7 @@ test_that("edits work at a composite grain", {
 test_that("multiple cells can be edited at once", {
   p <- std_plan()
   s <- build_scenario(
-    p, edits = data.frame(channel = c("TV", "Social"), planned_spend = c(10, 20)))
+    p, edits = data.frame(channel = c("TV", "Social"), planned_spend = c(10, 20)), name = "s")
   x <- stats::setNames(s@data$planned_spend, s@data$channel)
   expect_equal(unname(x[c("TV", "Search", "Social")]), c(10, 40, 20))
 })
@@ -43,31 +43,31 @@ test_that("multiple cells can be edited at once", {
 test_that("edits referencing an unknown cell error", {
   p <- std_plan()
   expect_error(
-    build_scenario(p, edits = data.frame(channel = "Radio", planned_spend = 1)),
+    build_scenario(p, edits = data.frame(channel = "Radio", planned_spend = 1), name = "s"),
     "not in the plan")
-  expect_error(build_scenario(p, edits = c("Radio" = 1)), "not in the plan")
+  expect_error(build_scenario(p, edits = c("Radio" = 1), name = "s"), "not in the plan")
 })
 
 test_that("edits are validated like any plan", {
   p <- std_plan()
-  expect_error(build_scenario(p, edits = c("TV" = -5)), "non-negative")
+  expect_error(build_scenario(p, edits = c("TV" = -5), name = "s"), "non-negative")
 })
 
 test_that("build_scenario requires edits", {
   p <- std_plan()
-  expect_error(build_scenario(p), "`edits` is required")
+  expect_error(build_scenario(p, name = "s"), "`edits` is required")
 })
 
 test_that("malformed edits are rejected", {
   p <- std_plan()
   # data frame missing planned_spend
-  expect_error(build_scenario(p, edits = data.frame(channel = "TV")),
+  expect_error(build_scenario(p, edits = data.frame(channel = "TV"), name = "s"),
                "must contain a 'planned_spend' column")
   # data frame missing the grain column
-  expect_error(build_scenario(p, edits = data.frame(planned_spend = 1)),
+  expect_error(build_scenario(p, edits = data.frame(planned_spend = 1), name = "s"),
                "missing grain column")
   # unnamed numeric vector matches no supported shape
-  expect_error(build_scenario(p, edits = c(1, 2, 3)), "must be one of")
+  expect_error(build_scenario(p, edits = c(1, 2, 3), name = "s"), "must be one of")
 })
 
 test_that("lineage chains across successive derivations", {
@@ -82,7 +82,7 @@ test_that("lineage chains across successive derivations", {
 
 test_that("scale multiplies matched cells", {
   s <- build_scenario(std_plan(),
-                      edits = list(target = list(channel = "Search"), scale = 1.2))
+                      edits = list(target = list(channel = "Search"), scale = 1.2), name = "s")
   x <- stats::setNames(s@data$planned_spend, s@data$channel)
   expect_equal(unname(x[["Search"]]), 48)
   expect_equal(unname(x[["TV"]]), 80)  # untouched
@@ -90,30 +90,30 @@ test_that("scale multiplies matched cells", {
 
 test_that("delta adds to matched cells and may be negative", {
   s <- build_scenario(std_plan(),
-                      edits = list(target = list(channel = "TV"), delta = -30))
+                      edits = list(target = list(channel = "TV"), delta = -30), name = "s")
   expect_equal(s@data$planned_spend[s@data$channel == "TV"], 50)
 })
 
 test_that("set is per-cell, total is across cells", {
   p <- fine_plan()  # TV has two partner rows: 50 and 30
-  per_cell <- build_scenario(p, edits = list(target = list(channel = "TV"), set = 50))
+  per_cell <- build_scenario(p, edits = list(target = list(channel = "TV"), set = 50), name = "s")
   expect_equal(per_cell@data$planned_spend[per_cell@data$channel == "TV"], c(50, 50))
 
-  across <- build_scenario(p, edits = list(target = list(channel = "TV"), total = 160))
+  across <- build_scenario(p, edits = list(target = list(channel = "TV"), total = 160), name = "s")
   tv <- across@data$planned_spend[across@data$channel == "TV"]
   expect_equal(sum(tv), 160)
   expect_equal(tv, c(100, 60))  # 50:30 mix preserved
 })
 
 test_that("total with no target rescales the whole plan", {
-  s <- build_scenario(std_plan(), edits = list(total = 320))
+  s <- build_scenario(std_plan(), edits = list(total = 320), name = "s")
   expect_equal(sum(s@data$planned_spend), 320)
   # mix preserved: TV was half the plan
   expect_equal(s@data$planned_spend[s@data$channel == "TV"], 160)
 })
 
 test_that("omitting target matches every row", {
-  s <- build_scenario(std_plan(), edits = list(scale = 2))
+  s <- build_scenario(std_plan(), edits = list(scale = 2), name = "s")
   expect_equal(s@data$planned_spend, c(160, 80, 80))
 })
 
@@ -122,9 +122,9 @@ test_that("a partial-key target hits every matching cell", {
     data.frame(channel = rep(c("TV", "Search"), each = 2),
                week = rep(c("w1", "w2"), 2),
                planned_spend = c(30, 25, 15, 10)),
-    grain = c("channel", "week"))
+    grain = c("channel", "week"), name = "t")
   # halve one week across all channels, without enumerating the cells
-  s <- build_scenario(wk, edits = list(target = list(week = "w2"), scale = 0.5))
+  s <- build_scenario(wk, edits = list(target = list(week = "w2"), scale = 0.5), name = "s")
   expect_equal(s@data$planned_spend[s@data$week == "w2"], c(12.5, 5))
   expect_equal(s@data$planned_spend[s@data$week == "w1"], c(30, 15))
 })
@@ -132,7 +132,7 @@ test_that("a partial-key target hits every matching cell", {
 test_that("target values may be vectors", {
   s <- build_scenario(std_plan(),
                       edits = list(target = list(channel = c("TV", "Social")),
-                                   set = 10))
+                                   set = 10), name = "s")
   x <- stats::setNames(s@data$planned_spend, s@data$channel)
   expect_equal(unname(x[c("TV", "Search", "Social")]), c(10, 40, 10))
 })
@@ -141,7 +141,7 @@ test_that("multiple ops apply in order", {
   s <- build_scenario(std_plan(), edits = list(
     list(target = list(channel = "TV"),     delta = -10),
     list(target = list(channel = "Search"), delta =  10)
-  ))
+  ), name = "s")
   x <- stats::setNames(s@data$planned_spend, s@data$channel)
   expect_equal(unname(x[c("TV", "Search")]), c(70, 50))
   expect_equal(sum(s@data$planned_spend), 160)  # budget-neutral shift
@@ -150,58 +150,113 @@ test_that("multiple ops apply in order", {
 test_that("a bad target value errors and names the alternatives", {
   expect_error(
     build_scenario(std_plan(),
-                   edits = list(target = list(channel = "Radio"), scale = 2)),
+                   edits = list(target = list(channel = "Radio"), scale = 2), name = "s"),
     "no such value\\(s\\) in 'channel': Radio")
   expect_error(
     build_scenario(std_plan(),
-                   edits = list(target = list(channel = "Radio"), scale = 2)),
+                   edits = list(target = list(channel = "Radio"), scale = 2), name = "s"),
     "Valid: TV, Search, Social")
 })
 
 test_that("target may only name grain columns", {
   expect_error(
     build_scenario(std_plan(),
-                   edits = list(target = list(planned_spend = 80), scale = 2)),
+                   edits = list(target = list(planned_spend = 80), scale = 2), name = "s"),
     "may only name grain columns")
 })
 
 test_that("an op must carry exactly one operation key", {
-  expect_error(build_scenario(std_plan(), edits = list(target = list(channel = "TV"))),
+  expect_error(build_scenario(std_plan(), edits = list(target = list(channel = "TV")), name = "s"),
                "exactly one of")
   expect_error(build_scenario(std_plan(),
                               edits = list(target = list(channel = "TV"),
-                                           scale = 2, delta = 1)),
+                                           scale = 2, delta = 1), name = "s"),
                "exactly one of")
 })
 
 test_that("unknown op fields are rejected", {
   expect_error(
-    build_scenario(std_plan(), edits = list(channel = "TV", scale = 2)),
+    build_scenario(std_plan(), edits = list(channel = "TV", scale = 2), name = "s"),
     "unknown field\\(s\\): channel")
 })
 
 test_that("op values must be a single number", {
-  expect_error(build_scenario(std_plan(), edits = list(scale = c(1, 2))),
+  expect_error(build_scenario(std_plan(), edits = list(scale = c(1, 2)), name = "s"),
                "single non-missing number")
-  expect_error(build_scenario(std_plan(), edits = list(scale = "2")),
+  expect_error(build_scenario(std_plan(), edits = list(scale = "2"), name = "s"),
                "single non-missing number")
 })
 
 test_that("total on an all-zero group errors rather than guessing a split", {
   p <- media_plan_from_df(
     data.frame(channel = c("TV", "Search"), planned_spend = c(0, 0)),
-    grain = "channel")
-  expect_error(build_scenario(p, edits = list(total = 100)),
+    grain = "channel", name = "t")
+  expect_error(build_scenario(p, edits = list(total = 100), name = "s"),
                "current planned_spend is 0")
 })
 
 test_that("ops still run through the plan validator", {
   expect_error(build_scenario(std_plan(),
                               edits = list(target = list(channel = "TV"),
-                                           delta = -1000)),
+                                           delta = -1000), name = "s"),
                "non-negative")
 })
 
 test_that("an empty op list is rejected", {
-  expect_error(build_scenario(std_plan(), edits = list()), "empty list")
+  expect_error(build_scenario(std_plan(), edits = list(), name = "s"), "empty list")
+})
+
+# ---- metadata inheritance on derivation -------------------------------------
+
+approved_plan <- function() {
+  media_plan_from_df(
+    data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
+    grain = "channel", name = "Q2 Approved Plan", nickname = "signed off",
+    advertiser = "Acme", planner = "R. Roe", status = "approved")
+}
+
+test_that("advertiser and planner are inherited", {
+  s <- build_scenario(approved_plan(), edits = c("TV" = 90), name = "variant")
+  expect_identical(s@advertiser, "Acme")
+  expect_identical(s@planner, "R. Roe")
+})
+
+test_that("status is NOT inherited: an approved plan's child is not approved", {
+  s <- build_scenario(approved_plan(), edits = c("TV" = 90), name = "variant")
+  expect_false(identical(s@status, "approved"))
+  expect_identical(s@status, "in development")
+})
+
+test_that("inherited metadata can be overridden per call", {
+  s <- build_scenario(approved_plan(), edits = c("TV" = 90), name = "variant",
+                      advertiser = "Other Co", planner = "J. Doe",
+                      status = "to review")
+  expect_identical(s@advertiser, "Other Co")
+  expect_identical(s@planner, "J. Doe")
+  expect_identical(s@status, "to review")
+})
+
+test_that("name and nickname are per-scenario, never inherited", {
+  s <- build_scenario(approved_plan(), edits = c("TV" = 90), name = "variant")
+  expect_identical(s@name, "variant")
+  expect_identical(s@nickname, "")
+})
+
+test_that("build_scenario requires a name", {
+  expect_error(build_scenario(std_plan(), edits = c("TV" = 90)),
+               "`name` is required")
+})
+
+test_that("an invalid status on a scenario errors", {
+  expect_error(
+    build_scenario(std_plan(), edits = c("TV" = 90), name = "v", status = "done"),
+    "must be one of")
+})
+
+test_that("a derived scenario keeps the parent's week column", {
+  # regression: build_scenario() previously dropped @week_col
+  p <- weekly_plan()
+  s <- build_scenario(p, edits = list(scale = 1.1), name = "bumped")
+  expect_identical(s@week_col, "week")
+  expect_s3_class(s@data$week, "Date")
 })

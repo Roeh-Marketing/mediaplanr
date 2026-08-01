@@ -9,7 +9,11 @@ media_plan_from_df(
   grain,
   week = NULL,
   planned_spend = "planned_spend",
-  name = "",
+  name,
+  nickname = "",
+  advertiser = "",
+  planner = "",
+  status = "",
   objective = "",
   id = NULL,
   parent_id = character(0)
@@ -29,7 +33,17 @@ are coerced to \code{Date} (the week start).}
 \code{planned_spend}. Holds intent on every row, including past weeks. Default
 \code{"planned_spend"}.}
 
-\item{name}{Human-facing plan name.}
+\item{name}{Formal plan name. \strong{Required} — every plan carries one.}
+
+\item{nickname}{Optional short working handle used in preference to \code{name}
+when labelling scenarios.}
+
+\item{advertiser}{Optional advertiser / client.}
+
+\item{planner}{Optional person responsible.}
+
+\item{status}{Optional workflow state; one of \code{\link[=status_levels]{status_levels()}} (matched
+case-insensitively) or \code{""} when unset.}
 
 \item{objective}{Human-facing objective / notes.}
 
@@ -55,5 +69,6 @@ df <- data.frame(
   channel = c("TV", "Search", "Social"),
   planned_spend = c(100, 80, 60)
 )
-media_plan_from_df(df, grain = "channel", name = "Q3 plan")
+media_plan_from_df(df, grain = "channel", name = "Q3 plan",
+                   advertiser = "Acme", status = "in development")
 }

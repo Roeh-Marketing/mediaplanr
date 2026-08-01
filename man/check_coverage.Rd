@@ -42,7 +42,7 @@ let the user resolve it, not refuse to load the plan.
 \examples{
 p <- media_plan_from_df(
   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-  grain = "channel"
+  grain = "channel", name = "Q3 plan"
 )
 check_coverage(p, data.frame(channel = c("TV", "Search")))
 }

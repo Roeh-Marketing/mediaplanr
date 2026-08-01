@@ -11,8 +11,8 @@ add_scenario(set, plan, name = NULL)
 
 \item{plan}{A \link{MediaPlan} at the same grain as the set.}
 
-\item{name}{Optional scenario name; defaults to the plan's \verb{@name}, then to
-\code{"scenario_N"}. A unique suffix is appended on collision.}
+\item{name}{Optional scenario label; defaults to the plan's \verb{@nickname} if
+set, otherwise its \verb{@name}. A unique suffix is appended on collision.}
 }
 \value{
 A new \link{ScenarioSet} with the scenario appended.

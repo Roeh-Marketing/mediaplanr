@@ -11,6 +11,10 @@ MediaPlan(
   id = new_id("plan"),
   parent_id = character(0),
   name = "",
+  nickname = "",
+  advertiser = "",
+  planner = "",
+  status = "",
   objective = ""
 )
 }
@@ -29,7 +33,18 @@ the plan is weekly this includes the week column.}
 \item{parent_id}{Id of the plan this one was derived from; empty for a root
 plan.}
 
-\item{name}{Human-facing name.}
+\item{name}{Formal plan name. \strong{Required} — every plan is named.}
+
+\item{nickname}{Optional short working handle, e.g. \code{"aggressive TV"}. Used
+in preference to \verb{@name} when labelling scenarios, so a set of in-progress
+scenarios reads well without renaming the formal plan.}
+
+\item{advertiser}{Optional advertiser / client this plan belongs to.}
+
+\item{planner}{Optional person responsible for the plan.}
+
+\item{status}{Optional workflow state; one of \code{\link[=status_levels]{status_levels()}}, or \code{""} when
+unset.}
 
 \item{objective}{Human-facing objective / notes.}
 }

@@ -4,14 +4,34 @@
 \alias{build_scenario}
 \title{Derive a new scenario plan from a base plan}
 \usage{
-build_scenario(plan, edits, name = "", objective = "", ...)
+build_scenario(
+  plan,
+  edits,
+  name,
+  nickname = "",
+  advertiser = NULL,
+  planner = NULL,
+  status = "in development",
+  objective = "",
+  ...
+)
 }
 \arguments{
 \item{plan}{The base \link{MediaPlan}.}
 
 \item{edits}{The edits to apply; see \emph{Edit forms}.}
 
-\item{name}{Human-facing name for the new scenario.}
+\item{name}{Formal name for the new scenario. \strong{Required}.}
+
+\item{nickname}{Optional short working handle. Preferred over \code{name} when
+labelling the scenario in a \link{ScenarioSet}.}
+
+\item{advertiser}{Optional override; defaults to the parent's advertiser.}
+
+\item{planner}{Optional override; defaults to the parent's planner.}
+
+\item{status}{Workflow state for the new scenario; defaults to
+\code{"in development"}. Never inherited from the parent.}
 
 \item{objective}{Human-facing objective / notes for the new scenario.}
 
@@ -66,6 +86,21 @@ overridden with those absolute values. Natural for optimizer output.
 Terse for one or two cells at a simple grain.
 }
 
+\section{Metadata on a derived scenario}{
+
+\code{advertiser} and \code{planner} are \strong{inherited} from the parent — they describe
+the engagement and the person working, not the individual scenario — and can
+be overridden per call.
+
+\code{status} is deliberately \strong{not} inherited. A scenario derived from an
+\code{"approved"} plan is not itself approved, and silently carrying that forward
+would manufacture an approval nobody gave. It resets to \code{"in development"},
+which is what a freshly derived scenario actually is, unless you say
+otherwise.
+
+\code{name} is required and \code{nickname} is per-scenario, so neither is inherited.
+}
+
 \examples{
 base <- media_plan_from_df(
   data.frame(channel = c("TV", "Search", "Social"),
@@ -75,10 +110,10 @@ base <- media_plan_from_df(
 
 # "Increase Search by 20\%" — the caller states intent, R does the math
 build_scenario(base, edits = list(target = list(channel = "Search"),
-                                  scale = 1.2))
+                                  scale = 1.2), name = "Search +20\%")
 
 # "Set the total budget to 200", holding the current mix
-build_scenario(base, edits = list(total = 200))
+build_scenario(base, edits = list(total = 200), name = "Budget 200")
 
 # "Move 10 from TV to Search" — ops apply in order
 build_scenario(base, edits = list(

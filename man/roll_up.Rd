@@ -4,14 +4,15 @@
 \alias{roll_up}
 \title{Roll a plan up to a coarser grain}
 \usage{
-roll_up(plan, grain, name = "")
+roll_up(plan, grain, name = NULL)
 }
 \arguments{
 \item{plan}{A \link{MediaPlan}.}
 
 \item{grain}{Character vector; a subset of \code{plan@grain} to aggregate to.}
 
-\item{name}{Optional name for the resulting plan.}
+\item{name}{Optional name for the resulting plan; defaults to the source
+plan's name, since a rollup is the same plan viewed at a coarser grain.}
 }
 \value{
 A new \link{MediaPlan} at the coarser grain.
@@ -31,7 +32,7 @@ p <- media_plan_from_df(
   data.frame(channel = c("TV", "TV", "Search"),
              partner = c("NBC", "ESPN", "Google"),
              planned_spend = c(30, 20, 50)),
-  grain = c("channel", "partner")
+  grain = c("channel", "partner"), name = "Q3 plan"
 )
 roll_up(p, "channel")@data
 }

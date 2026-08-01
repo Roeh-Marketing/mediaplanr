@@ -27,12 +27,12 @@ test_that("add_scenario appends without mutating the original set", {
 test_that("add_scenario auto-names and de-duplicates names", {
   p <- std_plan()
   set <- scenario_set(p, name = "base")
-  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 100)))
-  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 120)))
+  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 100), name = "s"))
+  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 120), name = "s"))
   expect_equal(length(unique(names(set@scenarios))), 3L)
 
   # explicit duplicate name gets a suffix rather than clobbering
-  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 130)), name = "base")
+  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 130), name = "s"), name = "base")
   expect_equal(length(set@scenarios), 4L)
   expect_true("base_2" %in% names(set@scenarios))
 })
@@ -97,4 +97,22 @@ test_that("compare_scenarios works at a composite grain", {
   expect_true(all(c("channel", "partner") %in% names(cell)))
   shift_a <- cell[cell$scenario == "shift" & cell$partner == "A", ]
   expect_equal(shift_a$spend_vs_base, 20)
+})
+
+test_that("scenario labels prefer nickname over the formal name", {
+  base <- media_plan_from_df(
+    data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
+    grain = "channel", name = "Q2 2026 Brand Plan", nickname = "baseline")
+  set <- scenario_set(base)
+  expect_identical(names(set@scenarios), "baseline")
+
+  s <- build_scenario(base, edits = c("TV" = 100),
+                      name = "Q2 2026 Brand Plan v2", nickname = "aggressive TV")
+  set <- add_scenario(set, s)
+  expect_true("aggressive TV" %in% names(set@scenarios))
+})
+
+test_that("labels fall back to the formal name when there is no nickname", {
+  set <- scenario_set(std_plan(name = "Formal Name"))
+  expect_identical(names(set@scenarios), "Formal Name")
 })

@@ -54,11 +54,16 @@ devtools::install_local("mediaplanr")
 library(mediaplanr)
 
 # 1. Upload -> validated plan. Knows nothing about decomps.
+#    `name` is required; the workflow slots are optional.
 base <- media_plan_from_df(
   plan_df,
-  grain = c("channel", "partner", "week"),
-  week  = "week",
-  name  = "Q2 base"
+  grain      = c("channel", "partner", "week"),
+  week       = "week",
+  name       = "Q2 2026 Brand Plan",
+  nickname   = "baseline",
+  advertiser = "Acme Corp",
+  planner    = "R. Roe",
+  status     = "approved"
 )
 
 # 1b. Pair it with a decomp: do the plan's pre-through-date rows account for
@@ -104,12 +109,28 @@ source(system.file("examples", "mvp-flow.R", package = "mediaplanr"))
 
 | Class | What it is |
 |---|---|
-| `MediaPlan` | One plan at a configurable grain. A flat `@data` table of grain columns + `planned_spend` (intent, on every row); any other columns ride along untouched. `@week_col` names the week column when the plan is weekly. |
+| `MediaPlan` | One plan at a configurable grain. A flat `@data` table of grain columns + `planned_spend` (intent, on every row); any other columns ride along untouched. `@week_col` names the week column when the plan is weekly. Carries workflow metadata — see below. |
 | `ScenarioSet` | A base plan plus named scenarios derived from it, all at one grain. The comparison registry. |
 
 Verbs and helpers: `media_plan_from_df()`, `build_scenario()`, `roll_up()`,
 `check_coverage()`, `scenario_set()`, `add_scenario()`, `compare_scenarios()`,
-`line_item()`, `line_item_grain()`.
+`line_item()`, `line_item_grain()`, `status_levels()`.
+
+### Plan metadata
+
+| Slot | Required | Notes |
+|---|---|---|
+| `name` | **yes** | The formal plan name. Every plan carries one. |
+| `nickname` | no | Short working handle, e.g. `"aggressive TV"`. Preferred over `name` when labelling scenarios, so a set under development reads well without renaming the formal plans. |
+| `advertiser` | no | Client. **Inherited** by derived scenarios. |
+| `planner` | no | Person responsible. **Inherited** by derived scenarios. |
+| `status` | no | One of `status_levels()`: `in development`, `to review`, `approved`. Matched case-insensitively, stored canonically. |
+| `objective` | no | Free notes — e.g. what an optimizer was asked for. |
+
+**`status` is deliberately not inherited.** A scenario derived from an
+`approved` plan is not itself approved; carrying that forward would manufacture
+an approval nobody gave. It resets to `"in development"` — which is what a
+freshly derived scenario actually is — unless you pass something else.
 
 ### Edit forms
 

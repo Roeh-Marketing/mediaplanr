@@ -9,8 +9,8 @@ scenario_set(base, name = NULL)
 \arguments{
 \item{base}{A base \link{MediaPlan}, registered as the baseline scenario.}
 
-\item{name}{Name for the baseline scenario. Defaults to the plan's \verb{@name}
-when set, otherwise \code{"base"}.}
+\item{name}{Label for the baseline scenario. Defaults to the plan's
+\verb{@nickname} if set, otherwise its \verb{@name}.}
 }
 \value{
 A \link{ScenarioSet} containing one (baseline) scenario.

@@ -13,8 +13,20 @@
 NULL
 
 S7::method(print, MediaPlan) <- function(x, ...) {
-  cat(sprintf("<MediaPlan> %s  (%s)\n",
-              if (nzchar(x@name)) x@name else "<unnamed>", short_id(x@id)))
+  hdr <- x@name
+  if (length(x@nickname) && nzchar(x@nickname)) {
+    hdr <- paste0(hdr, ' ("', x@nickname, '")')
+  }
+  cat(sprintf("<MediaPlan> %s  (%s)\n", hdr, short_id(x@id)))
+  meta <- c(
+    advertiser = if (nzchar(x@advertiser)) x@advertiser else NA_character_,
+    planner    = if (nzchar(x@planner)) x@planner else NA_character_,
+    status     = if (nzchar(x@status)) x@status else NA_character_
+  )
+  meta <- meta[!is.na(meta)]
+  for (k in names(meta)) {
+    cat("  ", format(paste0(k, ":"), width = 11), " ", meta[[k]], "\n", sep = "")
+  }
   cat("  grain:  ", paste(x@grain, collapse = " + "), "\n", sep = "")
   cat("  rows:   ", nrow(x@data), "\n", sep = "")
   if (length(x@week_col) && nrow(x@data)) {

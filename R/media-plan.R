@@ -45,6 +45,33 @@ line_item_grain <- function(plan) {
   setdiff(plan@grain, plan@week_col)
 }
 
+#' The allowed plan workflow states
+#'
+#' `@status` tracks where a plan sits in the review workflow. The set is fixed
+#' so that typos error rather than creating a silent fourth state, and so a UI
+#' can build its dropdown from one source of truth. `""` means unset.
+#'
+#' @return A character vector of the valid, canonical status values.
+#' @examples
+#' status_levels()
+#' @export
+status_levels <- function() {
+  c("in development", "to review", "approved")
+}
+
+# Internal: normalise user-supplied status to canonical form, or error.
+.normalise_status <- function(status) {
+  if (is.null(status) || !length(status)) return("")
+  status <- trimws(tolower(as.character(status)[1]))
+  if (!nzchar(status)) return("")
+  if (!status %in% status_levels()) {
+    stop("`status` must be one of: ",
+         paste(status_levels(), collapse = ", "),
+         " (or \"\" for unset); got \"", status, "\".", call. = FALSE)
+  }
+  status
+}
+
 #' A media plan at a configurable grain
 #'
 #' `MediaPlan` is a typed wrapper around a flat plan table. `@data` is a plain,
@@ -78,7 +105,14 @@ line_item_grain <- function(plan) {
 #' @param id Opaque synthetic id (identity/lineage only).
 #' @param parent_id Id of the plan this one was derived from; empty for a root
 #'   plan.
-#' @param name Human-facing name.
+#' @param name Formal plan name. **Required** — every plan is named.
+#' @param nickname Optional short working handle, e.g. `"aggressive TV"`. Used
+#'   in preference to `@name` when labelling scenarios, so a set of in-progress
+#'   scenarios reads well without renaming the formal plan.
+#' @param advertiser Optional advertiser / client this plan belongs to.
+#' @param planner Optional person responsible for the plan.
+#' @param status Optional workflow state; one of [status_levels()], or `""` when
+#'   unset.
 #' @param objective Human-facing objective / notes.
 #' @return A `MediaPlan` S7 object.
 #' @export
@@ -90,8 +124,12 @@ MediaPlan <- S7::new_class(
     week_col  = S7::new_property(S7::class_character, default = character(0)),
     id        = S7::new_property(S7::class_character, default = quote(new_id("plan"))),
     parent_id = S7::new_property(S7::class_character, default = character(0)),
-    name      = S7::new_property(S7::class_character, default = ""),
-    objective = S7::new_property(S7::class_character, default = "")
+    name       = S7::new_property(S7::class_character, default = ""),
+    nickname   = S7::new_property(S7::class_character, default = ""),
+    advertiser = S7::new_property(S7::class_character, default = ""),
+    planner    = S7::new_property(S7::class_character, default = ""),
+    status     = S7::new_property(S7::class_character, default = ""),
+    objective  = S7::new_property(S7::class_character, default = "")
   ),
   validator = function(self) {
     d <- self@data
@@ -148,9 +186,33 @@ MediaPlan <- S7::new_class(
       errs <- c(errs, "@id must be a single non-empty string.")
     }
 
+    if (length(self@name) != 1 || is.na(self@name) || !nzchar(self@name)) {
+      errs <- c(errs, "@name is required: every plan must carry a formal name.")
+    }
+
+    for (fld in c("nickname", "advertiser", "planner", "status")) {
+      v <- S7::prop(self, fld)
+      if (length(v) > 1) {
+        errs <- c(errs, paste0("@", fld, " must be a single string."))
+      }
+    }
+
+    if (length(self@status) == 1 && nzchar(self@status) &&
+        !self@status %in% status_levels()) {
+      errs <- c(errs, paste0("@status must be one of: ",
+                             paste(status_levels(), collapse = ", "),
+                             " (or \"\" for unset)."))
+    }
+
     if (length(errs)) errs else NULL
   }
 )
+
+# Internal: the label to use for a plan in a scenario set -- the working handle
+# if there is one, otherwise the formal name.
+.plan_label <- function(plan) {
+  if (length(plan@nickname) && nzchar(plan@nickname)) plan@nickname else plan@name
+}
 
 #' Check a plan against a decomp (the one pairing operation)
 #'
@@ -182,7 +244,7 @@ MediaPlan <- S7::new_class(
 #' @examples
 #' p <- media_plan_from_df(
 #'   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-#'   grain = "channel"
+#'   grain = "channel", name = "Q3 plan"
 #' )
 #' check_coverage(p, data.frame(channel = c("TV", "Search")))
 #' @export
@@ -250,7 +312,13 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' @param planned_spend Name of the planned-spend column in `df`. Renamed to
 #'   `planned_spend`. Holds intent on every row, including past weeks. Default
 #'   `"planned_spend"`.
-#' @param name Human-facing plan name.
+#' @param name Formal plan name. **Required** — every plan carries one.
+#' @param nickname Optional short working handle used in preference to `name`
+#'   when labelling scenarios.
+#' @param advertiser Optional advertiser / client.
+#' @param planner Optional person responsible.
+#' @param status Optional workflow state; one of [status_levels()] (matched
+#'   case-insensitively) or `""` when unset.
 #' @param objective Human-facing objective / notes.
 #' @param id Optional explicit id; generated when `NULL`.
 #' @param parent_id Optional parent id for lineage.
@@ -260,12 +328,18 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #'   channel = c("TV", "Search", "Social"),
 #'   planned_spend = c(100, 80, 60)
 #' )
-#' media_plan_from_df(df, grain = "channel", name = "Q3 plan")
+#' media_plan_from_df(df, grain = "channel", name = "Q3 plan",
+#'                    advertiser = "Acme", status = "in development")
 #' @export
 media_plan_from_df <- function(df, grain, week = NULL,
                                planned_spend = "planned_spend",
-                               name = "", objective = "",
+                               name, nickname = "", advertiser = "",
+                               planner = "", status = "", objective = "",
                                id = NULL, parent_id = character(0)) {
+  if (missing(name) || !length(name) || is.na(name[1]) || !nzchar(name[1])) {
+    stop("`name` is required: every plan carries a formal name. Use ",
+         "`nickname` for a short working handle.", call. = FALSE)
+  }
   df <- as.data.frame(df, stringsAsFactors = FALSE)
 
   if (!planned_spend %in% names(df)) {
@@ -305,13 +379,17 @@ media_plan_from_df <- function(df, grain, week = NULL,
   }
 
   MediaPlan(
-    data      = df,
-    grain     = grain,
-    week_col  = week_col,
-    id        = id %||% new_id("plan"),
-    parent_id = parent_id,
-    name      = name,
-    objective = objective
+    data       = df,
+    grain      = grain,
+    week_col   = week_col,
+    id         = id %||% new_id("plan"),
+    parent_id  = parent_id,
+    name       = name,
+    nickname   = nickname,
+    advertiser = advertiser,
+    planner    = planner,
+    status     = .normalise_status(status),
+    objective  = objective
   )
 }
 
@@ -327,18 +405,19 @@ media_plan_from_df <- function(df, grain, week = NULL,
 #'
 #' @param plan A [MediaPlan].
 #' @param grain Character vector; a subset of `plan@grain` to aggregate to.
-#' @param name Optional name for the resulting plan.
+#' @param name Optional name for the resulting plan; defaults to the source
+#'   plan's name, since a rollup is the same plan viewed at a coarser grain.
 #' @return A new [MediaPlan] at the coarser grain.
 #' @examples
 #' p <- media_plan_from_df(
 #'   data.frame(channel = c("TV", "TV", "Search"),
 #'              partner = c("NBC", "ESPN", "Google"),
 #'              planned_spend = c(30, 20, 50)),
-#'   grain = c("channel", "partner")
+#'   grain = c("channel", "partner"), name = "Q3 plan"
 #' )
 #' roll_up(p, "channel")@data
 #' @export
-roll_up <- function(plan, grain, name = "") {
+roll_up <- function(plan, grain, name = NULL) {
   if (!S7::S7_inherits(plan, MediaPlan)) {
     stop("`plan` must be a MediaPlan.", call. = FALSE)
   }
@@ -361,12 +440,16 @@ roll_up <- function(plan, grain, name = "") {
   rownames(out) <- NULL
 
   MediaPlan(
-    data      = out,
-    grain     = grain,
-    week_col  = intersect(plan@week_col, grain),
-    id        = new_id("plan"),
-    parent_id = plan@id,
-    name      = name,
-    objective = plan@objective
+    data       = out,
+    grain      = grain,
+    week_col   = intersect(plan@week_col, grain),
+    id         = new_id("plan"),
+    parent_id  = plan@id,
+    name       = name %||% plan@name,
+    nickname   = plan@nickname,
+    advertiser = plan@advertiser,
+    planner    = plan@planner,
+    status     = plan@status,
+    objective  = plan@objective
   )
 }

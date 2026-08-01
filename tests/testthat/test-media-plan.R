@@ -17,7 +17,7 @@ test_that("media_plan_from_df builds a valid plan and keeps @data plain", {
 
 test_that("the planned_spend column is renamed to the canonical name", {
   df <- data.frame(channel = "TV", budget = 100)
-  p <- media_plan_from_df(df, grain = "channel", planned_spend = "budget")
+  p <- media_plan_from_df(df, grain = "channel", planned_spend = "budget", name = "t")
   expect_true("planned_spend" %in% names(p@data))
   expect_false("budget" %in% names(p@data))
   expect_equal(p@data$planned_spend, 100)
@@ -26,25 +26,25 @@ test_that("the planned_spend column is renamed to the canonical name", {
 test_that("other columns ride along on @data untouched", {
   df <- data.frame(channel = "TV", planned_spend = 100,
                    flight = "Q3", note = "brand", stringsAsFactors = FALSE)
-  p <- media_plan_from_df(df, grain = "channel")
+  p <- media_plan_from_df(df, grain = "channel", name = "t")
   expect_true(all(c("flight", "note") %in% names(p@data)))
   expect_equal(p@data$flight, "Q3")
 })
 
 test_that("structural problems are hard errors", {
   expect_error(
-    media_plan_from_df(data.frame(channel = "TV", planned_spend = -1), grain = "channel"),
+    media_plan_from_df(data.frame(channel = "TV", planned_spend = -1), grain = "channel", name = "t"),
     "non-negative")
   expect_error(
     media_plan_from_df(data.frame(channel = "TV", planned_spend = NA_real_),
-                       grain = "channel"),
+                       grain = "channel", name = "t"),
     "NA")
   expect_error(
-    media_plan_from_df(data.frame(channel = "TV", x = 1), grain = "channel"),
+    media_plan_from_df(data.frame(channel = "TV", x = 1), grain = "channel", name = "t"),
     "planned-spend column")
   expect_error(
     media_plan_from_df(data.frame(channel = c("TV", "TV"), planned_spend = c(1, 2)),
-                       grain = "channel"),
+                       grain = "channel", name = "t"),
     "duplicate rows")
 })
 
@@ -57,19 +57,19 @@ test_that("a week column is recorded and coerced to Date", {
   # character ISO dates are accepted and coerced
   df <- data.frame(channel = "TV", week = "2026-03-02", planned_spend = 10,
                    stringsAsFactors = FALSE)
-  p2 <- media_plan_from_df(df, grain = c("channel", "week"), week = "week")
+  p2 <- media_plan_from_df(df, grain = c("channel", "week"), week = "week", name = "t")
   expect_s3_class(p2@data$week, "Date")
 })
 
 test_that("the week column must be part of the grain and parseable", {
   df <- data.frame(channel = "TV", week = as.Date("2026-03-02"), planned_spend = 10)
   expect_error(
-    media_plan_from_df(df, grain = "channel", week = "week"),
+    media_plan_from_df(df, grain = "channel", week = "week", name = "t"),
     "must name a single column that is part of `grain`")
   bad <- data.frame(channel = "TV", week = "not-a-date", planned_spend = 10,
                     stringsAsFactors = FALSE)
   expect_error(
-    media_plan_from_df(bad, grain = c("channel", "week"), week = "week"),
+    media_plan_from_df(bad, grain = c("channel", "week"), week = "week", name = "t"),
     "could not be coerced to Date")
 })
 
@@ -186,4 +186,58 @@ test_that("line_item supports composite lookup against @data", {
   p <- fine_plan()
   d <- p@data
   expect_equal(d[line_item(d, p@grain) %in% "TV | B", ]$planned_spend, 30)
+})
+
+# ---- metadata: name, nickname, advertiser, planner, status ------------------
+
+test_that("name is required", {
+  df <- data.frame(channel = "TV", planned_spend = 10)
+  expect_error(media_plan_from_df(df, grain = "channel"), "`name` is required")
+  expect_error(media_plan_from_df(df, grain = "channel", name = ""),
+               "`name` is required")
+  # and the class itself refuses an unnamed plan
+  expect_error(MediaPlan(data = df, grain = "channel"), "@name is required")
+})
+
+test_that("optional metadata is stored and defaults to empty", {
+  p <- media_plan_from_df(
+    data.frame(channel = "TV", planned_spend = 10), grain = "channel",
+    name = "Q2 Brand Plan", nickname = "aggressive TV",
+    advertiser = "Acme", planner = "R. Roe", status = "to review")
+  expect_identical(p@name, "Q2 Brand Plan")
+  expect_identical(p@nickname, "aggressive TV")
+  expect_identical(p@advertiser, "Acme")
+  expect_identical(p@planner, "R. Roe")
+  expect_identical(p@status, "to review")
+
+  bare <- std_plan()
+  expect_identical(bare@nickname, "")
+  expect_identical(bare@advertiser, "")
+  expect_identical(bare@status, "")
+})
+
+test_that("status is constrained to the fixed vocabulary", {
+  expect_equal(status_levels(), c("in development", "to review", "approved"))
+  df <- data.frame(channel = "TV", planned_spend = 10)
+  expect_error(
+    media_plan_from_df(df, grain = "channel", name = "t", status = "aproved"),
+    "must be one of")
+  # matched case-insensitively and stored canonically
+  p <- media_plan_from_df(df, grain = "channel", name = "t", status = " APPROVED ")
+  expect_identical(p@status, "approved")
+  # the class rejects a non-canonical value set directly
+  expect_error(MediaPlan(data = df, grain = "channel", name = "t",
+                         status = "Approved"), "@status must be one of")
+})
+
+test_that("roll_up carries metadata and keeps the plan's name", {
+  p <- media_plan_from_df(
+    data.frame(channel = c("TV", "TV"), partner = c("A", "B"),
+               planned_spend = c(10, 20)),
+    grain = c("channel", "partner"), name = "Q2 Plan",
+    advertiser = "Acme", planner = "R. Roe", status = "approved")
+  r <- roll_up(p, "channel")
+  expect_identical(r@name, "Q2 Plan")
+  expect_identical(r@advertiser, "Acme")
+  expect_identical(r@status, "approved")
 })

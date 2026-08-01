@@ -27,13 +27,21 @@ plan_df <- data.frame(
   stringsAsFactors = FALSE
 )
 
+# `name` is required -- the formal plan name. The optional workflow slots
+# (nickname, advertiser, planner, status) are metadata the app can filter and
+# badge on; `status` is validated against status_levels().
 base_plan <- media_plan_from_df(
   plan_df,
-  grain = c("channel", "partner", "week"),
-  week  = "week",
-  name  = "Q2 base"
+  grain      = c("channel", "partner", "week"),
+  week       = "week",
+  name       = "Q2 2026 Brand Plan",
+  nickname   = "baseline",
+  advertiser = "Acme Corp",
+  planner    = "R. Roe",
+  status     = "approved"
 )
 print(base_plan)
+cat("\nvalid statuses:", paste(status_levels(), collapse = " / "), "\n")
 
 # @data is a plain, directly accessible data frame:
 str(base_plan@data)
@@ -67,14 +75,24 @@ cat("\nline items in the decomp but not the plan's history:",
 # subset of the grain, so this reaches every line item in one week.
 trim <- build_scenario(
   base_plan,
-  edits = list(target = list(week = as.Date("2026-04-06")), scale = 0.8),
-  name  = "Trim April 6 by 20%"
+  edits    = list(target = list(week = as.Date("2026-04-06")), scale = 0.8),
+  name     = "Q2 2026 Brand Plan -- April trim",
+  nickname = "trim 20%"
 )
 print(trim@data)
 
+# advertiser and planner are inherited; status is NOT. A scenario derived from
+# an approved plan is not itself approved -- it resets to "in development", so
+# no approval is ever manufactured by derivation.
+cat("\nparent status:", base_plan@status,
+    "| derived status:", trim@status, "\n")
+cat("advertiser inherited:", trim@advertiser,
+    "| planner inherited:", trim@planner, "\n")
+
 # "Set the total budget", holding the current mix:
 resized <- build_scenario(base_plan, edits = list(total = 150),
-                          name = "Budget 150")
+                          name = "Q2 2026 Brand Plan -- 150 budget",
+                          nickname = "budget 150")
 
 # An allocation computed elsewhere (e.g. by mrmopt::opt_mix()) comes back in
 # through the same door -- mediaplanr does not care how the numbers were chosen.
@@ -86,7 +104,8 @@ opt_plan <- build_scenario(
     week    = as.Date(c("2026-04-06", "2026-04-06", "2026-04-06")),
     planned_spend   = c(40, 20, 20)
   ),
-  name = "Optimized (external)",
+  name = "Q2 2026 Brand Plan -- optimized",
+  nickname = "optimized",
   objective = "max KPI @ 80 for w/c Apr 6, via mrmopt::opt_mix()"
 )
 
@@ -102,7 +121,9 @@ by_channel <- roll_up(base_plan, c("channel", "week"), name = "channel view")
 print(by_channel@data)
 
 # ---- 5. Collect into a comparable set ---------------------------------------
-set <- scenario_set(base_plan, name = "Base")
+# Scenario labels prefer @nickname over the formal @name, so a set under
+# development reads well without renaming the formal plans.
+set <- scenario_set(base_plan)
 set <- add_scenario(set, trim)
 set <- add_scenario(set, resized)
 set <- add_scenario(set, opt_plan)

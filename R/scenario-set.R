@@ -63,8 +63,8 @@ ScenarioSet <- S7::new_class(
 #' Start a scenario set from a base plan
 #'
 #' @param base A base [MediaPlan], registered as the baseline scenario.
-#' @param name Name for the baseline scenario. Defaults to the plan's `@name`
-#'   when set, otherwise `"base"`.
+#' @param name Label for the baseline scenario. Defaults to the plan's
+#'   `@nickname` if set, otherwise its `@name`.
 #' @return A [ScenarioSet] containing one (baseline) scenario.
 #' @examples
 #' base <- media_plan_from_df(
@@ -77,7 +77,7 @@ scenario_set <- function(base, name = NULL) {
   if (!S7::S7_inherits(base, MediaPlan)) {
     stop("`base` must be a MediaPlan.", call. = FALSE)
   }
-  nm <- name %||% (if (nzchar(base@name)) base@name else "base")
+  nm <- name %||% .plan_label(base)
   ScenarioSet(
     scenarios = stats::setNames(list(base), nm),
     grain     = base@grain,
@@ -93,8 +93,8 @@ scenario_set <- function(base, name = NULL) {
 #'
 #' @param set A [ScenarioSet].
 #' @param plan A [MediaPlan] at the same grain as the set.
-#' @param name Optional scenario name; defaults to the plan's `@name`, then to
-#'   `"scenario_N"`. A unique suffix is appended on collision.
+#' @param name Optional scenario label; defaults to the plan's `@nickname` if
+#'   set, otherwise its `@name`. A unique suffix is appended on collision.
 #' @return A new [ScenarioSet] with the scenario appended.
 #' @export
 add_scenario <- function(set, plan, name = NULL) {
@@ -111,8 +111,7 @@ add_scenario <- function(set, plan, name = NULL) {
   }
 
   existing <- names(set@scenarios)
-  nm <- name %||% (if (nzchar(plan@name)) plan@name else
-    paste0("scenario_", length(existing) + 1L))
+  nm <- name %||% .plan_label(plan)
   if (nm %in% existing) {
     k <- 2L
     repeat {

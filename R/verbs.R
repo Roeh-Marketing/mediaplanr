@@ -192,9 +192,28 @@
 #' **3. Named numeric vector** — keyed by [line_item()], e.g. `c("TV" = 100)`.
 #' Terse for one or two cells at a simple grain.
 #'
+#' @section Metadata on a derived scenario:
+#' `advertiser` and `planner` are **inherited** from the parent — they describe
+#' the engagement and the person working, not the individual scenario — and can
+#' be overridden per call.
+#'
+#' `status` is deliberately **not** inherited. A scenario derived from an
+#' `"approved"` plan is not itself approved, and silently carrying that forward
+#' would manufacture an approval nobody gave. It resets to `"in development"`,
+#' which is what a freshly derived scenario actually is, unless you say
+#' otherwise.
+#'
+#' `name` is required and `nickname` is per-scenario, so neither is inherited.
+#'
 #' @param plan The base [MediaPlan].
 #' @param edits The edits to apply; see *Edit forms*.
-#' @param name Human-facing name for the new scenario.
+#' @param name Formal name for the new scenario. **Required**.
+#' @param nickname Optional short working handle. Preferred over `name` when
+#'   labelling the scenario in a [ScenarioSet].
+#' @param advertiser Optional override; defaults to the parent's advertiser.
+#' @param planner Optional override; defaults to the parent's planner.
+#' @param status Workflow state for the new scenario; defaults to
+#'   `"in development"`. Never inherited from the parent.
 #' @param objective Human-facing objective / notes for the new scenario.
 #' @param ... Unused; for method extension.
 #' @return A new [MediaPlan] at the base plan's grain, with `@parent_id` set.
@@ -207,10 +226,10 @@
 #'
 #' # "Increase Search by 20%" — the caller states intent, R does the math
 #' build_scenario(base, edits = list(target = list(channel = "Search"),
-#'                                   scale = 1.2))
+#'                                   scale = 1.2), name = "Search +20%")
 #'
 #' # "Set the total budget to 200", holding the current mix
-#' build_scenario(base, edits = list(total = 200))
+#' build_scenario(base, edits = list(total = 200), name = "Budget 200")
 #'
 #' # "Move 10 from TV to Search" — ops apply in order
 #' build_scenario(base, edits = list(
@@ -229,20 +248,34 @@
 #' build_scenario(base, edits = c("Search" = 120), name = "Search boost")
 #' @export
 build_scenario <- S7::new_generic("build_scenario", "plan",
-  function(plan, edits, name = "", objective = "", ...) S7::S7_dispatch())
+  function(plan, edits, name, nickname = "", advertiser = NULL, planner = NULL,
+           status = "in development", objective = "", ...) S7::S7_dispatch())
 
-S7::method(build_scenario, MediaPlan) <- function(plan, edits, name = "", objective = "", ...) {
+S7::method(build_scenario, MediaPlan) <- function(plan, edits, name,
+    nickname = "", advertiser = NULL, planner = NULL,
+    status = "in development", objective = "", ...) {
   if (missing(edits) || is.null(edits)) {
     stop("`edits` is required: supply a list of operations, a data frame ",
          "(grain columns + planned_spend), or a named numeric vector keyed ",
          "by line_item().", call. = FALSE)
   }
+  if (missing(name) || !length(name) || is.na(name[1]) || !nzchar(name[1])) {
+    stop("`name` is required: every scenario carries a formal name. Use ",
+         "`nickname` for a short working handle.", call. = FALSE)
+  }
   MediaPlan(
-    data      = .apply_edits(plan, edits),
-    grain     = plan@grain,
-    id        = new_id("plan"),
-    parent_id = plan@id,
-    name      = name,
-    objective = objective
+    data       = .apply_edits(plan, edits),
+    grain      = plan@grain,
+    week_col   = plan@week_col,
+    id         = new_id("plan"),
+    parent_id  = plan@id,
+    name       = name,
+    nickname   = nickname,
+    # Inherited: these describe the engagement, not the scenario.
+    advertiser = advertiser %||% plan@advertiser,
+    planner    = planner %||% plan@planner,
+    # NOT inherited: a derivative of an approved plan is not itself approved.
+    status     = .normalise_status(status),
+    objective  = objective
   )
 }
