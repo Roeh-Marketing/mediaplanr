@@ -9,9 +9,7 @@ build_scenario(plan, edits, name = "", objective = "", ...)
 \arguments{
 \item{plan}{The base \link{MediaPlan}.}
 
-\item{edits}{Either a data frame with the grain columns plus a
-\code{planned_spend} column (matched cells are overridden), or a named numeric
-vector keyed by \code{\link[=grain_key]{grain_key()}}.}
+\item{edits}{The edits to apply; see \emph{Edit forms}.}
 
 \item{name}{Human-facing name for the new scenario.}
 
@@ -23,30 +21,78 @@ vector keyed by \code{\link[=grain_key]{grain_key()}}.}
 A new \link{MediaPlan} at the base plan's grain, with \verb{@parent_id} set.
 }
 \description{
-Produces a new \link{MediaPlan} by overriding \code{planned_spend} for the named grain
-cells and leaving the rest untouched. The returned plan carries \verb{@parent_id}
-set to the base plan's id, so lineage is preserved through every derivation,
-and the base plan is never mutated.
+Produces a new \link{MediaPlan} by changing \code{planned_spend} and leaving everything
+else untouched. The returned plan carries \verb{@parent_id} set to the base plan's
+id, so lineage is preserved through every derivation, and the base plan is
+never mutated.
 }
 \details{
 \code{mediaplanr} deliberately does not forecast or optimize: it expresses \emph{plan
 intent}. To build a scenario from an optimizer, run the optimization
-elsewhere (e.g. \code{mrmopt::opt_mix()}) and pass the resulting spend allocation
-in as \code{edits}.
+elsewhere (e.g. \code{mrmopt::opt_mix()}) and pass the resulting planned_spend allocation
+in as an absolute \code{edits} data frame.
 }
+\section{Edit forms}{
+
+\code{edits} accepts three shapes.
+
+\strong{1. Operations} — a list of ops, or a single op, applied in order. This is
+the form to drive from a UI or an LLM tool call: the caller states the
+\emph{operation} and the arithmetic happens here, exactly.
+
+Each op is \verb{list(target = <named list>, <one of set/scale/delta/total>)}.
+
+\describe{
+\item{\code{target}}{Named list of grain column = value(s), naming any \strong{subset}
+of the grain — so \code{list(week = "2026-03-09")} hits every channel in that
+week. Values may be vectors. Omit \code{target} to match the whole plan.
+Targeting a value that does not exist is an error, never a silent no-op.}
+\item{\code{set}}{Absolute planned_spend, applied to \strong{each} matched cell.}
+\item{\code{scale}}{Multiply each matched cell (e.g. \code{1.2} = +20\%).}
+\item{\code{delta}}{Add to each matched cell (may be negative).}
+\item{\code{total}}{Make the matched cells \strong{sum} to this, holding their
+current mix. This is the "set the budget" operation.}
+}
+
+Note the deliberate split: \code{set} is per-cell, \code{total} is across cells. So
+\code{list(target = list(channel = "TV"), set = 50)} sets every TV row to 50,
+while \code{list(target = list(channel = "TV"), total = 50)} makes TV's rows add
+up to 50.
+
+\strong{2. Data frame} — grain columns + \code{planned_spend}; matched cells are
+overridden with those absolute values. Natural for optimizer output.
+
+\strong{3. Named numeric vector} — keyed by \code{\link[=grain_key]{grain_key()}}, e.g. \code{c("TV" = 100)}.
+Terse for one or two cells at a simple grain.
+}
+
 \examples{
 base <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
+  data.frame(channel = c("TV", "Search", "Social"),
+             planned_spend = c(80, 40, 40)),
   grain = "channel", name = "base"
 )
 
-# Override one cell
-build_scenario(base, edits = c("Search" = 120), name = "Search boost")
+# "Increase Search by 20\%" — the caller states intent, R does the math
+build_scenario(base, edits = list(target = list(channel = "Search"),
+                                  scale = 1.2))
 
-# Or hand in an allocation computed elsewhere (e.g. by mrmopt::opt_mix())
+# "Set the total budget to 200", holding the current mix
+build_scenario(base, edits = list(total = 200))
+
+# "Move 10 from TV to Search" — ops apply in order
+build_scenario(base, edits = list(
+  list(target = list(channel = "TV"),     delta = -10),
+  list(target = list(channel = "Search"), delta =  10)
+), name = "shift 10")
+
+# Absolute allocation (e.g. from mrmopt::opt_mix())
 build_scenario(
   base,
   edits = data.frame(channel = c("TV", "Search"), planned_spend = c(50, 70)),
   name = "Optimized"
 )
+
+# Terse single-cell override
+build_scenario(base, edits = c("Search" = 120), name = "Search boost")
 }
