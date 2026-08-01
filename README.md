@@ -27,9 +27,14 @@ the plan object, and modeling decisions never leak into a container.
 
 ## Two ideas worth knowing first
 
-**The week is first-class.** `@week_col` names the week column, which is typed
-as `Date` and validated, rather than being just another key column. A weekly
-plan is `grain = c("channel", "partner", "week")` with `week = "week"`.
+**A plan holds intent, and is blind to past and future.** `planned_spend` is
+what was *intended* for a row — including for weeks that have already passed.
+It is never what actually happened; actualised spend and attributed KPI live in
+the decomp. "Historical", "future", under-delivery and over-delivery are not
+properties of a plan at all: they exist only for a **plan-decomp pairing**, and
+[`check_coverage()`](#) is the one such operation the package provides. That is
+also why editing a row for a past week is ordinary — you are revising what was
+planned, and the plan cannot know that week has passed.
 
 **A line item is the time-free identity**: channel + partner + tactic. It's what
 the decomp constrains and what response models attach to. A row is a line item
@@ -48,13 +53,20 @@ devtools::install_local("mediaplanr")
 ```r
 library(mediaplanr)
 
-# 1. Upload -> validated plan
+# 1. Upload -> validated plan. Knows nothing about decomps.
 base <- media_plan_from_df(
   plan_df,
   grain = c("channel", "partner", "week"),
   week  = "week",
   name  = "Q2 base"
 )
+
+# 1b. Pair it with a decomp: do the plan's pre-through-date rows account for
+#     every line item the model measured? Warns and returns what is missing;
+#     re-run on a decomp refresh without rebuilding the plan. New line items
+#     after the through-date are expected and never flagged.
+missing <- check_coverage(base, decomp_line_items,
+                          through = as.Date("2026-03-15"))
 
 # 2. Derive scenarios. The base is never mutated; each scenario records
 #    its parent. State the operation -- the arithmetic happens in R.
@@ -96,8 +108,8 @@ source(system.file("examples", "mvp-flow.R", package = "mediaplanr"))
 | `ScenarioSet` | A base plan plus named scenarios derived from it, all at one grain. The comparison registry. |
 
 Verbs and helpers: `media_plan_from_df()`, `build_scenario()`, `roll_up()`,
-`scenario_set()`, `add_scenario()`, `compare_scenarios()`, `line_item()`,
-`line_item_grain()`.
+`check_coverage()`, `scenario_set()`, `add_scenario()`, `compare_scenarios()`,
+`line_item()`, `line_item_grain()`.
 
 ### Edit forms
 
@@ -131,9 +143,13 @@ budget-neutral shift is two ops.
   a verb grammar at the boundaries; it does not take the data frame away.
 - **Synthetic ids for identity/lineage** (`@id` + `@parent_id`), opaque on
   purpose; human meaning lives in `@name` / `@objective`.
-- **Validation is the point.** The validator runs on construction and on every
-  edit, so an invalid plan cannot exist and every consumer can assume clean
-  input.
+- **Structural validity is enforced; external consistency is reported.**
+  Negative spend, duplicate rows, and missing columns are hard errors, so an
+  invalid plan cannot exist. Decomp coverage is a mismatch between two valid
+  artifacts, so it warns — an upload surfaces it in the UI rather than locking
+  the user out.
+- **Past and future belong to the pairing, not the plan.** A plan holds intent
+  only, so it cannot and does not classify its own rows. See above.
 
 ## Growth path (not now)
 

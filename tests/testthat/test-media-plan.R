@@ -79,6 +79,78 @@ test_that("line_item_grain drops the week", {
   expect_identical(line_item_grain(std_plan()), "channel")
 })
 
+# ---- check_coverage (the plan-decomp pairing) -------------------------------
+
+test_that("missing decomp line items warn and are returned", {
+  p <- weekly_plan()
+  decomp <- data.frame(channel = c("TV", "TV", "Search"),
+                       partner = c("NBC", "ESPN", "Google"),
+                       stringsAsFactors = FALSE)
+  expect_warning(
+    missing <- check_coverage(p, decomp, through = as.Date("2026-03-15")),
+    "missing 1 line item\\(s\\).*TV \\| ESPN")
+  expect_equal(missing, "TV | ESPN")
+})
+
+test_that("complete coverage is silent and returns nothing missing", {
+  p <- weekly_plan()
+  decomp <- data.frame(channel = c("TV", "Search"),
+                       partner = c("NBC", "Google"), stringsAsFactors = FALSE)
+  expect_no_warning(
+    missing <- check_coverage(p, decomp, through = as.Date("2026-03-15")))
+  expect_equal(missing, character(0))
+})
+
+test_that("new line items in the future are never flagged", {
+  # TV|Hulu exists only after the through-date; it must not be reported
+  p <- weekly_plan()
+  decomp <- data.frame(channel = c("TV", "Search"),
+                       partner = c("NBC", "Google"), stringsAsFactors = FALSE)
+  missing <- expect_no_warning(
+    check_coverage(p, decomp, through = as.Date("2026-03-15")))
+  expect_false("TV | Hulu" %in% missing)
+})
+
+test_that("through= scopes the check to rows before it", {
+  # TV|Hulu is only in the future, so requiring it warns
+  p <- weekly_plan()
+  expect_warning(
+    check_coverage(p, data.frame(channel = "TV", partner = "Hulu",
+                                 stringsAsFactors = FALSE),
+                   through = as.Date("2026-03-15")),
+    "TV \\| Hulu")
+  # without through=, the whole plan counts and it is covered
+  expect_no_warning(
+    check_coverage(p, data.frame(channel = "TV", partner = "Hulu",
+                                 stringsAsFactors = FALSE)))
+})
+
+test_that("decomp may name a subset of the line item grain", {
+  p <- weekly_plan()
+  expect_warning(
+    check_coverage(p, data.frame(channel = c("TV", "Search", "Audio"),
+                                 stringsAsFactors = FALSE),
+                   through = as.Date("2026-03-15")),
+    "Audio")
+})
+
+test_that("check_coverage never errors on a mismatch, only warns", {
+  p <- weekly_plan()
+  missing <- suppressWarnings(
+    check_coverage(p, data.frame(channel = "Nowhere", stringsAsFactors = FALSE)))
+  expect_equal(missing, "Nowhere")
+})
+
+test_that("a decomp sharing no columns with the line item grain warns clearly", {
+  expect_warning(check_coverage(std_plan(), data.frame(vendor = "X")),
+                 "shares no line item columns")
+})
+
+test_that("media_plan_from_df knows nothing about decomps", {
+  expect_false(any(c("decomp", "decomp_through") %in%
+                     names(formals(media_plan_from_df))))
+})
+
 # ---- roll_up ----------------------------------------------------------------
 
 test_that("roll_up aggregates planned_spend to a coarser grain", {

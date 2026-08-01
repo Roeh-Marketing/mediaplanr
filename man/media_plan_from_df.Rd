@@ -47,6 +47,8 @@ to \code{Date}, and runs the full validator on construction.
 }
 \details{
 It knows nothing about decomps: a plan is constructed from the plan alone.
+To check a plan against a decomp, call \code{\link[=check_coverage]{check_coverage()}} — which can then be
+re-run whenever the decomp refreshes, without rebuilding the plan.
 }
 \examples{
 df <- data.frame(

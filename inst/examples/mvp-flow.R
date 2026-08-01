@@ -12,7 +12,11 @@
 library(mediaplanr)
 
 # ---- 1. Upload -> validated plan --------------------------------------------
-# The week is first-class: named by `week=`, typed as Date, and validated.
+# A plan holds PLANNED values only -- including for weeks already past. Those
+# rows are what was *intended*, not what happened; actuals live in the decomp.
+# So a plan on its own is blind to past and future: those concepts only exist
+# for a plan-decomp PAIRING (see step 2).
+DECOMP_THROUGH <- as.Date("2026-03-15")
 
 plan_df <- data.frame(
   week    = as.Date(c("2026-03-02", "2026-03-02",
@@ -40,7 +44,25 @@ cat("distinct line items:",
     paste(unique(line_item(base_plan@data, line_item_grain(base_plan))),
           collapse = " / "), "\n")
 
-# ---- 2. Scenarios by edit ---------------------------------------------------
+# ---- 2. Pair the plan with a decomp -----------------------------------------
+# The one pairing operation the package provides: does the plan account for
+# everything the model measured? Warns rather than errors -- both artifacts are
+# valid, it is their pairing that disagrees -- and returns the missing items so
+# a UI can render them. Re-run it whenever the decomp refreshes; no need to
+# rebuild the plan.
+decomp <- data.frame(
+  channel = c("TV", "Search", "Audio"),
+  partner = c("NBC", "Google", "Spotify"),
+  stringsAsFactors = FALSE
+)
+missing <- check_coverage(base_plan, decomp, through = DECOMP_THROUGH)
+cat("\nline items in the decomp but not the plan's history:",
+    if (length(missing)) paste(missing, collapse = ", ") else "(none)", "\n")
+
+# Note what is NOT reported: TV | Hulu, a new partner in the future portion.
+# New line items after the through-date are expected, never flagged.
+
+# ---- 3. Scenarios by edit ---------------------------------------------------
 # Operations: state intent, the arithmetic happens in R. `target` may name any
 # subset of the grain, so this reaches every line item in one week.
 trim <- build_scenario(
@@ -73,20 +95,20 @@ cat("\nbase unchanged:", identical(base_plan@data$planned_spend, plan_df$planned
 cat("parent of 'Optimized' is the base plan:",
     identical(opt_plan@parent_id, base_plan@id), "\n")
 
-# ---- 3. Roll up to find a model ---------------------------------------------
+# ---- 4. Roll up to find a model ---------------------------------------------
 # TV | Hulu is new and has no fitted model. Roll up to the next coarsest level
 # to find one; the app does the model lookup and any prior specification.
 by_channel <- roll_up(base_plan, c("channel", "week"), name = "channel view")
 print(by_channel@data)
 
-# ---- 4. Collect into a comparable set ---------------------------------------
+# ---- 5. Collect into a comparable set ---------------------------------------
 set <- scenario_set(base_plan, name = "Base")
 set <- add_scenario(set, trim)
 set <- add_scenario(set, resized)
 set <- add_scenario(set, opt_plan)
 print(set)
 
-# ---- 5. Compare (what the app charts / exports) -----------------------------
+# ---- 6. Compare (what the app charts / exports) -----------------------------
 cat("\n-- summary (one row per scenario, deltas vs base) --\n")
 print(compare_scenarios(set, "summary"))
 

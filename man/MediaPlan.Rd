@@ -43,8 +43,17 @@ the class adds a validator, a synthetic identity (\verb{@id}), and lineage
 (\verb{@parent_id}).
 }
 \details{
-\verb{@week_col} names the week column when the plan is weekly, so the time
-dimension is typed and validated rather than being an ordinary key column.
+A plan holds \strong{planned values only} — \code{planned_spend} is what was intended
+for a row, including for weeks that have already passed. It is never what
+actually happened; actualised spend and attributed KPI live in the decomp.
+
+A plan on its own is therefore \strong{blind to past and future}. "Historical",
+"future", under-delivery and over-delivery are not properties of a plan: they
+only exist for a \emph{pairing} of a plan with a decomp that reports actuals
+through a given date. That is why no through-date is stored here, and why
+editing a row for a past week is a perfectly ordinary thing to do — you are
+revising what was planned, and the plan cannot know that week has passed.
+See \code{\link[=check_coverage]{check_coverage()}} for the one pairing operation the package provides.
 
 Any other columns on the supplied data frame are carried through untouched.
 

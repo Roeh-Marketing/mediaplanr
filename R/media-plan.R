@@ -52,8 +52,17 @@ line_item_grain <- function(plan) {
 #' the class adds a validator, a synthetic identity (`@id`), and lineage
 #' (`@parent_id`).
 #'
-#' `@week_col` names the week column when the plan is weekly, so the time
-#' dimension is typed and validated rather than being an ordinary key column.
+#' A plan holds **planned values only** — `planned_spend` is what was intended
+#' for a row, including for weeks that have already passed. It is never what
+#' actually happened; actualised spend and attributed KPI live in the decomp.
+#'
+#' A plan on its own is therefore **blind to past and future**. "Historical",
+#' "future", under-delivery and over-delivery are not properties of a plan: they
+#' only exist for a *pairing* of a plan with a decomp that reports actuals
+#' through a given date. That is why no through-date is stored here, and why
+#' editing a row for a past week is a perfectly ordinary thing to do — you are
+#' revising what was planned, and the plan cannot know that week has passed.
+#' See [check_coverage()] for the one pairing operation the package provides.
 #'
 #' Any other columns on the supplied data frame are carried through untouched.
 #'
@@ -143,6 +152,85 @@ MediaPlan <- S7::new_class(
   }
 )
 
+#' Check a plan against a decomp (the one pairing operation)
+#'
+#' A plan on its own holds intent and is blind to what has already happened.
+#' Pair it with a decomp — which reports actualised spend and attributed KPI
+#' through a date — and questions about history become answerable. This is the
+#' first of those: **does the plan account for everything the model measured?**
+#'
+#' Every line item in `decomp` should appear in the plan rows dated before
+#' `through`. Missing ones are reported. Line items the plan has and the decomp
+#' does not are *never* flagged: the future portion is expected to introduce new
+#' partners and tactics, and the historical portion may carry line items the
+#' decomp never modelled.
+#'
+#' This **warns rather than errors**. Both artifacts are individually valid; it
+#' is their pairing that disagrees, so an app should surface the mismatch and
+#' let the user resolve it, not refuse to load the plan.
+#'
+#' @param plan A [MediaPlan].
+#' @param decomp A data frame of the decomp's line items. May name any subset of
+#'   [line_item_grain()] — a channel-only decomp checks channels and ignores
+#'   partners.
+#' @param through Optional `Date`. Only plan rows with `week < through` are
+#'   considered. Without it (or on a plan with no week column) the whole plan is
+#'   considered.
+#' @return Invisibly, a character vector of the decomp line items missing from
+#'   the plan — empty when coverage is complete. Returned so a UI can render
+#'   them; the warning is for interactive use.
+#' @examples
+#' p <- media_plan_from_df(
+#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
+#'   grain = "channel"
+#' )
+#' check_coverage(p, data.frame(channel = c("TV", "Search")))
+#' @export
+check_coverage <- function(plan, decomp, through = NULL) {
+  if (!S7::S7_inherits(plan, MediaPlan)) {
+    stop("`plan` must be a MediaPlan.", call. = FALSE)
+  }
+  if (!is.data.frame(decomp)) {
+    stop("`decomp` must be a data frame of line item columns.", call. = FALSE)
+  }
+
+  li_grain <- line_item_grain(plan)
+  cols <- intersect(names(decomp), li_grain)
+  if (!length(cols)) {
+    warning("`decomp` shares no line item columns with the plan's line item ",
+            "grain (", paste(li_grain, collapse = ", "), "); not checked.",
+            call. = FALSE)
+    return(invisible(character(0)))
+  }
+
+  d <- plan@data
+  if (!is.null(through)) {
+    through <- as.Date(through)
+    if (is.na(through)) stop("`through` must be a Date.", call. = FALSE)
+    if (!length(plan@week_col)) {
+      warning("`through` was supplied but the plan has no week column; ",
+              "checking the whole plan.", call. = FALSE)
+    } else {
+      d <- d[d[[plan@week_col]] < through, , drop = FALSE]
+      if (!nrow(d)) {
+        warning("no plan rows fall before ", format(through), "; not checked.",
+                call. = FALSE)
+        return(invisible(character(0)))
+      }
+    }
+  }
+
+  missing <- setdiff(unique(line_item(decomp, cols)), unique(line_item(d, cols)))
+  if (length(missing)) {
+    warning("the plan is missing ", length(missing),
+            " line item(s) present in the decomp: ",
+            paste(utils::head(missing, 8), collapse = "; "),
+            if (length(missing) > 8) paste0(" (+", length(missing) - 8, " more)") else "",
+            call. = FALSE)
+  }
+  invisible(missing)
+}
+
 #' Build a validated media plan from a data frame
 #'
 #' The primary entry point for turning an uploaded plan into a [MediaPlan].
@@ -150,6 +238,8 @@ MediaPlan <- S7::new_class(
 #' to `Date`, and runs the full validator on construction.
 #'
 #' It knows nothing about decomps: a plan is constructed from the plan alone.
+#' To check a plan against a decomp, call [check_coverage()] — which can then be
+#' re-run whenever the decomp refreshes, without rebuilding the plan.
 #'
 #' @param df A data frame holding the plan: grain columns plus a spend column.
 #'   All other columns are preserved on `@data` untouched.
