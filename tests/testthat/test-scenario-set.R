@@ -116,3 +116,83 @@ test_that("labels fall back to the formal name when there is no nickname", {
   set <- scenario_set(std_plan(name = "Formal Name"))
   expect_identical(names(set@scenarios), "Formal Name")
 })
+
+# ---- cell comparison over the union of grain cells ---------------------------
+# Scenarios authored independently (one per workbook tab) need not share a row
+# set. Regression: additions used to report NA, and drops vanished from the
+# table entirely -- so a cut read as money appearing from nowhere.
+
+indep <- function(nick, d) {
+  media_plan_from_df(d, grain = c("channel", "partner"),
+                     name = "Q2 Plan", nickname = nick)
+}
+
+test_that("a line item added by a scenario gets a real delta, not NA", {
+  base <- indep("baseline", data.frame(
+    channel = c("TV", "Search"), partner = c("NBC", "Google"),
+    planned_spend = c(80, 40), stringsAsFactors = FALSE))
+  added <- indep("test Hulu", data.frame(
+    channel = c("TV", "Search", "TV"), partner = c("NBC", "Google", "Hulu"),
+    planned_spend = c(60, 40, 20), stringsAsFactors = FALSE))
+
+  cell <- compare_scenarios(add_scenario(scenario_set(base), added), "cell")
+  hulu <- cell[cell$scenario == "test Hulu" & cell$partner == "Hulu", ]
+  expect_false(is.na(hulu$spend_vs_base))
+  expect_equal(hulu$spend_vs_base, 20)
+  # and the base gets a zero-filled row for it
+  base_hulu <- cell[cell$scenario == "baseline" & cell$partner == "Hulu", ]
+  expect_equal(base_hulu$planned_spend, 0)
+})
+
+test_that("a line item dropped by a scenario still appears, as a negative delta", {
+  base <- indep("baseline", data.frame(
+    channel = c("TV", "Search"), partner = c("NBC", "Google"),
+    planned_spend = c(80, 40), stringsAsFactors = FALSE))
+  dropped <- indep("no search", data.frame(
+    channel = "TV", partner = "NBC",
+    planned_spend = 120, stringsAsFactors = FALSE))
+
+  cell <- compare_scenarios(add_scenario(scenario_set(base), dropped), "cell")
+  gone <- cell[cell$scenario == "no search" & cell$partner == "Google", ]
+  expect_equal(nrow(gone), 1L)          # the row exists at all
+  expect_equal(gone$planned_spend, 0)
+  expect_equal(gone$spend_vs_base, -40)
+})
+
+test_that("the cell table is a rectangular grid over the union", {
+  base <- indep("baseline", data.frame(
+    channel = c("TV", "Search"), partner = c("NBC", "Google"),
+    planned_spend = c(80, 40), stringsAsFactors = FALSE))
+  other <- indep("other", data.frame(
+    channel = "TV", partner = "Hulu",
+    planned_spend = 50, stringsAsFactors = FALSE))
+
+  set <- add_scenario(scenario_set(base), other)
+  cell <- compare_scenarios(set, "cell")
+  expect_equal(nrow(cell), 2L * 3L)     # 2 scenarios x 3 union line items
+  # every scenario carries every line item exactly once
+  for (nm in unique(cell$scenario)) {
+    expect_equal(nrow(cell[cell$scenario == nm, ]), 3L)
+  }
+  # shares still sum to 1 within each scenario
+  for (nm in unique(cell$scenario)) {
+    expect_equal(sum(cell$share_of_total[cell$scenario == nm]), 1)
+  }
+})
+
+test_that("totals are unaffected by zero-filling", {
+  base <- indep("baseline", data.frame(
+    channel = c("TV", "Search"), partner = c("NBC", "Google"),
+    planned_spend = c(80, 40), stringsAsFactors = FALSE))
+  other <- indep("other", data.frame(
+    channel = "TV", partner = "Hulu",
+    planned_spend = 50, stringsAsFactors = FALSE))
+  set <- add_scenario(scenario_set(base), other)
+
+  cell <- compare_scenarios(set, "cell")
+  summ <- compare_scenarios(set, "summary")
+  for (nm in unique(cell$scenario)) {
+    expect_equal(sum(cell$planned_spend[cell$scenario == nm]),
+                 summ$total_planned_spend[summ$scenario == nm])
+  }
+})

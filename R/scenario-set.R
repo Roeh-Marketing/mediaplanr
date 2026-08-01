@@ -139,9 +139,18 @@ add_scenario <- function(set, plan, name = NULL) {
 #'
 #' * `"summary"` (default): one row per scenario — total planned_spend and the
 #'   delta versus the baseline.
-#' * `"cell"`: one row per scenario x plan row — planned_spend, that row's
-#'   share of the scenario total, and the delta versus the same cell in the
-#'   baseline.
+#' * `"cell"`: one row per scenario x grain cell, over the **union** of grain
+#'   cells across the whole set — planned spend, that cell's share of the
+#'   scenario total, and the delta versus the same cell in the baseline.
+#'
+#' The union matters when scenarios are authored independently rather than
+#' derived — one plan per tab of a workbook, say — because their row sets need
+#' not match. A cell absent from a scenario means it plans no spend there, so it
+#' is zero-filled rather than omitted. Without that, a scenario that *drops* a
+#' line item would simply have no row for it and the cut would be invisible,
+#' while one that *adds* a line item would report `NA` instead of the full
+#' amount. Scenarios built with [build_scenario()] always share their parent's
+#' row set, so for those the result is unchanged.
 #'
 #' Predicted outcomes are not computed here. To compare modeled volume, forecast
 #' the scenarios with `mrmopt` and join the result on `scenario` + the grain
@@ -193,21 +202,44 @@ compare_scenarios <- function(set, level = c("summary", "cell")) {
     return(out)
   }
 
-  # level == "cell"
-  base_plan <- scen[[set@base_name]]
+  # level == "cell" -- compared over the UNION of grain cells across the set.
+  #
+  # Scenarios built with build_scenario() always share their parent's row set,
+  # but scenarios authored independently (e.g. one per tab of a workbook) need
+  # not: one may add a line item, another may drop one. Comparing only each
+  # scenario's own rows made an addition report NA and made a drop vanish from
+  # the table altogether -- so a cut read as money appearing from nowhere.
+  # Absent means zero spend, so the union is zero-filled and every delta is
+  # meaningful.
+  frames <- lapply(scen, function(p) p@data)
+  keys <- lapply(frames, function(d) line_item(d, g))
+  all_keys <- unique(unlist(keys, use.names = FALSE))
+
+  # One row per union cell, carrying the grain values (taken from whichever
+  # scenario first defines that cell).
+  spine <- do.call(rbind, lapply(seq_along(frames), function(i) {
+    d <- frames[[i]]
+    d[!duplicated(keys[[i]]), g, drop = FALSE]
+  }))
+  spine_keys <- line_item(spine, g)
+  spine <- spine[match(all_keys, spine_keys), , drop = FALSE]
+  rownames(spine) <- NULL
+
   base_by_cell <- stats::setNames(
-    base_plan@data[["planned_spend"]], line_item(base_plan@data, g)
+    scen[[set@base_name]]@data[["planned_spend"]], keys[[set@base_name]]
   )
+  base_vec <- as.numeric(base_by_cell[all_keys])
+  base_vec[is.na(base_vec)] <- 0
 
   rows <- lapply(nms, function(nm) {
     d <- scen[[nm]]@data
-    tot <- sum(d[["planned_spend"]])
-    out <- cbind(
-      data.frame(scenario = nm, stringsAsFactors = FALSE),
-      d[, c(g, "planned_spend"), drop = FALSE]
-    )
-    out$share_of_total <- if (isTRUE(tot != 0)) d[["planned_spend"]] / tot else NA_real_
-    out$spend_vs_base <- d[["planned_spend"]] - as.numeric(base_by_cell[line_item(d, g)])
+    sp <- as.numeric(stats::setNames(d[["planned_spend"]], keys[[nm]])[all_keys])
+    sp[is.na(sp)] <- 0
+    tot <- sum(sp)
+    out <- cbind(data.frame(scenario = nm, stringsAsFactors = FALSE), spine)
+    out[["planned_spend"]] <- sp
+    out$share_of_total <- if (isTRUE(tot != 0)) sp / tot else NA_real_
+    out$spend_vs_base <- sp - base_vec
     out
   })
   out <- do.call(rbind, rows)

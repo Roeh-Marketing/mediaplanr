@@ -22,10 +22,19 @@ of two levels:
 \itemize{
 \item \code{"summary"} (default): one row per scenario — total planned_spend and the
 delta versus the baseline.
-\item \code{"cell"}: one row per scenario x plan row — planned_spend, that row's
-share of the scenario total, and the delta versus the same cell in the
-baseline.
+\item \code{"cell"}: one row per scenario x grain cell, over the \strong{union} of grain
+cells across the whole set — planned spend, that cell's share of the
+scenario total, and the delta versus the same cell in the baseline.
 }
+
+The union matters when scenarios are authored independently rather than
+derived — one plan per tab of a workbook, say — because their row sets need
+not match. A cell absent from a scenario means it plans no spend there, so it
+is zero-filled rather than omitted. Without that, a scenario that \emph{drops} a
+line item would simply have no row for it and the cut would be invisible,
+while one that \emph{adds} a line item would report \code{NA} instead of the full
+amount. Scenarios built with \code{\link[=build_scenario]{build_scenario()}} always share their parent's
+row set, so for those the result is unchanged.
 
 Predicted outcomes are not computed here. To compare modeled volume, forecast
 the scenarios with \code{mrmopt} and join the result on \code{scenario} + the grain

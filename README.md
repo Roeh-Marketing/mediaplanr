@@ -95,7 +95,8 @@ set <- add_scenario(set, trim)
 set <- add_scenario(set, opt)
 
 compare_scenarios(set)          # per scenario: total spend, delta vs base
-compare_scenarios(set, "cell")  # per row: spend, share of total, delta vs base
+compare_scenarios(set, "cell")  # per cell: spend, share of total, delta vs base
+                                # (union of cells across the set, zero-filled)
 ```
 
 A runnable end-to-end demo lives in
@@ -115,6 +116,16 @@ source(system.file("examples", "mvp-flow.R", package = "mediaplanr"))
 Verbs and helpers: `media_plan_from_df()`, `build_scenario()`, `roll_up()`,
 `check_coverage()`, `scenario_set()`, `add_scenario()`, `compare_scenarios()`,
 `line_item()`, `line_item_grain()`, `status_levels()`.
+
+### Comparing independently-authored scenarios
+
+`compare_scenarios(set, "cell")` compares over the **union** of grain cells in
+the set, zero-filling where a scenario has no row. This matters when scenarios
+come from separate sources — one plan per tab of a workbook — rather than from
+`build_scenario()`, because their row sets need not match. A scenario that drops
+a line item shows it as a negative delta rather than omitting the row (which
+would make a cut look like money appearing from nowhere), and one that adds a
+line item gets a real delta rather than `NA`.
 
 ### Plan metadata
 
