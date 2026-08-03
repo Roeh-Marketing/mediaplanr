@@ -6,3 +6,9 @@
 ^\.gitignore$
 ^\.Rcheck$
 ^.*\.tar\.gz$
+^_pkgdown\.yml$
+^docs$
+^pkgdown$
+^\.github$
+^_brand\.yml$
+^logos$

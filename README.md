@@ -1,4 +1,4 @@
-# mediaplanr
+# mediaplanr <a href="https://roeh-marketing.github.io/mediaplanr/"><img src="man/figures/logo.png" align="right" height="139" alt="mediaplanr website" /></a>
 
 A thin R package that turns an uploaded media plan into a **validated, typed
 object** at a configurable grain, derives scenarios from it, and collects them

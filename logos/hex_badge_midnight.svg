@@ -1,0 +1,16 @@
+<svg width="260" height="290" viewBox="0 0 260 290" xmlns="http://www.w3.org/2000/svg">
+  <title>Ro-eh hex badge</title>
+  <g transform="translate(130,145)">
+    <polygon points="0,-130 112.6,-65 112.6,65 0,130 -112.6,65 -112.6,-65" fill="#15233F"/>
+    <polygon points="0,-130 112.6,-65 112.6,65 0,130 -112.6,65 -112.6,-65" fill="none" stroke="#C9A86A" stroke-width="6"/>
+    <polygon points="0,-115 99.6,-57.5 99.6,57.5 0,115 -99.6,57.5 -99.6,-57.5" fill="none" stroke="#3A4A6B" stroke-width="2"/>
+    <g transform="translate(-33,-50)">
+      <g stroke="#E8D8B8" stroke-width="7.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M0 28 L0 130"/>
+        <path d="M0 28 L37 28 Q63 28 63 54 Q63 80 33 80 L0 80"/>
+        <path d="M30 80 L60 122 Q64 128 71 128 Q80 128 80 117"/>
+      </g>
+      <path d="M83 -10 l3.2 6.6 7.3 1 -5.3 5.1 1.3 7.3 -6.5 -3.4 -6.5 3.4 1.3 -7.3 -5.3 -5.1 7.3 -1 z" fill="#E5B94E"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,63 @@
+url: https://roeh-marketing.github.io/mediaplanr/
+
+template:
+  bslib:
+    version: 5
+    brand: _brand.yml
+  light-switch: true
+
+navbar:
+  structure:
+    left: [intro, reference, articles, news]
+    right: [search, github, lightswitch]
+
+reference:
+- title: The plan
+  desc: >
+    Turn an uploaded table into a validated plan. A plan holds planned spend on
+    every row -- intent, never actuals -- at a configurable grain.
+  contents:
+  - media_plan_from_df
+  - MediaPlan
+
+- title: Line items and grain
+  desc: >
+    A line item is a channel / partner / tactic combination: the time-free
+    identity a decomp constrains and response models attach to. The grain
+    describes a whole row, which at a weekly grain is a line item for one week.
+  contents:
+  - line_item
+  - line_item_grain
+  - roll_up
+
+- title: Scenarios
+  desc: >
+    Derive a new plan by changing spend, then collect the results into a set to
+    compare. Deriving never modifies the original, and every scenario records
+    the plan it came from.
+  contents:
+  - build_scenario
+  - scenario_set
+  - add_scenario
+  - compare_scenarios
+  - ScenarioSet
+
+- title: Workflow status
+  desc: >
+    The fixed vocabulary a plan's status is validated against, so a UI dropdown
+    and the validator cannot disagree.
+  contents:
+  - status_levels
+
+- title: Pairing a plan with a decomp
+  desc: >
+    A plan alone is blind to past and future. Pair it with a decomp -- which
+    reports actuals through a date -- and questions about history become
+    answerable.
+  contents:
+  - check_coverage
+
+- title: Utilities
+  contents:
+  - short_id
+  - print

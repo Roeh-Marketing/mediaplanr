@@ -1,0 +1,15 @@
+<svg width="640" height="200" viewBox="0 0 640 200" xmlns="http://www.w3.org/2000/svg">
+  <title>Ro-eh Marketing horizontal lockup</title>
+  <rect width="640" height="200" fill="#15233F"/>
+  <g transform="translate(40,18)">
+    <g stroke="#E8D8B8" stroke-width="6.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 60 L16 150"/>
+      <path d="M16 60 L46 60 Q66 60 66 82 Q66 104 40 104 L16 104"/>
+      <path d="M37 104 L60 146 Q63 152 70 152 Q78 152 78 142"/>
+    </g>
+    <path d="M58 32 l2.8 5.8 6.4 0.9 -4.6 4.5 1.1 6.4 -5.7 -3 -5.7 3 1.1 -6.4 -4.6 -4.5 6.4 -0.9 z" fill="#E5B94E"/>
+  </g>
+  <line x1="148" y1="50" x2="148" y2="150" stroke="#3A4A6B" stroke-width="1.5"/>
+  <text x="176" y="108" font-family="Georgia, 'Times New Roman', serif" font-size="52" fill="#F2E9D6" letter-spacing="1">Ro-eh</text>
+  <text x="178" y="138" font-family="Georgia, 'Times New Roman', serif" font-size="16" fill="#C9A86A" letter-spacing="7">MARKETING</text>
+</svg>
