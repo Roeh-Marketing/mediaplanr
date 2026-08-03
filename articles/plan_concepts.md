@@ -1,0 +1,317 @@
+# The plan model
+
+``` r
+
+library(mediaplanr)
+```
+
+`mediaplanr` is small on purpose. Most of the decisions that shaped it
+were about what to *leave out*, and those decisions are not visible from
+the function reference. This vignette covers the model behind the
+functions — the ideas that, misunderstood, lead to using the package
+incorrectly in ways nothing will catch.
+
+[`vignette("getting_started")`](https://roeh-marketing.github.io/mediaplanr/articles/getting_started.md)
+covers what to type.
+
+## A plan holds intent
+
+Every row of a plan is **planned** spend — what was *intended* —
+including for weeks that have already passed. It is never a record of
+what happened.
+
+That distinction matters because reality diverges from intent
+constantly: under-delivery, over-delivery, a partner that never went
+live. Actualised spend and attributed results live in a **decomp** — the
+output of a media-mix model — which this package does not hold and does
+not read.
+
+So a row for a past week is still intent. Revising it is an ordinary
+thing to do: you are correcting what the plan *said*, not rewriting
+history.
+
+``` r
+
+p <- media_plan_from_df(
+  data.frame(
+    week          = as.Date(c("2026-01-05", "2026-01-05")),
+    channel       = c("TV", "Search"),
+    planned_spend = c(50000, 20000)
+  ),
+  grain = c("channel", "week"), week = "week",
+  name  = "A plan whose weeks are long past"
+)
+
+# Editing a week from January is not special, and nothing objects.
+build_scenario(p, edits = list(target = list(channel = "TV"), scale = 1.5),
+               name = "revised")@data
+#>         week channel planned_spend
+#> 1 2026-01-05      TV         75000
+#> 2 2026-01-05  Search         20000
+```
+
+## A plan is blind to past and future
+
+This follows from the above, and it is the point most likely to be
+missed.
+
+“Historical”, “future”, “under-delivery”, “over-delivery” are **not
+properties of a plan**. They only exist for a *pairing* of a plan with a
+decomp that reports actuals through some date. A plan on its own cannot
+tell you which of its rows are in the past, because that depends
+entirely on which decomp you hold it against — and that boundary moves
+every time the decomp is refreshed.
+
+Consequences you can see in the API:
+
+- There is no `historical_spend` column. An earlier revision had one; it
+  was removed. Freezing a moving boundary into the data guarantees it
+  goes stale.
+- No through-date is stored on a `MediaPlan`.
+- Nothing stops you editing a row for a past week.
+
+The one pairing operation the package provides is
+[`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md):
+
+``` r
+
+plan <- media_plan_from_df(
+  data.frame(
+    week          = rep(as.Date(c("2026-03-02", "2026-04-06")), each = 2),
+    channel       = c("TV", "Search", "TV", "Search"),
+    partner       = c("NBC", "Google", "NBC", "Google"),
+    planned_spend = c(30000, 20000, 35000, 25000)
+  ),
+  grain = c("channel", "partner", "week"), week = "week",
+  name  = "Q2 plan"
+)
+
+# What the model measured, historically.
+decomp <- data.frame(
+  channel = c("TV", "Search", "Audio"),
+  partner = c("NBC", "Google", "Spotify"),
+  stringsAsFactors = FALSE
+)
+
+missing <- check_coverage(plan, decomp, through = as.Date("2026-03-15"))
+#> Warning: the plan is missing 1 line item(s) present in the decomp: Audio |
+#> Spotify
+missing
+#> [1] "Audio | Spotify"
+```
+
+Three things about that check are deliberate:
+
+**It runs decomp → plan, not the reverse.** Every line item the model
+measured should appear in the plan’s pre-through-date rows. The opposite
+direction is never flagged: the future portion of a plan is *expected*
+to introduce new partners and tactics.
+
+**It is scoped by `through`.** Only rows before that date are
+considered, since the decomp only knows about history.
+
+**It warns rather than errors.** Both artifacts are individually valid;
+it is their pairing that disagrees. An app should surface that and let
+the user resolve it, not refuse to load a perfectly well-formed plan.
+
+That last point is the one exception to the package’s general
+strictness. Structural problems — negative spend, duplicate rows, a week
+column that is not a `Date` — are hard errors, so an invalid plan cannot
+exist:
+
+``` r
+
+media_plan_from_df(
+  data.frame(channel = c("TV", "TV"), planned_spend = c(1, 2)),
+  grain = "channel", name = "duplicated"
+)
+#> Error:
+#> ! <mediaplanr::MediaPlan> object is invalid:
+#> - @data has duplicate rows at grain (channel): TV. One row per grain cell is required.
+```
+
+## Line item, grain, row
+
+Three related ideas that are easy to conflate.
+
+A **line item** is a channel / partner / tactic combination: the
+*time-free* identity of something you are buying. It is what a decomp
+constrains and what response models attach to.
+
+The **grain** is the set of columns identifying a **row**. At a weekly
+grain a row is a line item *for one week*.
+
+``` r
+
+plan@grain              # what identifies a row
+#> [1] "channel" "partner" "week"
+line_item_grain(plan)   # what identifies a line item — the grain minus the week
+#> [1] "channel" "partner"
+
+unique(line_item(plan@data, line_item_grain(plan)))
+#> [1] "TV | NBC"        "Search | Google"
+```
+
+`grain` is deliberately ordered coarsest-first, because
+[`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md)
+treats it as a nesting. Dropping the rightmost column gives the next
+coarsest level — which is how you find a model for a line item that has
+none of its own:
+
+``` r
+
+roll_up(plan, c("channel", "week"))@data
+#>   channel       week planned_spend
+#> 1      TV 2026-03-02         30000
+#> 2  Search 2026-03-02         20000
+#> 3      TV 2026-04-06         35000
+#> 4  Search 2026-04-06         25000
+```
+
+The package is a **flat table at a configurable grain**, not a nested
+object tree. A plan keyed by `channel`, by `channel + partner`, or by
+`channel + partner + tactic + week` is the same class at different
+grains. A Channel → Tactic → Flight hierarchy is deferred, not designed
+out.
+
+## Scenarios are forks
+
+A scenario is a new plan derived from another. The original is never
+modified — `MediaPlan` uses value semantics for exactly this reason. If
+deriving mutated the parent, the thing you are comparing against would
+change underneath you.
+
+``` r
+
+before <- sum(plan@data$planned_spend)
+s <- build_scenario(plan, edits = list(scale = 2), name = "double")
+after <- sum(plan@data$planned_spend)
+
+c(before = before, after = after, unchanged = identical(before, after))
+#>    before     after unchanged 
+#>    110000    110000         1
+```
+
+Every derivation records its parent, so lineage chains:
+
+``` r
+
+s2 <- build_scenario(s, edits = list(scale = 0.5), name = "back down")
+identical(s@parent_id, plan@id)
+#> [1] TRUE
+identical(s2@parent_id, s@id)
+#> [1] TRUE
+```
+
+Ids are opaque on purpose. They exist for identity and lineage; human
+meaning lives in `@name`, `@nickname` and `@objective`. They are not yet
+an external join contract, so do not build one on them.
+
+### Status is not inherited
+
+`@status` moves through a fixed vocabulary:
+
+``` r
+
+status_levels()
+#> [1] "in development" "to review"      "approved"
+```
+
+A scenario derived from an **approved** plan is not itself approved.
+Carrying that forward would manufacture an approval nobody gave, so it
+resets:
+
+``` r
+
+approved <- media_plan_from_df(
+  data.frame(channel = "TV", planned_spend = 100000),
+  grain = "channel", name = "Signed off", status = "approved"
+)
+
+child <- build_scenario(approved, edits = list(scale = 1.5), name = "variant")
+c(parent = approved@status, child = child@status)
+#>           parent            child 
+#>       "approved" "in development"
+```
+
+`advertiser` and `planner` *are* inherited — they describe the
+engagement and the person working, not the individual scenario.
+
+## Comparison unions the cells
+
+`compare_scenarios(level = "cell")` compares over the **union** of grain
+cells across the whole set, zero-filling where a scenario has no row.
+
+This is invisible when scenarios come from
+[`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md),
+since those always inherit the parent’s exact row set. It matters when
+scenarios are authored independently — one workbook tab each, say —
+because then their row sets need not match:
+
+``` r
+
+a <- media_plan_from_df(
+  data.frame(channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
+  grain = "channel", name = "Plan", nickname = "baseline"
+)
+b <- media_plan_from_df(
+  data.frame(channel = "TV", planned_spend = 120000),   # Search dropped entirely
+  grain = "channel", name = "Plan", nickname = "no search"
+)
+
+compare_scenarios(add_scenario(scenario_set(a), b), "cell")
+#>    scenario channel planned_spend share_of_total spend_vs_base
+#> 1  baseline      TV         80000      0.6666667             0
+#> 2  baseline  Search         40000      0.3333333             0
+#> 3 no search      TV        120000      1.0000000         40000
+#> 4 no search  Search             0      0.0000000        -40000
+```
+
+Search appears for `no search` as a **−40,000 delta**, not as a missing
+row. Without the union, a cut would simply vanish from the table —
+totals would still reconcile, and the reader would see money appearing
+from nowhere.
+
+## What lives elsewhere
+
+`mediaplanr` does not fit models, forecast, or optimize, and imports
+nothing but S7.
+
+             mediaplanr                       mrmopt
+      ┌────────────────────────┐   ┌──────────────────────────┐
+      │ plan object, grain,    │   │ response curves, fitting,│
+      │ validation, lineage,   │   │ forecasting, budget      │
+      │ scenarios, comparison  │   │ optimization (opt_mix)   │
+      └────────────────────────┘   └──────────────────────────┘
+                    ↘                   ↙
+                      a caller wires them
+
+An earlier revision *did* include a `forecast()` and a budget optimizer.
+Both were removed, for reasons worth stating so they are not rebuilt by
+accident:
+
+- The consuming application already called `mrmopt::opt_mix()`, so the
+  in-package optimizer was a weaker second implementation.
+- Implementing `forecast()` forced a **modelling** decision into a
+  container: response curves have a non-zero lower asymptote, so
+  “predicted volume” is ambiguous, and the package had to pick a
+  convention. That belongs where the modelling is owned.
+- It inverted the dependency. A `ScenarioSet` could not exist without a
+  set of fitted models, so plans could not be held or compared without
+  them.
+
+An allocation computed by an optimizer re-enters through the same door a
+hand edit uses:
+
+``` r
+
+result <- mrmopt::opt_mix(models, budget = 160000)
+alloc  <- data.frame(channel = result$solution$channel,
+                     planned_spend = result$solution$optimal_spend)
+
+build_scenario(base, edits = alloc, name = "Optimized",
+               objective = "max KPI at 160k, opt_mix point method")
+```
+
+The package never learns where the numbers came from. `@objective` is
+where you record why.
