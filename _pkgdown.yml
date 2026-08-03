@@ -11,6 +11,12 @@ navbar:
     left: [intro, reference, articles, news]
     right: [search, github, lightswitch]
 
+articles:
+- title: Get going
+  contents: getting_started
+- title: Understand the model
+  contents: plan_concepts
+
 reference:
 - title: The plan
   desc: >

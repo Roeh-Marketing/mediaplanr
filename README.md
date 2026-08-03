@@ -17,7 +17,7 @@ It does not fit models, forecast, or optimize — and depends on nothing but
    │ scenarios, comparison    │      │ optimization (opt_mix)   │
    └──────────────────────────┘      └──────────────────────────┘
                     ↘                      ↙
-                      the app wires them together
+                      a caller wires them together
 ```
 
 Response modeling and optimization belong to the `mrmopt` engine. A caller runs
@@ -25,27 +25,11 @@ those and joins the results back onto `compare_scenarios()` output by scenario
 and grain. Keeping that boundary means a change to the modeling API cannot break
 the plan object, and modeling decisions never leak into a container.
 
-## Two ideas worth knowing first
-
-**A plan holds intent, and is blind to past and future.** `planned_spend` is
-what was *intended* for a row — including for weeks that have already passed.
-It is never what actually happened; actualised spend and attributed KPI live in
-the decomp. "Historical", "future", under-delivery and over-delivery are not
-properties of a plan at all: they exist only for a **plan-decomp pairing**, and
-[`check_coverage()`](#) is the one such operation the package provides. That is
-also why editing a row for a past week is ordinary — you are revising what was
-planned, and the plan cannot know that week has passed.
-
-**A line item is the time-free identity**: channel + partner + tactic. It's what
-the decomp constrains and what response models attach to. A row is a line item
-for a given week. `line_item_grain(plan)` gives you those columns; `@grain`
-describes the whole row.
-
 ## Install
 
 ```r
 # install.packages("S7")
-devtools::install_local("mediaplanr")
+devtools::install_github("Roeh-Marketing/mediaplanr")
 ```
 
 ## Quick start
@@ -53,8 +37,7 @@ devtools::install_local("mediaplanr")
 ```r
 library(mediaplanr)
 
-# 1. Upload -> validated plan. Knows nothing about decomps.
-#    `name` is required; the workflow slots are optional.
+# 1. A validated plan. `name` is required; the week column is typed as a Date.
 base <- media_plan_from_df(
   plan_df,
   grain      = c("channel", "partner", "week"),
@@ -62,126 +45,56 @@ base <- media_plan_from_df(
   name       = "Q2 2026 Brand Plan",
   nickname   = "baseline",
   advertiser = "Acme Corp",
-  planner    = "R. Roe",
   status     = "approved"
 )
 
-# 1b. Pair it with a decomp: do the plan's pre-through-date rows account for
-#     every line item the model measured? Warns and returns what is missing;
-#     re-run on a decomp refresh without rebuilding the plan. New line items
-#     after the through-date are expected and never flagged.
-missing <- check_coverage(base, decomp_line_items,
-                          through = as.Date("2026-03-15"))
+# 2. Fork a scenario. State the operation; R does the arithmetic.
+#    `target` may name any subset of the grain.
+trim <- build_scenario(
+  base,
+  edits    = list(target = list(channel = "TV"), scale = 0.8),
+  name     = "Q2 2026 Brand Plan — TV trim",
+  nickname = "TV -20%"
+)
 
-# 2. Derive scenarios. The base is never mutated; each scenario records
-#    its parent. State the operation -- the arithmetic happens in R.
-#    `target` may name any subset of the grain, so this reaches every
-#    line item in that week without enumerating them:
-trim <- build_scenario(base, edits = list(target = list(week = as.Date("2026-04-06")),
-                                          scale = 0.8), name = "Trim 20%")
-
-#    "Set the budget", holding the current mix:
-resized <- build_scenario(base, edits = list(total = 200000))
-
-#    An allocation computed elsewhere comes in through the same door:
-opt <- build_scenario(base, edits = allocation_from_opt_mix, name = "Optimized")
-
-# 3. Find a model for a new line item by rolling up to a coarser grain
-by_channel <- roll_up(base, c("channel", "week"))
-
-# 4. Collect and compare
-set <- scenario_set(base, name = "Base")
-set <- add_scenario(set, trim)
-set <- add_scenario(set, opt)
+# 3. Collect and compare.
+set <- add_scenario(scenario_set(base), trim)
 
 compare_scenarios(set)          # per scenario: total spend, delta vs base
-compare_scenarios(set, "cell")  # per cell: spend, share of total, delta vs base
-                                # (union of cells across the set, zero-filled)
+compare_scenarios(set, "cell")  # per cell: spend, share, delta vs base
 ```
 
-A runnable end-to-end demo lives in
-[`inst/examples/mvp-flow.R`](inst/examples/mvp-flow.R):
-
-```r
-source(system.file("examples", "mvp-flow.R", package = "mediaplanr"))
-```
+`build_scenario(edits =)` also takes a data frame of absolute values (natural
+for optimizer output) or a named vector keyed by `line_item()` (natural for an
+editable table).
 
 ## Core model
 
 | Class | What it is |
 |---|---|
-| `MediaPlan` | One plan at a configurable grain. A flat `@data` table of grain columns + `planned_spend` (intent, on every row); any other columns ride along untouched. `@week_col` names the week column when the plan is weekly. Carries workflow metadata — see below. |
+| `MediaPlan` | One plan at a configurable grain. A flat `@data` table of grain columns + `planned_spend` (intent, on every row); any other columns ride along untouched. `@week_col` names the week column when the plan is weekly. |
 | `ScenarioSet` | A base plan plus named scenarios derived from it, all at one grain. The comparison registry. |
 
 Verbs and helpers: `media_plan_from_df()`, `build_scenario()`, `roll_up()`,
 `check_coverage()`, `scenario_set()`, `add_scenario()`, `compare_scenarios()`,
 `line_item()`, `line_item_grain()`, `status_levels()`.
 
-### Comparing independently-authored scenarios
+## Learn more
 
-`compare_scenarios(set, "cell")` compares over the **union** of grain cells in
-the set, zero-filling where a scenario has no row. This matters when scenarios
-come from separate sources — one plan per tab of a workbook — rather than from
-`build_scenario()`, because their row sets need not match. A scenario that drops
-a line item shows it as a negative delta rather than omitting the row (which
-would make a cut look like money appearing from nowhere), and one that adds a
-line item gets a real delta rather than `NA`.
+- **[Getting started](https://roeh-marketing.github.io/mediaplanr/articles/getting_started.html)**
+  — the whole path, from a data frame to a compared set of scenarios, including
+  the three shapes `edits` accepts and when each is natural.
+- **[The plan model](https://roeh-marketing.github.io/mediaplanr/articles/plan_concepts.html)**
+  — what a plan *is*, why it is blind to past and future, how scenarios and
+  lineage work, and which boundaries keep the package small. Read this before
+  extending it.
 
-### Plan metadata
+Two ideas the rest of the design hangs on, in one line each:
 
-| Slot | Required | Notes |
-|---|---|---|
-| `name` | **yes** | The formal plan name. Every plan carries one. |
-| `nickname` | no | Short working handle, e.g. `"aggressive TV"`. Preferred over `name` when labelling scenarios, so a set under development reads well without renaming the formal plans. |
-| `advertiser` | no | Client. **Inherited** by derived scenarios. |
-| `planner` | no | Person responsible. **Inherited** by derived scenarios. |
-| `status` | no | One of `status_levels()`: `in development`, `to review`, `approved`. Matched case-insensitively, stored canonically. |
-| `objective` | no | Free notes — e.g. what an optimizer was asked for. |
-
-**`status` is deliberately not inherited.** A scenario derived from an
-`approved` plan is not itself approved; carrying that forward would manufacture
-an approval nobody gave. It resets to `"in development"` — which is what a
-freshly derived scenario actually is — unless you pass something else.
-
-### Edit forms
-
-`build_scenario(edits=)` takes three shapes:
-
-| Shape | Use |
-|---|---|
-| **Operations** — `list(target=, set/scale/delta/total)` | UI and LLM-driven editing. State intent; R does the arithmetic. |
-| **Data frame** — grain columns + `planned_spend` | Absolute allocations, e.g. optimizer output. |
-| **Named vector** — `c("TV" = 100)` | Terse single-cell override; natural for an editable table. |
-
-The operation form is the one to drive from chat, because the caller never does
-the math. `target` may name any **subset** of the grain (a partial key), so
-`list(week = "2026-04-06")` reaches every line item in that week. A target value
-that doesn't exist is an error naming the valid alternatives — never a silent
-no-op, which is the failure mode that matters when a model generates the calls.
-
-`set` is per matched row; `total` is across them (`total` holds the group's
-existing mix, so it's the "set the budget" operation). Ops apply in order, so a
-budget-neutral shift is two ops.
-
-## Key design decisions
-
-- **S7 value semantics.** Each scenario is an immutable snapshot; deriving one
-  leaves the parent untouched, so the thing being compared against is never
-  corrupted.
-- **Configurable grain, flat table.** A plan keyed by `channel`, or
-  `channel + partner`, or `channel + partner + tactic + week` is the same class
-  at different grains — not a nested object tree.
-- **`@data` stays a plain data frame.** The class adds guarantees, identity, and
-  a verb grammar at the boundaries; it does not take the data frame away.
-- **Synthetic ids for identity/lineage** (`@id` + `@parent_id`), opaque on
-  purpose; human meaning lives in `@name` / `@objective`.
-- **Structural validity is enforced; external consistency is reported.**
-  Negative spend, duplicate rows, and missing columns are hard errors, so an
-  invalid plan cannot exist. Decomp coverage is a mismatch between two valid
-  artifacts, so it warns — an upload surfaces it in the UI rather than locking
-  the user out.
-- **Past and future belong to the pairing, not the plan.** A plan holds intent
-  only, so it cannot and does not classify its own rows. See above.
+- **A plan holds intent, on every row** — including weeks already past. It is
+  never a record of what happened; actuals live in a decomp.
+- **A line item** (channel / partner / tactic) is the time-free identity that
+  models attach to. A row is a line item for one week.
 
 ## Growth path (not now)
 
