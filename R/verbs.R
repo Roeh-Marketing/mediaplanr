@@ -6,7 +6,7 @@
 # leave the row set alone -- everything the package could do until now.
 # Structural ops change which rows there are: a plan can finally gain and lose
 # line items, and a flight can move.
-.value_ops      <- c("set", "scale", "delta", "total")
+.value_ops      <- c("set", "scale", "delta", "delta_each", "total")
 .structural_ops <- c("add", "drop", "shift", "restage")
 .op_keys        <- c(.value_ops, .structural_ops)
 
@@ -159,20 +159,35 @@
 
   d[["planned_spend"]][keep] <- switch(
     present,
-    set   = v,
-    scale = ps[keep] * v,
-    delta = ps[keep] + v,
-    total = {
-      s <- sum(ps[keep])
-      if (s == 0) {
-        stop(where, "cannot apply `total` to a group whose current planned_spend is 0: ",
-             "there is no mix to distribute by. Use `set` instead.",
-             call. = FALSE)
-      }
-      ps[keep] / s * v
-    }
+    set        = v,
+    scale      = ps[keep] * v,
+    delta_each = ps[keep] + v,
+    # `delta` is the relative partner of `total`: it moves the matched cells'
+    # SUM by v, holding their mix -- so "take 50k out of TV" takes 50k out of
+    # TV, not 50k out of each of its weeks. Distributing in proportion rather
+    # than evenly per cell is what preserves the channel's flighting shape, and
+    # is why a flight stays "even" through it instead of flipping to "custom".
+    delta = .group_total(ps[keep], sum(ps[keep]) + v, present, v, where),
+    total = .group_total(ps[keep], v, present, v, where)
   )
   d
+}
+
+# Re-scale a group to `target`, holding its mix.
+.group_total <- function(ps, target, present, v, where) {
+  s <- sum(ps)
+  if (s == 0) {
+    stop(where, "cannot apply `", present, "` to a group whose current ",
+         "planned_spend is 0: there is no mix to distribute by. Use `set`",
+         if (present == "delta") " or `delta_each`" else "", " instead.",
+         call. = FALSE)
+  }
+  if (target < 0) {
+    stop(where, "`", present, "` of ", v, " would take the group below zero: ",
+         "it currently plans ", format(s), ". A plan cannot hold negative ",
+         "spend.", call. = FALSE)
+  }
+  ps / s * target
 }
 
 # drop -- remove matched rows entirely. Distinct from zeroing them: a dropped
@@ -513,17 +528,33 @@
 #'
 #' **Changing spend on rows that exist**
 #' \describe{
-#'   \item{`set`}{Absolute planned_spend, applied to **each** matched cell.}
-#'   \item{`scale`}{Multiply each matched cell (e.g. `1.2` = +20%).}
-#'   \item{`delta`}{Add to each matched cell (may be negative).}
 #'   \item{`total`}{Make the matched cells **sum** to this, holding their
 #'     current mix. This is the "set the budget" operation.}
+#'   \item{`delta`}{Move the matched cells' **sum** by this, holding their mix.
+#'     This is the "take 50k out of TV" operation.}
+#'   \item{`scale`}{Multiply each matched cell (e.g. `1.2` = +20%). Per cell and
+#'     across cells mean the same thing for a multiplier.}
+#'   \item{`set`}{Absolute planned_spend, applied to **each** matched cell.}
+#'   \item{`delta_each`}{Add to **each** matched cell (may be negative).}
 #' }
 #'
-#' Note the deliberate split: `set` is per-cell, `total` is across cells. So
-#' `list(target = list(channel = "TV"), set = 50)` sets every TV row to 50,
-#' while `list(target = list(channel = "TV"), total = 50)` makes TV's rows add
-#' up to 50.
+#' Note the deliberate split, and that it runs both ways:
+#'
+#' | | across the matched cells | to each matched cell |
+#' |---|---|---|
+#' | absolute | `total` | `set` |
+#' | relative | `delta` | `delta_each` |
+#'
+#' So `list(target = list(channel = "TV"), total = 50)` makes TV's rows add up
+#' to 50, while `set = 50` puts 50 on every TV row. Likewise `delta = -50`
+#' takes 50 out of TV altogether, while `delta_each = -50` takes 50 out of
+#' every TV row — which on a 26-week plan is 1,300.
+#'
+#' `delta` is almost always the one you want, and it is the one to reach for
+#' when a user says "move 50k from TV to Social": two ops, `delta = -50000` on
+#' TV and `delta = 50000` on Social. Distributing in proportion rather than
+#' evenly per cell preserves the channel's flighting shape, so a flight stays
+#' evenly paced through it.
 #'
 #' **Changing which rows there are**
 #' \describe{
@@ -594,7 +625,8 @@
 #' # "Set the total budget to 200", holding the current mix
 #' build_scenario(base, edits = list(total = 200), name = "Budget 200")
 #'
-#' # "Move 10 from TV to Search" — ops apply in order
+#' # "Move 10 from TV to Search" — ops apply in order. `delta` moves each
+#' # group's TOTAL, so this is budget-neutral however many rows they have.
 #' build_scenario(base, edits = list(
 #'   list(target = list(channel = "TV"),     delta = -10),
 #'   list(target = list(channel = "Search"), delta =  10)

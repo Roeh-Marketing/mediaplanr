@@ -161,15 +161,25 @@ test_that("editing one week of a flight makes it custom but keeps the flight", {
   expect_equal(fl$planned_spend[fl$channel == "OOH"], 50000 + 30000 * 3)
 })
 
-test_that("a flat delta across unequal weeks makes it custom", {
-  # 5+7+7+7 days: a flat per-row delta cannot stay proportional to days
+test_that("a flat per-row delta across unequal weeks makes it custom", {
+  # 5+7+7+7 days: a flat per-row add cannot stay proportional to days
   p <- media_plan_from_flights(
     data.frame(channel = "OOH", flight_start = as.Date("2026-04-08"),
                flight_end = as.Date("2026-05-03"), planned_spend = 100000),
     grain = "channel", name = "ragged")
   expect_identical(flights(p)$pacing, "even")
-  s <- build_scenario(p, edits = list(delta = 1000), name = "flat add")
+  s <- build_scenario(p, edits = list(delta_each = 1000), name = "flat add")
   expect_identical(flights(s)$pacing, "custom")
+})
+
+test_that("a group delta holds the mix, so a flight stays evenly paced", {
+  p <- media_plan_from_flights(
+    data.frame(channel = "OOH", flight_start = as.Date("2026-04-08"),
+               flight_end = as.Date("2026-05-03"), planned_spend = 100000),
+    grain = "channel", name = "ragged")
+  s <- build_scenario(p, edits = list(delta = 4000), name = "group add")
+  expect_identical(flights(s)$pacing, "even")
+  expect_equal(sum(s@data$planned_spend), 104000)
 })
 
 test_that("pacing is derived, so shaping a flight back to even reports even", {

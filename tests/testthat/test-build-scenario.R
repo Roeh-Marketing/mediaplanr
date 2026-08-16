@@ -88,10 +88,67 @@ test_that("scale multiplies matched cells", {
   expect_equal(unname(x[["TV"]]), 80)  # untouched
 })
 
-test_that("delta adds to matched cells and may be negative", {
+test_that("delta moves the matched group's total and may be negative", {
   s <- build_scenario(std_plan(),
                       edits = list(target = list(channel = "TV"), delta = -30), name = "s")
   expect_equal(s@data$planned_spend[s@data$channel == "TV"], 50)
+})
+
+test_that("delta moves the group total once, not once per row", {
+  # the bug this replaced: on a 2-week plan, delta = -10 on TV took out 20
+  p <- weekly_plan()
+  tv <- sum(p@data$planned_spend[p@data$channel == "TV"])
+  s <- build_scenario(p, edits = list(target = list(channel = "TV"),
+                                      delta = -10), name = "s")
+  expect_equal(sum(s@data$planned_spend[s@data$channel == "TV"]), tv - 10)
+})
+
+test_that("delta holds the group's mix, so flighting shape survives", {
+  p <- weekly_plan()
+  tv <- p@data$planned_spend[p@data$channel == "TV"]
+  s <- build_scenario(p, edits = list(target = list(channel = "TV"),
+                                      delta = -10), name = "s")
+  after <- s@data$planned_spend[s@data$channel == "TV"]
+  expect_equal(after / sum(after), tv / sum(tv))
+})
+
+test_that("delta_each is the per-row form and is not the default", {
+  p <- weekly_plan()
+  tv <- sum(p@data$planned_spend[p@data$channel == "TV"])
+  n  <- sum(p@data$channel == "TV")
+  s <- build_scenario(p, edits = list(target = list(channel = "TV"),
+                                      delta_each = -10), name = "s")
+  expect_equal(sum(s@data$planned_spend[s@data$channel == "TV"]), tv - 10 * n)
+})
+
+test_that("a transfer is budget-neutral whatever the row counts", {
+  # TV has 3 rows and Search 2 in the weekly fixture, so a per-row delta would
+  # silently leak money while the plan total still reconciled
+  p <- weekly_plan()
+  before <- sum(p@data$planned_spend)
+  s <- build_scenario(p, edits = list(
+    list(target = list(channel = "TV"),     delta = -10),
+    list(target = list(channel = "Search"), delta =  10)), name = "s")
+  expect_equal(sum(s@data$planned_spend), before)
+  expect_equal(sum(s@data$planned_spend[s@data$channel == "TV"]),
+               sum(p@data$planned_spend[p@data$channel == "TV"]) - 10)
+})
+
+test_that("delta below zero errors before the validator, naming the group total", {
+  expect_error(
+    build_scenario(std_plan(), edits = list(target = list(channel = "TV"),
+                                            delta = -1000), name = "s"),
+    "would take the group below zero")
+})
+
+test_that("delta on an all-zero group names delta_each as the way out", {
+  p <- media_plan_from_df(
+    data.frame(channel = c("TV", "Search"), planned_spend = c(0, 40)),
+    grain = "channel", name = "zeroed")
+  expect_error(
+    build_scenario(p, edits = list(target = list(channel = "TV"), delta = 10),
+                   name = "s"),
+    "delta_each")
 })
 
 test_that("set is per-cell, total is across cells", {
@@ -198,7 +255,7 @@ test_that("total on an all-zero group errors rather than guessing a split", {
 test_that("ops still run through the plan validator", {
   expect_error(build_scenario(std_plan(),
                               edits = list(target = list(channel = "TV"),
-                                           delta = -1000), name = "s"),
+                                           delta_each = -1000), name = "s"),
                "non-negative")
 })
 

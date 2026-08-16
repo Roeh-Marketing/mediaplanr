@@ -76,17 +76,33 @@ slices them, so a flight half inside the window is matched whole.}
 
 \strong{Changing spend on rows that exist}
 \describe{
-\item{\code{set}}{Absolute planned_spend, applied to \strong{each} matched cell.}
-\item{\code{scale}}{Multiply each matched cell (e.g. \code{1.2} = +20\%).}
-\item{\code{delta}}{Add to each matched cell (may be negative).}
 \item{\code{total}}{Make the matched cells \strong{sum} to this, holding their
 current mix. This is the "set the budget" operation.}
+\item{\code{delta}}{Move the matched cells' \strong{sum} by this, holding their mix.
+This is the "take 50k out of TV" operation.}
+\item{\code{scale}}{Multiply each matched cell (e.g. \code{1.2} = +20\%). Per cell and
+across cells mean the same thing for a multiplier.}
+\item{\code{set}}{Absolute planned_spend, applied to \strong{each} matched cell.}
+\item{\code{delta_each}}{Add to \strong{each} matched cell (may be negative).}
 }
 
-Note the deliberate split: \code{set} is per-cell, \code{total} is across cells. So
-\code{list(target = list(channel = "TV"), set = 50)} sets every TV row to 50,
-while \code{list(target = list(channel = "TV"), total = 50)} makes TV's rows add
-up to 50.
+Note the deliberate split, and that it runs both ways:\tabular{lll}{
+    \tab across the matched cells \tab to each matched cell \cr
+   absolute \tab \code{total} \tab \code{set} \cr
+   relative \tab \code{delta} \tab \code{delta_each} \cr
+}
+
+
+So \code{list(target = list(channel = "TV"), total = 50)} makes TV's rows add up
+to 50, while \code{set = 50} puts 50 on every TV row. Likewise \code{delta = -50}
+takes 50 out of TV altogether, while \code{delta_each = -50} takes 50 out of
+every TV row — which on a 26-week plan is 1,300.
+
+\code{delta} is almost always the one you want, and it is the one to reach for
+when a user says "move 50k from TV to Social": two ops, \code{delta = -50000} on
+TV and \code{delta = 50000} on Social. Distributing in proportion rather than
+evenly per cell preserves the channel's flighting shape, so a flight stays
+evenly paced through it.
 
 \strong{Changing which rows there are}
 \describe{
@@ -148,7 +164,8 @@ build_scenario(base, edits = list(target = list(channel = "Search"),
 # "Set the total budget to 200", holding the current mix
 build_scenario(base, edits = list(total = 200), name = "Budget 200")
 
-# "Move 10 from TV to Search" — ops apply in order
+# "Move 10 from TV to Search" — ops apply in order. `delta` moves each
+# group's TOTAL, so this is budget-neutral however many rows they have.
 build_scenario(base, edits = list(
   list(target = list(channel = "TV"),     delta = -10),
   list(target = list(channel = "Search"), delta =  10)
