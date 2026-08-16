@@ -31,6 +31,7 @@ Collate:
     'utils.R'
     'media-plan.R'
     'flight.R'
+    'flighting.R'
     'inventory.R'
     'verbs.R'
     'scenario-set.R'

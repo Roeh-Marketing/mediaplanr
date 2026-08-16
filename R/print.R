@@ -82,7 +82,7 @@ S7::method(print, MediaPlan) <- function(x, ...) {
                             "  (", n_wk, if (n_wk == 1) " week)" else " weeks)"))
   }
 
-  li_grain <- line_item_grain(x)
+  li_grain <- setdiff(line_item_grain(x), flight_cols())
   if (nrow(d) && length(li_grain)) {
     # Rows and line items only differ once there is a time dimension; showing
     # both on a timeless plan would print the same number twice.
@@ -90,6 +90,16 @@ S7::method(print, MediaPlan) <- function(x, ...) {
       .field("line items", length(unique(line_item(d, li_grain))))
     }
     .print_inventory(x, li_grain)
+  }
+
+  # Only plans authored as flights have any to report; the count says how the
+  # plan was written, which the weekly rows alone cannot show.
+  fl <- flights(x)
+  if (nrow(fl)) {
+    basis <- table(fl$period_basis)
+    .field("flights", paste0(
+      nrow(fl), "  (",
+      paste(paste0(basis, " ", names(basis)), collapse = ", "), ")"))
   }
   .field("rows", nrow(d))
   .field("spend", .fmt_num(sum(d[["planned_spend"]])))
@@ -102,10 +112,15 @@ S7::method(print, MediaPlan) <- function(x, ...) {
   .field("id", ident)
 
   # --- a short preview of the plan itself ---
+  # The flighting columns are omitted: they repeat identically down every row of
+  # a flight, they are already summarised above, and five extra columns wrap the
+  # preview into unreadability. @data still has them.
   if (nrow(d)) {
     n_show <- min(3L, nrow(d))
+    prev_cols <- setdiff(names(d), flight_cols())
     cat("\n")
-    prev <- utils::capture.output(print(utils::head(d, n_show), row.names = FALSE))
+    prev <- utils::capture.output(
+      print(utils::head(d[, prev_cols, drop = FALSE], n_show), row.names = FALSE))
     cat(paste0("  ", prev, collapse = "\n"), "\n", sep = "")
     if (nrow(d) > n_show) {
       cat("  ... ", nrow(d) - n_show, " more row",

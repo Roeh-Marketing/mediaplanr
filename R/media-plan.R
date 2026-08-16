@@ -193,6 +193,10 @@ MediaPlan <- S7::new_class(
       }
     }
 
+    # Flighting columns ride along: type-checked, never part of the key. A plan
+    # that records no flights skips all of this.
+    errs <- c(errs, .validate_flight_cols(d))
+
     # One row per grain cell.
     if (length(miss) == 0 && length(g) >= 1 && nrow(d) > 0) {
       k <- line_item(d, g)

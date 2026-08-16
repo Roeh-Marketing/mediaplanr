@@ -52,6 +52,24 @@ test_that("a timeless plan shows its inventory but no flight or line item count"
   expect_false(grepl("line items", out))
 })
 
+test_that("a flighted plan reports its flights by cadence", {
+  p <- media_plan_from_flights(
+    data.frame(channel = c("OOH", "Search"),
+               flight_start = as.Date(c("2026-04-06", "2026-04-08")),
+               flight_end   = as.Date(c("2026-05-03", "2026-04-08")),
+               planned_spend = c(120000, 3100)),
+    grain = "channel", name = "Flighted")
+  out <- grab(p)
+  expect_match(out, "flights     2  \\(1 day, 1 flight\\)")
+  # the flighting columns are summarised, not repeated down the preview
+  expect_false(grepl("flight_id", out))
+  expect_false(grepl("period_basis", out))
+})
+
+test_that("a plan without flights shows no flights line", {
+  expect_false(grepl("flights", grab(weekly_plan())))
+})
+
 test_that("a long dimension is truncated with a count of the remainder", {
   p <- media_plan_from_df(
     data.frame(partner = paste0("P", sprintf("%02d", 1:9)),

@@ -45,7 +45,21 @@ reference:
     pairing and moves every refresh.
   contents:
   - flight_window
+  - week_start
 
+- title: Flighting
+  desc: >
+    A flight is how a buy is authored -- in-market dates and a total. A week is
+    how the plan is held. Build a plan from flights and it expands onto weekly
+    rows exactly to the cent; flights() recovers the flights it was authored
+    from, and reports none rather than guessing when a plan records no flight
+    identity.
+  contents:
+  - media_plan_from_flights
+  - flights
+  - flight_cols
+  - period_basis_levels
+  - pacing_levels
 
 - title: Scenarios
   desc: >

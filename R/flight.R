@@ -4,20 +4,38 @@
 
 # The dates each row is in market.
 #
-# THE ONE PLACE that answers "what dates does this row cover?". Today a row is a
-# week, so its span runs from the week start through the following six days.
-# When rows come to carry an explicit flight, only this function changes --
-# flight_window(), line_item_summary() and print() are already written in span
-# terms and do not move.
+# THE ONE PLACE that answers "what dates does this row cover?". A row's period
+# is its week, clipped to the flight the row belongs to. That clipping is what
+# makes ragged periods work: a flight starting on a Wednesday makes its first
+# weekly row a five-day period, and a flight ending mid-week makes its last one
+# shorter too. A row with no flight simply spans its whole week.
+#
+# Because the period is derived from (week, flight_start, flight_end), no
+# period_start / period_end columns are stored and nothing can disagree.
 #
 # Returns a data frame of Date columns `start` and `end`, positionally aligned
 # with plan@data, or NULL when the plan has no time dimension. NULL rather than
 # a zero-row frame, because callers rely on the alignment and so must handle the
 # timeless case explicitly rather than by accident.
 .row_span <- function(plan) {
-  if (!length(plan@week_col)) return(NULL)
-  start <- plan@data[[plan@week_col]]
-  data.frame(start = start, end = start + 6L)
+  .span_of(plan@data, plan@week_col)
+}
+
+# The same question asked of a bare data frame, for the edit path -- which works
+# on @data before a MediaPlan exists to wrap it.
+.span_of <- function(d, week_col) {
+  if (!length(week_col) || !week_col %in% names(d)) return(NULL)
+  start <- d[[week_col]]
+  end   <- start + 6L
+
+  if (all(c("flight_start", "flight_end") %in% names(d))) {
+    fs <- d[["flight_start"]]
+    fe <- d[["flight_end"]]
+    on <- !is.na(fs) & !is.na(fe)
+    start[on] <- pmax(start[on], fs[on])
+    end[on]   <- pmin(end[on],   fe[on])
+  }
+  data.frame(start = start, end = end)
 }
 
 #' The plan's flight window

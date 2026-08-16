@@ -145,7 +145,12 @@
          "planned_spend), or a named numeric vector keyed by line_item().",
          call. = FALSE)
   }
-  d
+
+  # Every edit form funnels through here, so this is the one place a flight's
+  # pacing can fall out of step with its rows. A flight is never broken by an
+  # edit -- it keeps its identity and is re-labelled "custom" when its shape no
+  # longer matches an even spread. See .repace().
+  .repace(d, plan@week_col)
 }
 
 #' Derive a new scenario plan from a base plan
