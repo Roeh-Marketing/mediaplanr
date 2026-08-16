@@ -156,8 +156,26 @@ add_scenario <- function(set, plan, name = NULL) {
 #' the scenarios with `mrmopt` and join the result on `scenario` + the grain
 #' columns.
 #'
+#' @section Comparing flights:
+#' `level = "flight"` compares the **buys** rather than the cells: one row per
+#' scenario per flight, joined on `flight_id`, with what happened to it named in
+#' a `change` column — `moved`, `resized`, `moved & resized`, `added`,
+#' `dropped`, `repaced` or `unchanged`.
+#'
+#' This is the thing cell-level cannot say. A flight pushed a week later shows
+#' at cell level as money leaving one week and arriving in another, which is
+#' true but leaves the reader to infer that a single buy moved. Here it is one
+#' row saying so.
+#'
+#' It works by **lineage**. `flight_id` is minted per import, so it identifies
+#' the same buy across a plan and the scenarios derived from it, and does *not*
+#' match across independently-authored plans — which would report one buy as two.
+#' When the set shares no flight ids at all, this warns rather than returning a
+#' table of spurious adds and drops. A set whose plans record no flights returns
+#' no rows, the same way [flights()] does.
+#'
 #' @param set A [ScenarioSet].
-#' @param level One of `"summary"` or `"cell"`.
+#' @param level One of `"summary"`, `"cell"` or `"flight"`.
 #' @return A data frame.
 #' @examples
 #' base <- media_plan_from_df(
@@ -170,7 +188,7 @@ add_scenario <- function(set, plan, name = NULL) {
 #' compare_scenarios(set)
 #' compare_scenarios(set, "cell")
 #' @export
-compare_scenarios <- function(set, level = c("summary", "cell")) {
+compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
   level <- match.arg(level)
   if (!S7::S7_inherits(set, ScenarioSet)) {
     stop("`set` must be a ScenarioSet.", call. = FALSE)
@@ -178,6 +196,8 @@ compare_scenarios <- function(set, level = c("summary", "cell")) {
   scen <- set@scenarios
   nms <- names(scen)
   g <- set@grain
+
+  if (level == "flight") return(.compare_flights(set))
 
   if (level == "summary") {
     rows <- lapply(nms, function(nm) {
@@ -243,6 +263,111 @@ compare_scenarios <- function(set, level = c("summary", "cell")) {
     out
   })
   out <- do.call(rbind, rows)
+  rownames(out) <- NULL
+  out
+}
+
+# level = "flight": one row per scenario per flight, joined on flight_id.
+#
+# Cell-level comparison already reads a moved flight correctly -- money leaves
+# one week and arrives in another -- but it cannot say that a single buy moved.
+# This can, because flight_id survives a derivation.
+.compare_flights <- function(set) {
+  scen <- set@scenarios
+  nms  <- names(scen)
+  base <- set@base_name
+
+  fl <- lapply(scen, flights)
+  lg <- setdiff(setdiff(set@grain, scen[[base]]@week_col), flight_cols())
+
+  ids <- unique(unlist(lapply(fl, function(f) f[["flight_id"]]),
+                       use.names = FALSE))
+  ids <- ids[!is.na(ids)]
+  if (!length(ids)) {
+    return(.empty_flight_cmp(scen[[base]], lg))
+  }
+  shared <- length(nms) < 2L ||
+    any(vapply(ids, function(id) {
+      sum(vapply(fl, function(f) id %in% f[["flight_id"]], logical(1))) > 1L
+    }, logical(1)))
+  if (!shared) {
+    warning("no flight is shared between these scenarios, so every buy reads ",
+            "as added or dropped. Flight ids identify a buy through a ",
+            "derivation, not across independently authored plans -- compare ",
+            "at level = \"cell\" instead.", call. = FALSE)
+  }
+
+  # The line item each flight belongs to, from whichever scenario defines it.
+  spine <- do.call(rbind, lapply(fl, function(f) f[, c("flight_id", lg),
+                                                   drop = FALSE]))
+  spine <- spine[match(ids, spine[["flight_id"]]), , drop = FALSE]
+
+  b <- fl[[base]]
+  bi <- match(ids, b[["flight_id"]])
+
+  rows <- lapply(nms, function(nm) {
+    f <- fl[[nm]]
+    i <- match(ids, f[["flight_id"]])
+    here <- !is.na(i)
+
+    spend <- ifelse(here, f[["planned_spend"]][i], 0)
+    b_spend <- ifelse(!is.na(bi), b[["planned_spend"]][bi], 0)
+    start <- .as_date(ifelse(here, f[["flight_start"]][i], NA_real_))
+    end   <- .as_date(ifelse(here, f[["flight_end"]][i],   NA_real_))
+    b_start <- .as_date(ifelse(!is.na(bi), b[["flight_start"]][bi], NA_real_))
+
+    out <- cbind(data.frame(scenario = nm, stringsAsFactors = FALSE), spine)
+    out[["flight_start"]]  <- start
+    out[["flight_end"]]    <- end
+    out[["planned_spend"]] <- spend
+    out[["n_weeks"]]       <- ifelse(here, f[["n_weeks"]][i], 0L)
+    out[["pacing"]]        <- ifelse(here, f[["pacing"]][i], NA_character_)
+    out[["spend_vs_base"]] <- spend - b_spend
+    out[["start_shift_days"]] <- as.integer(start - b_start)
+    out[["change"]] <- .flight_change(nm, base, here, !is.na(bi), f, b, i, bi)
+    out
+  })
+  out <- do.call(rbind, rows)
+  rownames(out) <- NULL
+  out
+}
+
+# What happened to this flight, in one word.
+.flight_change <- function(nm, base, here, in_base, f, b, i, bi) {
+  if (identical(nm, base)) {
+    # A flight some other scenario adds is not "dropped" from the baseline's
+    # point of view -- it was never there.
+    return(ifelse(here, "base", "absent"))
+  }
+  moved <- here & in_base &
+    (f[["flight_start"]][i] != b[["flight_start"]][bi] |
+       f[["flight_end"]][i] != b[["flight_end"]][bi])
+  resized <- here & in_base &
+    (round(f[["planned_spend"]][i] * 100) != round(b[["planned_spend"]][bi] * 100))
+  repaced <- here & in_base & (f[["pacing"]][i] != b[["pacing"]][bi])
+
+  out <- rep("unchanged", length(here))
+  out[repaced] <- "repaced"
+  out[moved] <- "moved"
+  out[resized] <- "resized"
+  out[moved & resized] <- "moved & resized"
+  out[!here & in_base] <- "dropped"
+  out[here & !in_base] <- "added"
+  out
+}
+
+.empty_flight_cmp <- function(plan, lg) {
+  out <- plan@data[0, lg, drop = FALSE]
+  out <- cbind(data.frame(scenario = character(0), stringsAsFactors = FALSE), out)
+  out[["flight_id"]]     <- character(0)
+  out[["flight_start"]]  <- as.Date(character(0))
+  out[["flight_end"]]    <- as.Date(character(0))
+  out[["planned_spend"]] <- numeric(0)
+  out[["n_weeks"]]       <- integer(0)
+  out[["pacing"]]        <- character(0)
+  out[["spend_vs_base"]] <- numeric(0)
+  out[["start_shift_days"]] <- integer(0)
+  out[["change"]]        <- character(0)
   rownames(out) <- NULL
   out
 }

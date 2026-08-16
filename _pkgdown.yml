@@ -57,6 +57,7 @@ reference:
   contents:
   - media_plan_from_flights
   - flights
+  - calendarize
   - flight_cols
   - period_basis_levels
   - pacing_levels

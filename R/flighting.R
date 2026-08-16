@@ -98,6 +98,14 @@ pacing_levels <- function() {
   .as_date(d - ((dow - week_start) %% 7L))
 }
 
+# Roll each date back to the start of the period it falls in.
+.period_floor <- function(d, basis, week_start = 1L) {
+  switch(basis,
+    day   = .as_date(d),
+    week  = .week_floor(d, week_start),
+    month = .as_date(as.Date(format(d, "%Y-%m-01"))))
+}
+
 #' The weekday a plan's weeks begin on
 #'
 #' Derived from the week column rather than stored, so it cannot disagree with
@@ -460,6 +468,116 @@ media_plan_from_flights <- function(df, grain,
     }
   }
   errs
+}
+
+#' Re-cut a plan onto a different calendar
+#'
+#' The temporal counterpart to [roll_up()]. Where `roll_up()` aggregates over
+#' *dimensions* — channel, partner, tactic — this aggregates over *time*: it
+#' spreads each row's spend across the days it is actually in market, then
+#' gathers those days into days, weeks or months.
+#'
+#' The two are deliberately separate verbs rather than one with a mode flag, so
+#' they compose: roll a plan up to channel, then cut it to months, in whichever
+#' order suits.
+#'
+#' Because each row's period is its week **clipped to its flight**, a flight that
+#' starts mid-week contributes only its real days. Re-cutting to months
+#' therefore splits a week that straddles a month boundary, which is exactly the
+#' thing that is tedious and error-prone to do by hand. Spend is split in whole
+#' cents that re-sum to the row's original total.
+#'
+#' @section Why a data frame, not a plan:
+#' This returns a **projection**, like [compare_scenarios()] — something to
+#' chart, export, or hand to a reconciliation. It is not a [MediaPlan], because
+#' aggregating over time can merge two of a line item's rows into one period,
+#' and a flight that spanned them is no longer one row's worth of anything: the
+#' flighting columns cannot survive the operation honestly, so they are dropped
+#' rather than guessed at. Editing belongs on the plan, where the flights still
+#' are. If you do want a plan at the new grain, pass the result to
+#' [media_plan_from_df()].
+#'
+#' @param plan A [MediaPlan] with a time dimension.
+#' @param basis `"week"` (default), `"day"` or `"month"`.
+#' @param week_start Weekday weeks begin on, when `basis = "week"`. Defaults to
+#'   the plan's own, read off its data by [week_start()].
+#' @return A data frame: the line item columns, a date column named after
+#'   `basis` holding each period's start, and `planned_spend`. One row per line
+#'   item per period, ordered by period.
+#' @examples
+#' p <- media_plan_from_flights(
+#'   data.frame(channel = "OOH",
+#'              flight_start = as.Date("2026-04-20"),
+#'              flight_end   = as.Date("2026-05-10"),
+#'              planned_spend = 210000),
+#'   grain = "channel", name = "Straddles a month end"
+#' )
+#'
+#' calendarize(p, "week")
+#' calendarize(p, "month")   # the week of Apr 27 is split across April and May
+#' @export
+calendarize <- function(plan, basis = c("week", "day", "month"),
+                        week_start = NULL) {
+  basis <- match.arg(basis)
+  if (!S7::S7_inherits(plan, MediaPlan)) {
+    stop("`plan` must be a MediaPlan.", call. = FALSE)
+  }
+  span <- .row_span(plan)
+  if (is.null(span)) {
+    stop("`plan` has no time dimension, so there is no calendar to cut it ",
+         "onto.", call. = FALSE)
+  }
+  ws <- if (is.null(week_start)) .plan_week_start(plan) else .weekday_num(week_start)
+
+  d  <- plan@data
+  lg <- setdiff(line_item_grain(plan), flight_cols())
+  if (!length(lg)) {
+    stop("the plan's grain is only its time column, so there are no line items ",
+         "to re-cut.", call. = FALSE)
+  }
+
+  if (!nrow(d)) {
+    out <- d[0, lg, drop = FALSE]
+    out[[basis]] <- as.Date(character(0))
+    out[["planned_spend"]] <- numeric(0)
+    rownames(out) <- NULL
+    return(out)
+  }
+  bad <- which(is.na(span$start) | is.na(span$end))
+  if (length(bad)) {
+    stop("row(s) ", paste(utils::head(bad, 5), collapse = ", "),
+         " have no dates, so they cannot be placed on a calendar.",
+         call. = FALSE)
+  }
+
+  pieces <- lapply(seq_len(nrow(d)), function(i) {
+    days    <- seq(span$start[i], span$end[i], by = "day")
+    per     <- .period_floor(days, basis, ws)
+    periods <- sort(unique(per))
+    n_day   <- as.integer(table(factor(as.character(per),
+                                       levels = as.character(periods))))
+    data.frame(.src = i, period = periods,
+               planned_spend = .allocate_minor(d[["planned_spend"]][i], n_day))
+  })
+  a <- do.call(rbind, pieces)
+
+  out <- d[a[[".src"]], lg, drop = FALSE]
+  out[[basis]]           <- a[["period"]]
+  out[["planned_spend"]] <- a[["planned_spend"]]
+
+  # Re-cutting can land two of a line item's rows in one period -- two weeks in
+  # a month, or two flights of the same buy -- so periods are summed. This is
+  # aggregation, unlike the import path, where a collision means two distinct
+  # buys and is an error.
+  k     <- line_item(out, c(lg, basis))
+  first <- !duplicated(k)
+  res   <- out[first, c(lg, basis), drop = FALSE]
+  res[["planned_spend"]] <- as.numeric(tapply(out[["planned_spend"]], k,
+                                              sum)[k[first]])
+
+  res <- res[order(res[[basis]], line_item(res, lg)), , drop = FALSE]
+  rownames(res) <- NULL
+  res
 }
 
 #' The flights a plan was authored from

@@ -248,6 +248,45 @@ partner:
 roll_up(base, c("channel", "week"))@data |> head(4)
 ```
 
+## Re-cutting the calendar
+
+`roll_up()` aggregates over *dimensions*. `calendarize()` is its counterpart
+over *time*: it spreads each row's spend across the days it is actually in
+market, then gathers those days into days, weeks or months.
+
+```{r}
+ooh <- media_plan_from_flights(
+  data.frame(
+    channel       = "OOH",
+    flight_start  = as.Date("2026-04-20"),
+    flight_end    = as.Date("2026-05-10"),
+    planned_spend = 210000
+  ),
+  grain = "channel", name = "A buy that crosses a month end"
+)
+
+calendarize(ooh, "week")
+calendarize(ooh, "month")
+```
+
+The month cut splits the week of 27 April, which straddles the boundary: eleven
+days fall in April and ten in May. Doing that by hand is exactly the tedious,
+error-prone part of finance-facing reporting.
+
+The two verbs compose, in either order, because neither knows about the other's
+axis:
+
+```{r}
+calendarize(roll_up(base, c("channel", "week")), "month")
+```
+
+`calendarize()` returns a plain data frame rather than a plan. Aggregating over
+time can merge two of a line item's rows into one period, at which point the
+flight that spanned them is no longer one row's worth of anything — so rather
+than guess, the flighting columns are dropped and the result is a projection to
+chart or export. Pass it to `media_plan_from_df()` if you do want a plan at the
+new grain.
+
 ## Where to next
 
 - `vignette("plan_concepts")` — what a plan *is*, and the boundaries that keep
