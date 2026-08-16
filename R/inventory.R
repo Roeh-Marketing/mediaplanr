@@ -133,6 +133,9 @@ line_item_summary <- function(plan) {
   out[["line_item"]]     <- keys
   out[["planned_spend"]] <- as.numeric(tapply(d[["planned_spend"]], k, sum)[keys])
   out[["n_rows"]]        <- as.integer(table(k)[keys])
+  # A line item is bought on one unit type at one rate, so these aggregate
+  # cleanly here even though they need care at a coarser grain.
+  out <- .attach_units(out, .aggregate_units(d, k, keys))
 
   if (!is.null(span)) {
     out[["flight_start"]] <- .span_by_item(span$start, k, keys, min)

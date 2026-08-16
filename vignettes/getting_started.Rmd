@@ -248,6 +248,83 @@ partner:
 roll_up(base, c("channel", "week"))@data |> head(4)
 ```
 
+## What a line item buys
+
+Spend is the common currency — the one quantity every channel shares — so it
+stays mandatory. Alongside it a line item can record **what** it buys, **how
+much**, and **at what price**. The three are bound by one identity:
+
+```
+planned_spend = planned_units * planned_rate / rate_per(unit_type)
+```
+
+`rate_per` is 1000 for impressions, because the trade quotes a CPM rather than a
+price per impression, and 1 for everything else — a CPC per click, a CPP per
+GRP.
+
+So **supply any two and the third is computed**, whichever way you actually
+have it. A budget and a negotiated rate:
+
+```{r}
+social <- media_plan_from_df(
+  data.frame(
+    channel       = "Social",
+    unit_type     = "impression",
+    planned_spend = 140000,
+    planned_rate  = 5          # a $5 CPM
+  ),
+  grain = "channel", name = "Social plan"
+)
+
+social@data$planned_units
+```
+
+Or a delivery goal and a rate, which gives the budget instead:
+
+```{r}
+media_plan_from_df(
+  data.frame(channel = "Social", unit_type = "impression",
+             planned_units = 28000000, planned_rate = 5),
+  grain = "channel", name = "Goal-led"
+)@data$planned_spend
+```
+
+All three are stored, and the validator enforces the identity, so they cannot
+drift apart.
+
+### The rate is what survives an edit
+
+This is the part worth knowing. When you cut a budget, the negotiated rate does
+not improve — you buy fewer impressions:
+
+```{r}
+cut <- build_scenario(social, edits = list(delta = -40000), name = "trimmed")
+
+c(spend = cut@data$planned_spend,
+  units = cut@data$planned_units,
+  rate  = cut@data$planned_rate)
+```
+
+Units follow the money at the held rate, everywhere money moves: through scaling
+and re-totalling, through a flight spreading across its weeks, through
+`calendarize()`. `cost_per_unit()` and `cpm()` derive from spend and units, so
+no third number can disagree with them.
+
+`roll_up()` sums units only **within** one unit type, and reports none across a
+mix — summing GRPs and clicks would produce a figure nobody should act on. The
+spend always survives, because that is the point of a common currency:
+
+```{r}
+mixed <- media_plan_from_df(
+  data.frame(bucket = "all", channel = c("Social", "Search"),
+             unit_type = c("impression", "click"),
+             planned_spend = c(140000, 95000), planned_rate = c(5, 0.80)),
+  grain = c("bucket", "channel"), name = "Mixed"
+)
+
+roll_up(mixed, "bucket")@data
+```
+
 ## Re-cutting the calendar
 
 `roll_up()` aggregates over *dimensions*. `calendarize()` is its counterpart

@@ -9,6 +9,9 @@ media_plan_from_df(
   grain,
   week = NULL,
   planned_spend = "planned_spend",
+  planned_units = NULL,
+  planned_rate = NULL,
+  unit_type = NULL,
   name,
   nickname = "",
   advertiser = "",
@@ -32,6 +35,16 @@ are coerced to \code{Date} (the week start).}
 \item{planned_spend}{Name of the planned-spend column in \code{df}. Renamed to
 \code{planned_spend}. Holds intent on every row, including past weeks. Default
 \code{"planned_spend"}.}
+
+\item{planned_units, planned_rate, unit_type}{Optional names of the columns
+recording what the line item buys: how much of it, at what price, and of
+what (\code{"impression"}, \code{"click"}, \code{"grp"}, ...). Renamed to the canonical
+names. The three quantities are bound by
+\code{planned_spend = planned_units * planned_rate / rate_per(unit_type)}, where
+\code{rate_per} is 1000 for impressions and 1 otherwise, so \strong{supply any two and
+the third is computed} — a budget and a negotiated CPM give the
+impressions, a delivery goal and a rate give the budget. See
+\code{\link[=cost_per_unit]{cost_per_unit()}} and \code{\link[=unit_type_levels]{unit_type_levels()}}.}
 
 \item{name}{Formal plan name. \strong{Required} — every plan carries one.}
 

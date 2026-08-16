@@ -301,6 +301,11 @@ media_plan_from_flights <- function(df, grain,
   out[["pacing"]]        <- rep("even", nrow(alloc))
   rownames(out) <- NULL
 
+  # A flight's units belong to the whole buy, so carrying them down each week
+  # would repeat the total. Re-derive them from each week's share of the spend
+  # at the held rate.
+  out <- .reunit(out)
+
   .stop_on_flight_collision(out, grain, week)
 
   media_plan_from_df(out, grain = c(grain, week), week = week,
@@ -561,9 +566,17 @@ calendarize <- function(plan, basis = c("week", "day", "month"),
   })
   a <- do.call(rbind, pieces)
 
-  out <- d[a[[".src"]], lg, drop = FALSE]
+  # Carry what units need to be re-derived from each period's share of the
+  # spend: the unit type and the held rate. Units themselves are recomputed
+  # rather than split, so they follow the money exactly.
+  carry <- intersect(c("unit_type", "planned_rate"), names(d))
+  out <- d[a[[".src"]], c(lg, carry), drop = FALSE]
   out[[basis]]           <- a[["period"]]
   out[["planned_spend"]] <- a[["planned_spend"]]
+  if ("planned_rate" %in% carry) {
+    out[["planned_units"]] <- NA_real_
+    out <- .reunit(out)
+  }
 
   # Re-cutting can land two of a line item's rows in one period -- two weeks in
   # a month, or two flights of the same buy -- so periods are summed. This is
@@ -574,6 +587,7 @@ calendarize <- function(plan, basis = c("week", "day", "month"),
   res   <- out[first, c(lg, basis), drop = FALSE]
   res[["planned_spend"]] <- as.numeric(tapply(out[["planned_spend"]], k,
                                               sum)[k[first]])
+  res <- .attach_units(res, .aggregate_units(out, k, k[first]))
 
   res <- res[order(res[[basis]], line_item(res, lg)), , drop = FALSE]
   rownames(res) <- NULL

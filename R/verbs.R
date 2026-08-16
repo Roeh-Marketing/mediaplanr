@@ -486,11 +486,15 @@
          call. = FALSE)
   }
 
-  # Every edit form funnels through here, so this is the one place a flight's
-  # pacing can fall out of step with its rows. A flight is never broken by an
-  # edit -- it keeps its identity and is re-labelled "custom" when its shape no
-  # longer matches an even spread. See .repace().
-  .repace(d, plan@week_col)
+  # Every edit form funnels through here, so this is the one place the derived
+  # facts can fall out of step with the money.
+  #
+  # .reunit() re-derives units from the new spend at the HELD rate: a cut budget
+  # buys fewer impressions, it does not win a better CPM.
+  # .repace() re-derives each flight's pacing; a flight is never broken by an
+  # edit, only re-labelled "custom" when its shape no longer matches an even
+  # spread.
+  .repace(.reunit(d), plan@week_col)
 }
 
 #' Derive a new scenario plan from a base plan

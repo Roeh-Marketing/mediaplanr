@@ -74,6 +74,17 @@ reference:
   - compare_scenarios
   - ScenarioSet
 
+- title: What a line item buys
+  desc: >
+    Spend is the common currency and stays mandatory. Alongside it a line item
+    may record what it buys, how much of it, and at what price -- bound by one
+    identity, so any two of the three give the third. The rate is what survives
+    an edit: a cut budget buys fewer impressions, it does not win a better CPM.
+  contents:
+  - cost_per_unit
+  - unit_cols
+  - unit_type_levels
+
 - title: Workflow status
   desc: >
     The fixed vocabulary a plan's status is validated against, so a UI dropdown

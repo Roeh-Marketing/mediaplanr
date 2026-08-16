@@ -193,9 +193,10 @@ MediaPlan <- S7::new_class(
       }
     }
 
-    # Flighting columns ride along: type-checked, never part of the key. A plan
-    # that records no flights skips all of this.
+    # Flighting and unit columns ride along: checked, never part of the key. A
+    # plan that records neither skips all of this.
     errs <- c(errs, .validate_flight_cols(d))
+    if (!length(errs)) errs <- c(errs, .validate_unit_cols(d))
 
     # One row per grain cell.
     if (length(miss) == 0 && length(g) >= 1 && nrow(d) > 0) {
@@ -339,6 +340,15 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' @param planned_spend Name of the planned-spend column in `df`. Renamed to
 #'   `planned_spend`. Holds intent on every row, including past weeks. Default
 #'   `"planned_spend"`.
+#' @param planned_units,planned_rate,unit_type Optional names of the columns
+#'   recording what the line item buys: how much of it, at what price, and of
+#'   what (`"impression"`, `"click"`, `"grp"`, ...). Renamed to the canonical
+#'   names. The three quantities are bound by
+#'   `planned_spend = planned_units * planned_rate / rate_per(unit_type)`, where
+#'   `rate_per` is 1000 for impressions and 1 otherwise, so **supply any two and
+#'   the third is computed** — a budget and a negotiated CPM give the
+#'   impressions, a delivery goal and a rate give the budget. See
+#'   [cost_per_unit()] and [unit_type_levels()].
 #' @param name Formal plan name. **Required** — every plan carries one.
 #' @param nickname Optional short working handle used in preference to `name`
 #'   when labelling scenarios.
@@ -360,6 +370,8 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' @export
 media_plan_from_df <- function(df, grain, week = NULL,
                                planned_spend = "planned_spend",
+                               planned_units = NULL, planned_rate = NULL,
+                               unit_type = NULL,
                                name, nickname = "", advertiser = "",
                                planner = "", status = "", objective = "",
                                id = NULL, parent_id = character(0)) {
@@ -369,14 +381,23 @@ media_plan_from_df <- function(df, grain, week = NULL,
   }
   df <- as.data.frame(df, stringsAsFactors = FALSE)
 
-  if (!planned_spend %in% names(df)) {
-    stop("planned-spend column '", planned_spend, "' not found in `df`.",
-         call. = FALSE)
+  df <- .rename_col(df, planned_units, "planned_units")
+  df <- .rename_col(df, planned_rate,  "planned_rate")
+  df <- .rename_col(df, unit_type,     "unit_type")
+
+  # Spend is optional only when units and a rate can produce it.
+  spend_given <- planned_spend %in% names(df)
+  if (!spend_given &&
+      !all(c("planned_units", "planned_rate") %in% names(df))) {
+    stop("planned-spend column '", planned_spend, "' not found in `df`. ",
+         "Supply it, or supply planned_units and planned_rate so it can be ",
+         "computed.", call. = FALSE)
   }
-  if (planned_spend != "planned_spend") {
+  if (spend_given && planned_spend != "planned_spend") {
     if ("planned_spend" %in% names(df)) df[["planned_spend"]] <- NULL
     names(df)[names(df) == planned_spend] <- "planned_spend"
   }
+  df <- .complete_trio(df)
 
   miss <- setdiff(grain, names(df))
   if (length(miss)) {
@@ -464,6 +485,9 @@ roll_up <- function(plan, grain, name = NULL) {
   out <- d[first, grain, drop = FALSE]
   sums <- tapply(d[["planned_spend"]], k, sum)
   out[["planned_spend"]] <- as.numeric(sums[k[first]])
+  # Units add up only within one unit_type; a mixed group keeps its spend and
+  # reports no units. The rate that comes back is the blended one.
+  out <- .attach_units(out, .aggregate_units(d, k, k[first]))
   rownames(out) <- NULL
 
   MediaPlan(

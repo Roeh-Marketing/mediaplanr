@@ -42,6 +42,34 @@
   }
 }
 
+# What the plan buys, one line per unit type: total units and the blended rate.
+# Continuation lines carry a blank label so the values stay in one column.
+.print_units <- function(x) {
+  d <- x@data
+  if (!all(c("unit_type", "planned_units") %in% names(d)) || !nrow(d)) return()
+  ok <- !is.na(d[["unit_type"]]) & !is.na(d[["planned_units"]])
+  if (!any(ok)) return()
+
+  ut    <- as.character(d[["unit_type"]])[ok]
+  units <- tapply(d[["planned_units"]][ok], ut, sum)
+  spend <- tapply(d[["planned_spend"]][ok], ut, sum)
+  types <- names(units)
+
+  qty <- vapply(seq_along(types), function(i) .fmt_num(units[[i]]),
+                character(1))
+  w_t <- max(nchar(types))
+  w_q <- max(nchar(qty))
+
+  for (i in seq_along(types)) {
+    rate <- spend[[i]] / units[[i]] * .rate_per(types[i])
+    .field(if (i == 1L) "units" else "", paste0(
+      formatC(types[i], width = -w_t), "  ",
+      formatC(qty[i], width = w_q), "  @ ",
+      formatC(rate, format = "f", digits = 2),
+      if (identical(.rate_per(types[i]), 1000)) " CPM" else ""))
+  }
+}
+
 #' @name print
 #' @title Print methods for mediaplanr objects
 #' @param x The object to print.
@@ -103,6 +131,7 @@ S7::method(print, MediaPlan) <- function(x, ...) {
   }
   .field("rows", nrow(d))
   .field("spend", .fmt_num(sum(d[["planned_spend"]])))
+  .print_units(x)
 
   # --- identity / lineage ---
   ident <- short_id(x@id)
@@ -117,7 +146,7 @@ S7::method(print, MediaPlan) <- function(x, ...) {
   # preview into unreadability. @data still has them.
   if (nrow(d)) {
     n_show <- min(3L, nrow(d))
-    prev_cols <- setdiff(names(d), flight_cols())
+    prev_cols <- setdiff(names(d), c(flight_cols(), unit_cols()))
     cat("\n")
     prev <- utils::capture.output(
       print(utils::head(d[, prev_cols, drop = FALSE], n_show), row.names = FALSE))
