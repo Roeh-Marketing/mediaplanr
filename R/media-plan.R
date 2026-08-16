@@ -114,6 +114,13 @@ status_levels <- function() {
 #' @param status Optional workflow state; one of [status_levels()], or `""` when
 #'   unset.
 #' @param objective Human-facing objective / notes.
+#' @section Derived properties:
+#' `@flight_start`, `@flight_end` and `@flight_days` are computed from `@data`
+#' on every read and cannot be assigned. They describe the plan's own extent —
+#' the dates it has line items for — and so are true of the plan alone. See
+#' [flight_window()] for why that is a different thing from the decomp
+#' through-date [check_coverage()] takes, and why only one of the two can live
+#' on a plan.
 #' @return A `MediaPlan` S7 object.
 #' @export
 MediaPlan <- S7::new_class(
@@ -129,7 +136,23 @@ MediaPlan <- S7::new_class(
     advertiser = S7::new_property(S7::class_character, default = ""),
     planner    = S7::new_property(S7::class_character, default = ""),
     status     = S7::new_property(S7::class_character, default = ""),
-    objective  = S7::new_property(S7::class_character, default = "")
+    objective  = S7::new_property(S7::class_character, default = ""),
+
+    # Derived, never stored: getter properties are read-only, so these cannot
+    # drift from @data. S7 does not enforce the declared class on a getter's
+    # return value, so each one is responsible for its own type -- hence the
+    # explicit length-0 Date / integer for "the plan has no time dimension".
+    flight_start = S7::new_property(S7::class_Date, getter = function(self) {
+      w <- flight_window(self)
+      if (length(w)) unname(w[["start"]]) else as.Date(character(0))
+    }),
+    flight_end = S7::new_property(S7::class_Date, getter = function(self) {
+      w <- flight_window(self)
+      if (length(w)) unname(w[["end"]]) else as.Date(character(0))
+    }),
+    flight_days = S7::new_property(S7::class_integer, getter = function(self) {
+      .flight_days(self)
+    })
   ),
   validator = function(self) {
     d <- self@data

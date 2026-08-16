@@ -30,6 +30,8 @@ Collate:
     'mediaplanr-package.R'
     'utils.R'
     'media-plan.R'
+    'flight.R'
+    'inventory.R'
     'verbs.R'
     'scenario-set.R'
     'print.R'

@@ -77,7 +77,24 @@ editable table).
 
 Verbs and helpers: `media_plan_from_df()`, `build_scenario()`, `roll_up()`,
 `check_coverage()`, `scenario_set()`, `add_scenario()`, `compare_scenarios()`,
-`line_item()`, `line_item_grain()`, `status_levels()`.
+`line_item()`, `line_item_grain()`, `line_item_summary()`, `grain_values()`,
+`flight_window()`, `status_levels()`.
+
+### When it runs, and what is in it
+
+```r
+base@flight_start      # first day in market
+base@flight_end        # last day -- the final week's last day, not its start
+base@flight_days
+
+grain_values(base, "channel")   # the channels present, ready to use as a target
+line_item_summary(base)         # one row per line item: spend, rows, own flight
+```
+
+Both are derived from `@data` on every read, so neither can go stale. A plan's
+flight window is its own **extent** and is not the through-date
+`check_coverage()` takes — that one belongs to a plan-decomp pairing and moves
+every time the decomp refreshes.
 
 ## Learn more
 

@@ -20,9 +20,26 @@
   ifelse(nchar(s) > n, paste0(substr(s, 1, n - 3), "..."), s)
 }
 
-# A labelled line in the uniform label column.
-.field <- function(label, value, width = 12) {
-  cat("  ", formatC(label, width = -width), value, "\n", sep = "")
+# A labelled line in the uniform label column. Nested lines pass a deeper
+# `indent` and a correspondingly narrower `width` so their values still land in
+# the same column as the fields above them.
+.field <- function(label, value, width = 12, indent = 2) {
+  cat(strrep(" ", indent), formatC(label, width = -width), value, "\n", sep = "")
+}
+
+# One inventory line per dimension: the user's own column name as the label, the
+# values present as the value. Truncated, because a plan with forty partners
+# should not flood the console.
+.print_inventory <- function(x, cols, max_vals = 6L) {
+  for (nm in cols) {
+    vals <- grain_values(x, nm)
+    shown <- utils::head(as.character(vals), max_vals)
+    txt <- paste(shown, collapse = ", ")
+    if (length(vals) > length(shown)) {
+      txt <- paste0(txt, " (+", length(vals) - length(shown), " more)")
+    }
+    .field(.trunc(nm, 9), .trunc(txt, 58), width = 10, indent = 4)
+  }
 }
 
 #' @name print
@@ -53,12 +70,26 @@ S7::method(print, MediaPlan) <- function(x, ...) {
 
   # --- shape ---
   .field("grain", paste(x@grain, collapse = " + "))
-  if (length(x@week_col) && nrow(d)) {
-    wk <- range(d[[x@week_col]], na.rm = TRUE)
+
+  # The flight window is the plan's own extent, so its end is the last week's
+  # last day -- six days after the week start stored in @data. The week count
+  # rides along on the same line, because a window alone cannot distinguish a
+  # continuous plan from one with a hiatus in the middle.
+  fw <- flight_window(x)
+  if (length(fw) && nrow(d)) {
     n_wk <- length(unique(d[[x@week_col]]))
-    .field("weeks", paste0(format(wk[1]), " to ", format(wk[2]),
-                           "  (", n_wk, if (n_wk == 1) " week)" else " weeks)"))
-    .field("line items", length(unique(line_item(d, line_item_grain(x)))))
+    .field("flight", paste0(format(fw[["start"]]), " to ", format(fw[["end"]]),
+                            "  (", n_wk, if (n_wk == 1) " week)" else " weeks)"))
+  }
+
+  li_grain <- line_item_grain(x)
+  if (nrow(d) && length(li_grain)) {
+    # Rows and line items only differ once there is a time dimension; showing
+    # both on a timeless plan would print the same number twice.
+    if (length(fw)) {
+      .field("line items", length(unique(line_item(d, li_grain))))
+    }
+    .print_inventory(x, li_grain)
   }
   .field("rows", nrow(d))
   .field("spend", .fmt_num(sum(d[["planned_spend"]])))

@@ -107,7 +107,33 @@ the decomp only knows about history.
 their pairing that disagrees. An app should surface that and let the user
 resolve it, not refuse to load a perfectly well-formed plan.
 
-That last point is the one exception to the package's general strictness.
+### Extent is not a boundary
+
+A plan does know one thing about its own dates: **which ones it covers**. That
+is its *extent*, and it is not the same species of fact as a through-date.
+
+```{r}
+c(plan@flight_start, plan@flight_end)
+plan@flight_days
+```
+
+The discriminating question is: **can this value change without the plan
+changing?** A decomp's through-date can — it moves every refresh, and the plan
+sits still while it does. A flight window cannot: it is a pure function of
+`@data`. So one is an argument to `check_coverage()` and the other is a property
+of the plan.
+
+That test is also what keeps the class from re-growing the things that were
+removed. `historical_spend`, `weeks_remaining`, `is_active`, `pct_delivered` all
+fail it — each needs either `Sys.Date()` or a decomp — so none of them belongs
+here, however convenient they would be.
+
+Note that `@flight_end` is the last day the plan is in market, not the last week
+*start* stored in `@data`. A week is seven days of spend, so a plan whose final
+week begins on a Monday runs through the Sunday after it.
+
+That last point about warnings is the one exception to the package's general
+strictness.
 Structural problems — negative spend, duplicate rows, a week column that is not
 a `Date` — are hard errors, so an invalid plan cannot exist:
 
@@ -135,6 +161,27 @@ line_item_grain(plan)   # what identifies a line item — the grain minus the we
 
 unique(line_item(plan@data, line_item_grain(plan)))
 ```
+
+`line_item()` gives you the key for every *row*. For the distinct roster — one
+row per line item, with its total, its share of the plan's rows and its own
+flight window — use `line_item_summary()`:
+
+```{r}
+line_item_summary(plan)
+```
+
+The grain values come back as columns rather than folded into the key, because
+that is the shape an edit `target` takes. So "which channels are in this plan?"
+is answered with values you can hand straight to `build_scenario()`:
+
+```{r}
+grain_values(plan, "channel")
+```
+
+There is deliberately no `channels()`. The package never privileges a column
+name — `channel` is simply a dimension you chose to key on, and another plan may
+key on `media_type` or `vehicle`. Naming your own column keeps that true, and a
+typo errors with the alternatives listed rather than returning nothing.
 
 `grain` is deliberately ordered coarsest-first, because `roll_up()` treats it as
 a nesting. Dropping the rightmost column gives the next coarsest level — which

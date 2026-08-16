@@ -30,11 +30,34 @@ test_that("metadata appears when set, including the status badge", {
   expect_match(out, "objective   hold the mix")
 })
 
-test_that("a weekly plan reports its week range and line item count", {
+test_that("a weekly plan reports its flight window and line item count", {
   out <- grab(weekly_plan())
-  expect_match(out, "weeks       2026-03-02 to 2026-04-06")
+  # the window ends on the last day of the last week, not on its start
+  expect_match(out, "flight      2026-03-02 to 2026-04-12")
   expect_match(out, "\\(2 weeks\\)")
   expect_match(out, "line items  3")
+})
+
+test_that("the inventory lists each dimension under the user's own column name", {
+  out <- grab(weekly_plan())
+  expect_match(out, "    channel   Search, TV")
+  expect_match(out, "    partner   Google, Hulu, NBC")
+})
+
+test_that("a timeless plan shows its inventory but no flight or line item count", {
+  out <- grab(std_plan())
+  expect_match(out, "    channel   Search, Social, TV")
+  expect_false(grepl("flight", out))
+  # rows and line items are the same number without a time dimension
+  expect_false(grepl("line items", out))
+})
+
+test_that("a long dimension is truncated with a count of the remainder", {
+  p <- media_plan_from_df(
+    data.frame(partner = paste0("P", sprintf("%02d", 1:9)),
+               planned_spend = rep(10, 9)),
+    grain = "partner", name = "Many partners")
+  expect_match(grab(p), "\\(\\+3 more\\)")
 })
 
 test_that("a derived plan shows its lineage", {

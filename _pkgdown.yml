@@ -34,7 +34,18 @@ reference:
   contents:
   - line_item
   - line_item_grain
+  - line_item_summary
+  - grain_values
   - roll_up
+
+- title: Flight dates
+  desc: >
+    When the plan is in market. Derived from the plan's own rows, so it is true
+    of the plan alone -- unlike a decomp's through-date, which belongs to a
+    pairing and moves every refresh.
+  contents:
+  - flight_window
+
 
 - title: Scenarios
   desc: >
