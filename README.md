@@ -113,10 +113,10 @@ Two ideas the rest of the design hangs on, in one line each:
 - **A line item** (channel / partner / tactic) is the time-free identity that
   models attach to. A row is a line item for one week.
 
-## Growth path (not now)
+## Growth path
 
-Nested Channel→Tactic→Flight hierarchy; a channel-type registry for an
-extensible media taxonomy; attribution as a separate linked process; metrics
-beyond spend (impressions, GRPs); arbitrary-depth lineage trees; ids as an
-external join contract. The current flat grain and synthetic ids are the seeds
-these grow from.
+Nested **SubPlans** are next: a channel team's detailed plan, at its own
+granularity, rolling up into the weekly topline. See
+[Roadmap.md](https://github.com/Roeh-Marketing/mediaplanr/blob/main/Roadmap.md)
+for that design and for what is deliberately staying out — a channel-type
+registry, attribution, and anything derived from `Sys.Date()`.
