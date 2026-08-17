@@ -87,6 +87,48 @@ head(base@data, 3)
 sum(base@data$planned_spend)
 ```
 
+## The other door in: flights
+
+Planners do not always write a plan by week. Often a buy is stated as
+**in-market dates and a total** — "OOH, 6 April to 3 May, 120k". That is a
+**flight**, and `media_plan_from_flights()` takes it directly:
+
+```{r}
+buys <- data.frame(
+  channel       = c("OOH", "Search", "TV"),
+  partner       = c("JCDecaux", "Google", "NBC"),
+  flight_start  = as.Date(c("2026-04-06", "2026-04-08", "2026-04-06")),
+  flight_end    = as.Date(c("2026-05-03", "2026-04-08", "2026-04-12")),
+  planned_spend = c(120000, 3100, 33333)
+)
+
+flighted <- media_plan_from_flights(
+  buys, grain = c("channel", "partner"), name = "Q2 flighting"
+)
+
+flighted@data[, c("channel", "week", "planned_spend", "period_basis")]
+```
+
+The flight is **expanded onto the weekly rows `@data` already holds**, so the
+grid, `roll_up()`, `build_scenario()` and `compare_scenarios()` all see the
+ordinary shape. Spend is spread across the buy's days and gathered into those
+weeks, exactly to the cent — note the 33,333 dividing cleanly, and the
+single-day Search buy sitting inside its week.
+
+Going back the other way is exact:
+
+```{r}
+flights(flighted)
+```
+
+That works because each buy's identity is stored. It is **not** inferred: a plan
+built by `media_plan_from_df()` records no flights and says so, rather than
+guessing that four equal weeks were one buy.
+
+```{r}
+nrow(flights(base))
+```
+
 ## Editing: three shapes, one door
 
 `build_scenario()` is the only way to change spend, and it always returns a
@@ -125,7 +167,7 @@ shift <- build_scenario(
 sum(shift@data$planned_spend)
 ```
 
-The four operations, and the distinction that catches people out:
+The five spend operations, and the distinction that catches people out:
 
 | Operation | Effect on matched rows |
 |---|---|
@@ -158,6 +200,45 @@ build_scenario(base, edits = list(target = list(channel = "Radio"), scale = 2),
 
 That matters most when a language model is generating the calls: a quiet no-op
 would look exactly like success.
+
+#### Changing which rows there are
+
+The operations above change spend on rows that already exist. Four more change
+the row set itself, so a plan can gain and lose line items:
+
+| Operation | Effect |
+|---|---|
+| `add` | introduce a line item, for one week or as a flight |
+| `drop` | remove the matched rows entirely |
+| `shift` | move the matched buys by ±N days |
+| `restage` | move the matched buys to explicit dates |
+
+```{r}
+reshaped <- build_scenario(base, edits = list(
+  list(add = list(channel = "Audio", partner = "Spotify",
+                  week = weeks[1], planned_spend = 25000)),
+  list(target = list(partner = "ESPN"), drop = TRUE)
+), name = "Q2 2026 Brand Plan — Audio in, ESPN out", nickname = "reshaped")
+
+grain_values(reshaped, "partner")
+```
+
+`drop` is not the same as setting a row to zero: a dropped line item is not
+bought at all, where a zeroed one is still in the plan at nothing.
+
+Selection grows an axis too. `during` narrows any operation to rows whose
+in-market period **overlaps** a window, so "cut back the back half of April"
+reaches a buy that started in March and is still running:
+
+```{r}
+build_scenario(base, edits = list(
+  during = list(from = "2026-04-20", to = "2026-04-30"), scale = 0.5
+), name = "Q2 2026 Brand Plan — late April trim", nickname = "late Apr -50%")@data |>
+  head(3)
+```
+
+`during` *selects* rows; it never slices them, so a buy half inside the window
+is matched whole.
 
 ### 2. A data frame — for absolute allocations
 
@@ -237,6 +318,27 @@ head(compare_scenarios(set, "cell"), 4)
 The `"cell"` level compares over the **union** of grain cells across the set, so
 a line item one scenario adds and another lacks still gets a real delta rather
 than `NA` or a missing row.
+
+There is a third level, for plans that record flights. It compares the **buys**
+rather than the cells, and names what happened to each:
+
+```{r}
+moved <- build_scenario(flighted,
+                        edits = list(target = list(channel = "OOH"), shift = 7),
+                        name = "OOH pushed a week", nickname = "pushed")
+
+fl_set <- add_scenario(scenario_set(flighted, name = "base"), moved)
+compare_scenarios(fl_set, "flight")[, c("scenario", "channel", "flight_start",
+                                        "spend_vs_base", "start_shift_days",
+                                        "change")]
+```
+
+At cell level that same change reads as money leaving one week and arriving in
+another — true, but it leaves you to infer that a single buy moved. Here it says
+so. This works within a **derivation**: buy identities are minted per import, so
+they trace a plan and the scenarios forked from it, and comparing two
+independently authored plans this way warns rather than reporting every buy as
+added and dropped.
 
 ## Rolling up
 
@@ -366,7 +468,11 @@ new grain.
 
 ## Where to next
 
-- `vignette("plan_concepts")` — what a plan *is*, and the boundaries that keep
-  it small.
-- `?build_scenario` — the full edit-form reference.
-- `?check_coverage` — pairing a plan with a decomp.
+- `vignette("plan_concepts")` — what a plan *is*, why flights are authored but
+  weeks are held, why the rate survives an edit, and the boundaries that keep
+  the package small.
+- `?build_scenario` — the full edit-form and operation reference.
+- `?media_plan_from_flights`, `?flights` — authoring by buy rather than by week.
+- `?check_coverage` — pairing a plan with a decomp, and what `through` compares
+  against.
+- `Roadmap.md` — what is deliberately not built yet, and what is staying out.

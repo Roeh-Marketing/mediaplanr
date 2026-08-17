@@ -60,13 +60,30 @@ trim <- build_scenario(
 # 3. Collect and compare.
 set <- add_scenario(scenario_set(base), trim)
 
-compare_scenarios(set)          # per scenario: total spend, delta vs base
-compare_scenarios(set, "cell")  # per cell: spend, share, delta vs base
+compare_scenarios(set)            # per scenario: total spend, delta vs base
+compare_scenarios(set, "cell")    # per cell: spend, share, delta vs base
+compare_scenarios(set, "flight")  # per buy: moved, resized, added, dropped
 ```
 
 `build_scenario(edits =)` also takes a data frame of absolute values (natural
 for optimizer output) or a named vector keyed by `line_item()` (natural for an
 editable table).
+
+Operations do more than change spend. A plan can gain and lose line items, and a
+buy can move:
+
+```r
+list(target = list(channel = "TV"), delta = -50000)   # take 50k out of TV
+list(target = list(channel = "OOH"), shift = 7)       # push the buy a week
+list(add = list(channel = "Audio", week = "2026-04-06", planned_spend = 25000))
+list(target = list(channel = "Search"), drop = TRUE)
+list(during = list(from = "2026-04-20", to = "2026-05-31"), scale = 0.5)
+```
+
+The distinction that catches people out runs both ways: `total` and `delta` act
+**across** the matched rows and hold their mix, `set` and `delta_each` act on
+**each** row. On a 26-week plan those differ by a factor of 26 — and because the
+two sides of a transfer usually cancel, getting it wrong still reconciles.
 
 ## Core model
 
@@ -75,26 +92,53 @@ editable table).
 | `MediaPlan` | One plan at a configurable grain. A flat `@data` table of grain columns + `planned_spend` (intent, on every row); any other columns ride along untouched. `@week_col` names the week column when the plan is weekly. |
 | `ScenarioSet` | A base plan plus named scenarios derived from it, all at one grain. The comparison registry. |
 
-Verbs and helpers: `media_plan_from_df()`, `build_scenario()`, `roll_up()`,
-`check_coverage()`, `scenario_set()`, `add_scenario()`, `compare_scenarios()`,
-`line_item()`, `line_item_grain()`, `line_item_summary()`, `grain_values()`,
-`flight_window()`, `status_levels()`.
+Two optional column sets ride along on `@data`, validated but never part of the
+grain: the **flighting** columns (`flight_cols()`) recording the buy a row
+belongs to, and the **unit** columns (`unit_cols()`) recording what it buys.
 
-### When it runs, and what is in it
+| | |
+|---|---|
+| Build a plan | `media_plan_from_df()`, `media_plan_from_flights()` |
+| Change one | `build_scenario()` |
+| Look at it | `line_item_summary()`, `grain_values()`, `flights()`, `flight_window()`, `week_start()`, `cost_per_unit()`, `cpm()` |
+| Aggregate it | `roll_up()` (dimensions), `calendarize()` (time) |
+| Compare | `scenario_set()`, `add_scenario()`, `compare_scenarios()` |
+| Vocabularies | `status_levels()`, `unit_type_levels()`, `period_basis_levels()`, `pacing_levels()` |
+| Pair with a decomp | `check_coverage()` |
+
+### Two doors in
+
+A plan can be authored the way it is written down. By week:
 
 ```r
-base@flight_start      # first day in market
-base@flight_end        # last day -- the final week's last day, not its start
-base@flight_days
-
-grain_values(base, "channel")   # the channels present, ready to use as a target
-line_item_summary(base)         # one row per line item: spend, rows, own flight
+media_plan_from_df(df, grain = c("channel", "week"), week = "week", name = "Q2")
 ```
 
-Both are derived from `@data` on every read, so neither can go stale. A plan's
-flight window is its own **extent** and is not the through-date
-`check_coverage()` takes — that one belongs to a plan-decomp pairing and moves
-every time the decomp refreshes.
+…or as **flights** — in-market dates and a total — which expand onto the weekly
+rows `@data` holds, exactly to the cent:
+
+```r
+media_plan_from_flights(buys, grain = c("channel", "partner"), name = "Q2")
+```
+
+`flights()` inverts that exactly, and reports nothing rather than guessing when
+a plan records no flight identity.
+
+### What it runs, and what it buys
+
+```r
+base@flight_start               # first day in market
+base@flight_end                 # last day -- the final week's last day
+grain_values(base, "channel")   # ready to use as an edit target
+line_item_summary(base)         # per line item: spend, units, rate, own flight
+calendarize(base, "month")      # re-cut onto any calendar
+```
+
+Everything here is derived from `@data` on every read, so none of it can go
+stale. That is the rule the package holds throughout: **if a value can change
+without the plan changing, it does not belong on the plan.** A plan's flight
+window is its own extent; the through-date `check_coverage()` takes belongs to a
+plan-decomp pairing and moves every refresh.
 
 ## Learn more
 

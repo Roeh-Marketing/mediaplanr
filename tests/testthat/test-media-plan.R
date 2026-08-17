@@ -241,3 +241,70 @@ test_that("roll_up carries metadata and keeps the plan's name", {
   expect_identical(r@advertiser, "Acme")
   expect_identical(r@status, "approved")
 })
+
+# ---- check_coverage: what `through` compares against -------------------------
+# The only cases that distinguish overlap from containment are a through-date
+# landing INSIDE a row's period, and a flight whose real start differs from its
+# week's. Neither was covered before.
+
+test_that("a through-date inside a row's week still counts that row", {
+  p <- media_plan_from_df(
+    data.frame(week = as.Date("2026-04-06"), channel = "TV",
+               planned_spend = 100),
+    grain = c("channel", "week"), week = "week", name = "one week")
+  # the week runs Mon 6th to Sun 12th; a decomp through the 8th measured part
+  # of it, so TV is in scope and nothing is reported missing
+  expect_silent(
+    missing <- check_coverage(p, data.frame(channel = "TV"),
+                              through = as.Date("2026-04-08")))
+  expect_length(missing, 0)
+})
+
+test_that("a row that has not started is out of scope", {
+  p <- media_plan_from_df(
+    data.frame(week = as.Date("2026-04-06"), channel = "TV",
+               planned_spend = 100),
+    grain = c("channel", "week"), week = "week", name = "one week")
+  expect_warning(
+    check_coverage(p, data.frame(channel = "TV"),
+                   through = as.Date("2026-04-06")),
+    "no plan rows are in market")
+})
+
+test_that("scoping follows the flight, not the week it sits in", {
+  # the buy runs Wed 8th onward, inside a week that starts Mon 6th
+  p <- media_plan_from_flights(
+    data.frame(channel = "TV", flight_start = as.Date("2026-04-08"),
+               flight_end = as.Date("2026-04-19"), planned_spend = 100),
+    grain = "channel", name = "starts midweek")
+
+  # a decomp through the 7th cannot have measured it: the buy was not live
+  expect_warning(
+    check_coverage(p, data.frame(channel = "TV"),
+                   through = as.Date("2026-04-07")),
+    "no plan rows are in market")
+
+  # through the 9th, it has been live for a day and is in scope
+  expect_silent(
+    check_coverage(p, data.frame(channel = "TV"),
+                   through = as.Date("2026-04-09")))
+})
+
+test_that("a long flight is in scope on a single measured day", {
+  # deliberate: being in scope says the decomp saw part of the buy, not much of
+  # it. Documented on ?check_coverage.
+  p <- media_plan_from_flights(
+    data.frame(channel = "OOH", flight_start = as.Date("2026-04-06"),
+               flight_end = as.Date("2026-05-03"), planned_spend = 120000),
+    grain = "channel", name = "long buy")
+  expect_silent(
+    check_coverage(p, data.frame(channel = "OOH"),
+                   through = as.Date("2026-04-07")))
+})
+
+test_that("a timeless plan says so rather than silently ignoring through", {
+  expect_warning(
+    check_coverage(std_plan(), data.frame(channel = "TV"),
+                   through = as.Date("2026-04-06")),
+    "no time dimension")
+})

@@ -260,12 +260,30 @@ MediaPlan <- S7::new_class(
 #' let the user resolve it, not refuse to load the plan.
 #'
 #' @param plan A [MediaPlan].
+#' @section What `through` compares against:
+#' A row is in scope when **any part of its in-market period falls before**
+#' `through` — overlap, not containment. A decomp reporting through a Wednesday
+#' has measured part of the week that began on the Monday, so that line item
+#' should be expected in the plan.
+#'
+#' The comparison is against the row's period from [flight_window()]'s
+#' machinery, not the bare week value, so it is right for a flight that starts
+#' or ends mid-week: a buy whose flight begins on the Wednesday is *not* in
+#' scope for a decomp reporting through the Tuesday, even though its week
+#' started on the Monday.
+#'
+#' One consequence is worth stating rather than discovering. A long flight that
+#' began the day before `through` is in scope on the strength of a single
+#' measured day. That is deliberate — the decomp saw part of it, so the line
+#' item should appear in the plan — but it means being in scope says nothing
+#' about *how much* of a buy the decomp measured.
+#'
 #' @param decomp A data frame of the decomp's line items. May name any subset of
 #'   [line_item_grain()] — a channel-only decomp checks channels and ignores
 #'   partners.
-#' @param through Optional `Date`. Only plan rows with `week < through` are
-#'   considered. Without it (or on a plan with no week column) the whole plan is
-#'   considered.
+#' @param through Optional `Date`. Restricts the check to plan rows in market
+#'   before that date; see *What `through` compares against*. Without it, or on
+#'   a plan with no time dimension, the whole plan is considered.
 #' @return Invisibly, a character vector of the decomp line items missing from
 #'   the plan — empty when coverage is complete. Returned so a UI can render
 #'   them; the warning is for interactive use.
@@ -297,14 +315,22 @@ check_coverage <- function(plan, decomp, through = NULL) {
   if (!is.null(through)) {
     through <- as.Date(through)
     if (is.na(through)) stop("`through` must be a Date.", call. = FALSE)
-    if (!length(plan@week_col)) {
-      warning("`through` was supplied but the plan has no week column; ",
+
+    # Scope by OVERLAP, through the same .row_span() every other date question
+    # uses: a row is in scope when any part of its in-market period falls before
+    # `through`. A decomp reporting through Wednesday has measured part of the
+    # week that began on Monday, so that line item should be expected in the
+    # plan. Comparing against the week start alone happened to give this answer
+    # for weekly rows, but not for a flight that starts mid-week.
+    span <- .row_span(plan)
+    if (is.null(span)) {
+      warning("`through` was supplied but the plan has no time dimension; ",
               "checking the whole plan.", call. = FALSE)
     } else {
-      d <- d[d[[plan@week_col]] < through, , drop = FALSE]
+      d <- d[!is.na(span$start) & span$start < through, , drop = FALSE]
       if (!nrow(d)) {
-        warning("no plan rows fall before ", format(through), "; not checked.",
-                call. = FALSE)
+        warning("no plan rows are in market before ", format(through),
+                "; not checked.", call. = FALSE)
         return(invisible(character(0)))
       }
     }

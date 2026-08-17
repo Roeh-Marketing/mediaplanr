@@ -89,26 +89,6 @@ do.call(MediaPlan, S7::props(x)[settable])
 
 ---
 
-## Carried over, not done
-
-**`check_coverage()` filters on a point, not a span.** It selects rows with
-`d[[week_col]] < through` — a comparison against the week *start* — while every
-other date question now goes through `.row_span()`, which knows a row's real
-in-market period.
-
-This is not wrong today: `start < through` *is* the overlap rule, and a decomp
-reporting through Wednesday has measured part of the week that began Monday. The
-problems are that nothing says so, and that flights have made the gap
-unbounded — a 28-day OOH flight starting the day before `through` passes the
-filter while being 96% unmeasured.
-
-To do: express the filter through `.row_span()`; choose and **document** the
-rule for partially-measured flights (recommendation: overlap, which preserves
-every current answer); update `plan_concepts.Rmd`, which says `check_coverage()`
-is "scoped by `through`" without saying what `through` is compared against; and
-add the test the suite lacks — a through-date falling *inside* a row's span,
-the only case separating the two readings.
-
 ---
 
 ## The consuming application
@@ -151,6 +131,12 @@ Listed because earlier revisions of the README named these as future work:
 - **Flighting** — built. Plans can be authored as flights and are held as weeks;
   `flights()` inverts it exactly, and `calendarize()` re-cuts onto any calendar.
 - **Adding and dropping line items** — built, via the structural ops.
+- **`check_coverage()` scoping on spans** — built. It now selects rows through
+  the same `.row_span()` every other date question uses, so it follows a flight
+  that starts mid-week rather than the week it happens to sit in. The rule is
+  **overlap**, which preserves every previous answer for weekly plans, and it is
+  documented on `?check_coverage` and in `vignette("plan_concepts")` — which was
+  the actual gap, since the behaviour was defensible but unstated.
 
 ---
 

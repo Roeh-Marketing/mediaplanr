@@ -13,9 +13,9 @@ check_coverage(plan, decomp, through = NULL)
 \code{\link[=line_item_grain]{line_item_grain()}} — a channel-only decomp checks channels and ignores
 partners.}
 
-\item{through}{Optional \code{Date}. Only plan rows with \code{week < through} are
-considered. Without it (or on a plan with no week column) the whole plan is
-considered.}
+\item{through}{Optional \code{Date}. Restricts the check to plan rows in market
+before that date; see \emph{What \code{through} compares against}. Without it, or on
+a plan with no time dimension, the whole plan is considered.}
 }
 \value{
 Invisibly, a character vector of the decomp line items missing from
@@ -39,6 +39,26 @@ This \strong{warns rather than errors}. Both artifacts are individually valid; i
 is their pairing that disagrees, so an app should surface the mismatch and
 let the user resolve it, not refuse to load the plan.
 }
+\section{What \code{through} compares against}{
+
+A row is in scope when \strong{any part of its in-market period falls before}
+\code{through} — overlap, not containment. A decomp reporting through a Wednesday
+has measured part of the week that began on the Monday, so that line item
+should be expected in the plan.
+
+The comparison is against the row's period from \code{\link[=flight_window]{flight_window()}}'s
+machinery, not the bare week value, so it is right for a flight that starts
+or ends mid-week: a buy whose flight begins on the Wednesday is \emph{not} in
+scope for a decomp reporting through the Tuesday, even though its week
+started on the Monday.
+
+One consequence is worth stating rather than discovering. A long flight that
+began the day before \code{through} is in scope on the strength of a single
+measured day. That is deliberate — the decomp saw part of it, so the line
+item should appear in the plan — but it means being in scope says nothing
+about \emph{how much} of a buy the decomp measured.
+}
+
 \examples{
 p <- media_plan_from_df(
   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
