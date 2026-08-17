@@ -114,6 +114,13 @@ status_levels <- function() {
 #' @param status Optional workflow state; one of [status_levels()], or `""` when
 #'   unset.
 #' @param objective Human-facing objective / notes.
+#' @section Derived properties:
+#' `@flight_start`, `@flight_end` and `@flight_days` are computed from `@data`
+#' on every read and cannot be assigned. They describe the plan's own extent —
+#' the dates it has line items for — and so are true of the plan alone. See
+#' [flight_window()] for why that is a different thing from the decomp
+#' through-date [check_coverage()] takes, and why only one of the two can live
+#' on a plan.
 #' @return A `MediaPlan` S7 object.
 #' @export
 MediaPlan <- S7::new_class(
@@ -129,7 +136,23 @@ MediaPlan <- S7::new_class(
     advertiser = S7::new_property(S7::class_character, default = ""),
     planner    = S7::new_property(S7::class_character, default = ""),
     status     = S7::new_property(S7::class_character, default = ""),
-    objective  = S7::new_property(S7::class_character, default = "")
+    objective  = S7::new_property(S7::class_character, default = ""),
+
+    # Derived, never stored: getter properties are read-only, so these cannot
+    # drift from @data. S7 does not enforce the declared class on a getter's
+    # return value, so each one is responsible for its own type -- hence the
+    # explicit length-0 Date / integer for "the plan has no time dimension".
+    flight_start = S7::new_property(S7::class_Date, getter = function(self) {
+      w <- flight_window(self)
+      if (length(w)) unname(w[["start"]]) else as.Date(character(0))
+    }),
+    flight_end = S7::new_property(S7::class_Date, getter = function(self) {
+      w <- flight_window(self)
+      if (length(w)) unname(w[["end"]]) else as.Date(character(0))
+    }),
+    flight_days = S7::new_property(S7::class_integer, getter = function(self) {
+      .flight_days(self)
+    })
   ),
   validator = function(self) {
     d <- self@data
@@ -169,6 +192,11 @@ MediaPlan <- S7::new_class(
                                "' must hold Date values (the week start)."))
       }
     }
+
+    # Flighting and unit columns ride along: checked, never part of the key. A
+    # plan that records neither skips all of this.
+    errs <- c(errs, .validate_flight_cols(d))
+    if (!length(errs)) errs <- c(errs, .validate_unit_cols(d))
 
     # One row per grain cell.
     if (length(miss) == 0 && length(g) >= 1 && nrow(d) > 0) {
@@ -232,12 +260,30 @@ MediaPlan <- S7::new_class(
 #' let the user resolve it, not refuse to load the plan.
 #'
 #' @param plan A [MediaPlan].
+#' @section What `through` compares against:
+#' A row is in scope when **any part of its in-market period falls before**
+#' `through` — overlap, not containment. A decomp reporting through a Wednesday
+#' has measured part of the week that began on the Monday, so that line item
+#' should be expected in the plan.
+#'
+#' The comparison is against the row's period from [flight_window()]'s
+#' machinery, not the bare week value, so it is right for a flight that starts
+#' or ends mid-week: a buy whose flight begins on the Wednesday is *not* in
+#' scope for a decomp reporting through the Tuesday, even though its week
+#' started on the Monday.
+#'
+#' One consequence is worth stating rather than discovering. A long flight that
+#' began the day before `through` is in scope on the strength of a single
+#' measured day. That is deliberate — the decomp saw part of it, so the line
+#' item should appear in the plan — but it means being in scope says nothing
+#' about *how much* of a buy the decomp measured.
+#'
 #' @param decomp A data frame of the decomp's line items. May name any subset of
 #'   [line_item_grain()] — a channel-only decomp checks channels and ignores
 #'   partners.
-#' @param through Optional `Date`. Only plan rows with `week < through` are
-#'   considered. Without it (or on a plan with no week column) the whole plan is
-#'   considered.
+#' @param through Optional `Date`. Restricts the check to plan rows in market
+#'   before that date; see *What `through` compares against*. Without it, or on
+#'   a plan with no time dimension, the whole plan is considered.
 #' @return Invisibly, a character vector of the decomp line items missing from
 #'   the plan — empty when coverage is complete. Returned so a UI can render
 #'   them; the warning is for interactive use.
@@ -269,14 +315,22 @@ check_coverage <- function(plan, decomp, through = NULL) {
   if (!is.null(through)) {
     through <- as.Date(through)
     if (is.na(through)) stop("`through` must be a Date.", call. = FALSE)
-    if (!length(plan@week_col)) {
-      warning("`through` was supplied but the plan has no week column; ",
+
+    # Scope by OVERLAP, through the same .row_span() every other date question
+    # uses: a row is in scope when any part of its in-market period falls before
+    # `through`. A decomp reporting through Wednesday has measured part of the
+    # week that began on Monday, so that line item should be expected in the
+    # plan. Comparing against the week start alone happened to give this answer
+    # for weekly rows, but not for a flight that starts mid-week.
+    span <- .row_span(plan)
+    if (is.null(span)) {
+      warning("`through` was supplied but the plan has no time dimension; ",
               "checking the whole plan.", call. = FALSE)
     } else {
-      d <- d[d[[plan@week_col]] < through, , drop = FALSE]
+      d <- d[!is.na(span$start) & span$start < through, , drop = FALSE]
       if (!nrow(d)) {
-        warning("no plan rows fall before ", format(through), "; not checked.",
-                call. = FALSE)
+        warning("no plan rows are in market before ", format(through),
+                "; not checked.", call. = FALSE)
         return(invisible(character(0)))
       }
     }
@@ -312,6 +366,15 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' @param planned_spend Name of the planned-spend column in `df`. Renamed to
 #'   `planned_spend`. Holds intent on every row, including past weeks. Default
 #'   `"planned_spend"`.
+#' @param planned_units,planned_rate,unit_type Optional names of the columns
+#'   recording what the line item buys: how much of it, at what price, and of
+#'   what (`"impression"`, `"click"`, `"grp"`, ...). Renamed to the canonical
+#'   names. The three quantities are bound by
+#'   `planned_spend = planned_units * planned_rate / rate_per(unit_type)`, where
+#'   `rate_per` is 1000 for impressions and 1 otherwise, so **supply any two and
+#'   the third is computed** — a budget and a negotiated CPM give the
+#'   impressions, a delivery goal and a rate give the budget. See
+#'   [cost_per_unit()] and [unit_type_levels()].
 #' @param name Formal plan name. **Required** — every plan carries one.
 #' @param nickname Optional short working handle used in preference to `name`
 #'   when labelling scenarios.
@@ -333,6 +396,8 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' @export
 media_plan_from_df <- function(df, grain, week = NULL,
                                planned_spend = "planned_spend",
+                               planned_units = NULL, planned_rate = NULL,
+                               unit_type = NULL,
                                name, nickname = "", advertiser = "",
                                planner = "", status = "", objective = "",
                                id = NULL, parent_id = character(0)) {
@@ -342,14 +407,23 @@ media_plan_from_df <- function(df, grain, week = NULL,
   }
   df <- as.data.frame(df, stringsAsFactors = FALSE)
 
-  if (!planned_spend %in% names(df)) {
-    stop("planned-spend column '", planned_spend, "' not found in `df`.",
-         call. = FALSE)
+  df <- .rename_col(df, planned_units, "planned_units")
+  df <- .rename_col(df, planned_rate,  "planned_rate")
+  df <- .rename_col(df, unit_type,     "unit_type")
+
+  # Spend is optional only when units and a rate can produce it.
+  spend_given <- planned_spend %in% names(df)
+  if (!spend_given &&
+      !all(c("planned_units", "planned_rate") %in% names(df))) {
+    stop("planned-spend column '", planned_spend, "' not found in `df`. ",
+         "Supply it, or supply planned_units and planned_rate so it can be ",
+         "computed.", call. = FALSE)
   }
-  if (planned_spend != "planned_spend") {
+  if (spend_given && planned_spend != "planned_spend") {
     if ("planned_spend" %in% names(df)) df[["planned_spend"]] <- NULL
     names(df)[names(df) == planned_spend] <- "planned_spend"
   }
+  df <- .complete_trio(df)
 
   miss <- setdiff(grain, names(df))
   if (length(miss)) {
@@ -437,6 +511,9 @@ roll_up <- function(plan, grain, name = NULL) {
   out <- d[first, grain, drop = FALSE]
   sums <- tapply(d[["planned_spend"]], k, sum)
   out[["planned_spend"]] <- as.numeric(sums[k[first]])
+  # Units add up only within one unit_type; a mixed group keeps its spend and
+  # reports no units. The rate that comes back is the blended one.
+  out <- .attach_units(out, .aggregate_units(d, k, k[first]))
   rownames(out) <- NULL
 
   MediaPlan(

@@ -2,9 +2,10 @@
 "_PACKAGE"
 
 # mediaplanr — a thin backend that gives a media-mix app a typed media-plan
-# object plus scenario construction, forecasting, and comparison.
+# object plus scenario construction and comparison.
 #
-# Scope notes (see PLAN.md for the full rationale):
+# Scope notes (see vignette("plan_concepts") for the full rationale, and
+# Roadmap.md for what is deliberately not built yet):
 #
 # * The object model is deliberately thin. `@data` stays a plain, directly
 #   accessible data frame; the S7 classes add guarantees (validation),

@@ -75,3 +75,13 @@ Any other columns on the supplied data frame are carried through untouched.
 Construct one with \code{\link[=media_plan_from_df]{media_plan_from_df()}} rather than calling the constructor
 directly.
 }
+\section{Derived properties}{
+
+\verb{@flight_start}, \verb{@flight_end} and \verb{@flight_days} are computed from \verb{@data}
+on every read and cannot be assigned. They describe the plan's own extent —
+the dates it has line items for — and so are true of the plan alone. See
+\code{\link[=flight_window]{flight_window()}} for why that is a different thing from the decomp
+through-date \code{\link[=check_coverage]{check_coverage()}} takes, and why only one of the two can live
+on a plan.
+}
+

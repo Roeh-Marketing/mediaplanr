@@ -60,24 +60,73 @@ in as an absolute \code{edits} data frame.
 the form to drive from a UI or an LLM tool call: the caller states the
 \emph{operation} and the arithmetic happens here, exactly.
 
-Each op is \verb{list(target = <named list>, <one of set/scale/delta/total>)}.
+Each op is \verb{list(<selection>, <exactly one operation>)}.
 
+\strong{Selecting rows}
 \describe{
 \item{\code{target}}{Named list of grain column = value(s), naming any \strong{subset}
 of the grain — so \code{list(week = "2026-03-09")} hits every channel in that
 week. Values may be vectors. Omit \code{target} to match the whole plan.
 Targeting a value that does not exist is an error, never a silent no-op.}
-\item{\code{set}}{Absolute planned_spend, applied to \strong{each} matched cell.}
-\item{\code{scale}}{Multiply each matched cell (e.g. \code{1.2} = +20\%).}
-\item{\code{delta}}{Add to each matched cell (may be negative).}
-\item{\code{total}}{Make the matched cells \strong{sum} to this, holding their
-current mix. This is the "set the budget" operation.}
+\item{\code{during}}{\code{list(from =, to =)}. Narrows to rows whose period
+\strong{overlaps} that window — so "cut back April" reaches a flight that
+started in March and is still running. \code{during} \emph{selects} rows; it never
+slices them, so a flight half inside the window is matched whole.}
 }
 
-Note the deliberate split: \code{set} is per-cell, \code{total} is across cells. So
-\code{list(target = list(channel = "TV"), set = 50)} sets every TV row to 50,
-while \code{list(target = list(channel = "TV"), total = 50)} makes TV's rows add
-up to 50.
+\strong{Changing spend on rows that exist}
+\describe{
+\item{\code{total}}{Make the matched cells \strong{sum} to this, holding their
+current mix. This is the "set the budget" operation.}
+\item{\code{delta}}{Move the matched cells' \strong{sum} by this, holding their mix.
+This is the "take 50k out of TV" operation.}
+\item{\code{scale}}{Multiply each matched cell (e.g. \code{1.2} = +20\%). Per cell and
+across cells mean the same thing for a multiplier.}
+\item{\code{set}}{Absolute planned_spend, applied to \strong{each} matched cell.}
+\item{\code{delta_each}}{Add to \strong{each} matched cell (may be negative).}
+}
+
+Note the deliberate split, and that it runs both ways:\tabular{lll}{
+    \tab across the matched cells \tab to each matched cell \cr
+   absolute \tab \code{total} \tab \code{set} \cr
+   relative \tab \code{delta} \tab \code{delta_each} \cr
+}
+
+
+So \code{list(target = list(channel = "TV"), total = 50)} makes TV's rows add up
+to 50, while \code{set = 50} puts 50 on every TV row. Likewise \code{delta = -50}
+takes 50 out of TV altogether, while \code{delta_each = -50} takes 50 out of
+every TV row — which on a 26-week plan is 1,300.
+
+\code{delta} is almost always the one you want, and it is the one to reach for
+when a user says "move 50k from TV to Social": two ops, \code{delta = -50000} on
+TV and \code{delta = 50000} on Social. Distributing in proportion rather than
+evenly per cell preserves the channel's flighting shape, so a flight stays
+evenly paced through it.
+
+\strong{Changing which rows there are}
+\describe{
+\item{\code{add}}{Named list: the line item's columns, a \code{planned_spend}, and
+either the week or \code{flight_start}/\code{flight_end}. A flight expands across
+the weeks it touches exactly as \code{\link[=media_plan_from_flights]{media_plan_from_flights()}} would. Takes
+no \code{target} — the row does not exist yet. Adding onto a cell the plan
+already has is an error.}
+\item{\code{drop}}{\code{TRUE}. Removes the matched rows entirely. Distinct from
+setting them to zero: a dropped line item is not bought at all, where a
+zeroed one is still in the plan at nothing.}
+\item{\code{shift}}{A whole number of days, negative to move earlier. Moves the
+matched \strong{flights}, re-spreading each total across its new dates. Rows
+that record no flight have their week moved instead, which must be a
+multiple of 7.}
+\item{\code{restage}}{\code{list(from =, to =)}. Moves the matched flights to those
+dates. Needs flights; rows without one have no in-market dates to move.}
+}
+
+A moved flight \strong{keeps its \code{flight_id}}, so a scenario and its parent can be
+read flight to flight rather than as a drop plus an add. Matching one row of a
+flight moves the whole flight. A custom-paced flight keeps its hand-set weekly
+figures when the move maps them 1:1 — a whole-week shift of a week-aligned
+flight — and errors otherwise rather than silently discarding them.
 
 \strong{2. Data frame} — grain columns + \code{planned_spend}; matched cells are
 overridden with those absolute values. Natural for optimizer output.
@@ -115,7 +164,8 @@ build_scenario(base, edits = list(target = list(channel = "Search"),
 # "Set the total budget to 200", holding the current mix
 build_scenario(base, edits = list(total = 200), name = "Budget 200")
 
-# "Move 10 from TV to Search" — ops apply in order
+# "Move 10 from TV to Search" — ops apply in order. `delta` moves each
+# group's TOTAL, so this is budget-neutral however many rows they have.
 build_scenario(base, edits = list(
   list(target = list(channel = "TV"),     delta = -10),
   list(target = list(channel = "Search"), delta =  10)
@@ -130,4 +180,11 @@ build_scenario(
 
 # Terse single-cell override
 build_scenario(base, edits = c("Search" = 120), name = "Search boost")
+
+# A plan can gain and lose line items
+build_scenario(base, edits = list(add = list(channel = "Audio",
+                                             planned_spend = 25)),
+               name = "add audio")
+build_scenario(base, edits = list(target = list(channel = "TV"), drop = TRUE),
+               name = "no TV")
 }
