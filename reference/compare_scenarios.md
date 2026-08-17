@@ -6,7 +6,7 @@ planned_spend** at one of two levels:
 ## Usage
 
 ``` r
-compare_scenarios(set, level = c("summary", "cell"))
+compare_scenarios(set, level = c("summary", "cell", "flight"))
 ```
 
 ## Arguments
@@ -18,7 +18,7 @@ compare_scenarios(set, level = c("summary", "cell"))
 
 - level:
 
-  One of `"summary"` or `"cell"`.
+  One of `"summary"`, `"cell"` or `"flight"`.
 
 ## Value
 
@@ -49,6 +49,27 @@ Predicted outcomes are not computed here. To compare modeled volume,
 forecast the scenarios with `mrmopt` and join the result on `scenario` +
 the grain columns.
 
+## Comparing flights
+
+`level = "flight"` compares the **buys** rather than the cells: one row
+per scenario per flight, joined on `flight_id`, with what happened to it
+named in a `change` column — `moved`, `resized`, `moved & resized`,
+`added`, `dropped`, `repaced` or `unchanged`.
+
+This is the thing cell-level cannot say. A flight pushed a week later
+shows at cell level as money leaving one week and arriving in another,
+which is true but leaves the reader to infer that a single buy moved.
+Here it is one row saying so.
+
+It works by **lineage**. `flight_id` is minted per import, so it
+identifies the same buy across a plan and the scenarios derived from it,
+and does *not* match across independently-authored plans — which would
+report one buy as two. When the set shares no flight ids at all, this
+warns rather than returning a table of spurious adds and drops. A set
+whose plans record no flights returns no rows, the same way
+[`flights()`](https://roeh-marketing.github.io/mediaplanr/reference/flights.md)
+does.
+
 ## Examples
 
 ``` r
@@ -61,8 +82,8 @@ set <- add_scenario(set, build_scenario(base, edits = c("Search" = 120),
                                         name = "Search boost"))
 compare_scenarios(set)
 #>       scenario                    plan_id                  parent_id
-#> 1         base plan_20260803222302_fe3218                       <NA>
-#> 2 Search boost plan_20260803222302_81f9be plan_20260803222302_fe3218
+#> 1         base plan_20260817005511_3d322b                       <NA>
+#> 2 Search boost plan_20260817005511_2b87bd plan_20260817005511_3d322b
 #>   total_planned_spend spend_vs_base spend_pct_vs_base
 #> 1                 120             0         0.0000000
 #> 2                 200            80         0.6666667

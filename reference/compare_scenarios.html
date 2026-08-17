@@ -47,7 +47,7 @@ of two levels:</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">compare_scenarios</span><span class="op">(</span><span class="va">set</span>, level <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"summary"</span>, <span class="st">"cell"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">compare_scenarios</span><span class="op">(</span><span class="va">set</span>, level <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"summary"</span>, <span class="st">"cell"</span>, <span class="st">"flight"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -59,7 +59,7 @@ of two levels:</p>
 
 
 <dt id="arg-level">level<a class="anchor" aria-label="anchor" href="#arg-level"></a></dt>
-<dd><p>One of <code>"summary"</code> or <code>"cell"</code>.</p></dd>
+<dd><p>One of <code>"summary"</code>, <code>"cell"</code> or <code>"flight"</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -86,6 +86,25 @@ row set, so for those the result is unchanged.</p>
 the scenarios with <code>mrmopt</code> and join the result on <code>scenario</code> + the grain
 columns.</p>
     </div>
+    <div class="section level2">
+    <h2 id="comparing-flights">Comparing flights<a class="anchor" aria-label="anchor" href="#comparing-flights"></a></h2>
+
+
+<p><code>level = "flight"</code> compares the <strong>buys</strong> rather than the cells: one row per
+scenario per flight, joined on <code>flight_id</code>, with what happened to it named in
+a <code>change</code> column — <code>moved</code>, <code>resized</code>, <code>moved &amp; resized</code>, <code>added</code>,
+<code>dropped</code>, <code>repaced</code> or <code>unchanged</code>.</p>
+<p>This is the thing cell-level cannot say. A flight pushed a week later shows
+at cell level as money leaving one week and arriving in another, which is
+true but leaves the reader to infer that a single buy moved. Here it is one
+row saying so.</p>
+<p>It works by <strong>lineage</strong>. <code>flight_id</code> is minted per import, so it identifies
+the same buy across a plan and the scenarios derived from it, and does <em>not</em>
+match across independently-authored plans — which would report one buy as two.
+When the set shares no flight ids at all, this warns rather than returning a
+table of spurious adds and drops. A set whose plans record no flights returns
+no rows, the same way <code><a href="flights.html">flights()</a></code> does.</p>
+    </div>
 
     <div class="section level2">
     <h2 id="ref-examples">Examples<a class="anchor" aria-label="anchor" href="#ref-examples"></a></h2>
@@ -98,8 +117,8 @@ columns.</p>
 <span class="r-in"><span>                                        name <span class="op">=</span> <span class="st">"Search boost"</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-in"><span><span class="fu">compare_scenarios</span><span class="op">(</span><span class="va">set</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>       scenario                    plan_id                  parent_id</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 1         base plan_20260803222302_fe3218                       &lt;NA&gt;</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> 2 Search boost plan_20260803222302_81f9be plan_20260803222302_fe3218</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 1         base plan_20260817005511_3d322b                       &lt;NA&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> 2 Search boost plan_20260817005511_2b87bd plan_20260817005511_3d322b</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   total_planned_spend spend_vs_base spend_pct_vs_base</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 1                 120             0         0.0000000</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> 2                 200            80         0.6666667</span>

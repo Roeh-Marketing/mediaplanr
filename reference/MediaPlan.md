@@ -103,3 +103,14 @@ untouched.
 Construct one with
 [`media_plan_from_df()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_df.md)
 rather than calling the constructor directly.
+
+## Derived properties
+
+`@flight_start`, `@flight_end` and `@flight_days` are computed from
+`@data` on every read and cannot be assigned. They describe the plan's
+own extent — the dates it has line items for — and so are true of the
+plan alone. See
+[`flight_window()`](https://roeh-marketing.github.io/mediaplanr/reference/flight_window.md)
+for why that is a different thing from the decomp through-date
+[`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md)
+takes, and why only one of the two can live on a plan.

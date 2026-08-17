@@ -120,9 +120,18 @@
 <span><span class="co"># 3. Collect and compare.</span></span>
 <span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="fu"><a href="reference/scenario_set.html">scenario_set</a></span><span class="op">(</span><span class="va">base</span><span class="op">)</span>, <span class="va">trim</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span>          <span class="co"># per scenario: total spend, delta vs base</span></span>
-<span><span class="fu"><a href="reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span>, <span class="st">"cell"</span><span class="op">)</span>  <span class="co"># per cell: spend, share, delta vs base</span></span></code></pre></div>
+<span><span class="fu"><a href="reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span>            <span class="co"># per scenario: total spend, delta vs base</span></span>
+<span><span class="fu"><a href="reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span>, <span class="st">"cell"</span><span class="op">)</span>    <span class="co"># per cell: spend, share, delta vs base</span></span>
+<span><span class="fu"><a href="reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span>, <span class="st">"flight"</span><span class="op">)</span>  <span class="co"># per buy: moved, resized, added, dropped</span></span></code></pre></div>
 <p><code>build_scenario(edits =)</code> also takes a data frame of absolute values (natural for optimizer output) or a named vector keyed by <code><a href="reference/line_item.html">line_item()</a></code> (natural for an editable table).</p>
+<p>Operations do more than change spend. A plan can gain and lose line items, and a buy can move:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"TV"</span><span class="op">)</span>, delta <span class="op">=</span> <span class="op">-</span><span class="fl">50000</span><span class="op">)</span>   <span class="co"># take 50k out of TV</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"OOH"</span><span class="op">)</span>, shift <span class="op">=</span> <span class="fl">7</span><span class="op">)</span>       <span class="co"># push the buy a week</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>add <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"Audio"</span>, week <span class="op">=</span> <span class="st">"2026-04-06"</span>, planned_spend <span class="op">=</span> <span class="fl">25000</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"Search"</span><span class="op">)</span>, drop <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>during <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>from <span class="op">=</span> <span class="st">"2026-04-20"</span>, to <span class="op">=</span> <span class="st">"2026-05-31"</span><span class="op">)</span>, scale <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></code></pre></div>
+<p>The distinction that catches people out runs both ways: <code>total</code> and <code>delta</code> act <strong>across</strong> the matched rows and hold their mix, <code>set</code> and <code>delta_each</code> act on <strong>each</strong> row. On a 26-week plan those differ by a factor of 26 — and because the two sides of a transfer usually cancel, getting it wrong still reconciles.</p>
 </div>
 <div class="section level2">
 <h2 id="core-model">Core model<a class="anchor" aria-label="anchor" href="#core-model"></a>
@@ -147,7 +156,74 @@
 </tr>
 </tbody>
 </table>
-<p>Verbs and helpers: <code><a href="reference/media_plan_from_df.html">media_plan_from_df()</a></code>, <code><a href="reference/build_scenario.html">build_scenario()</a></code>, <code><a href="reference/roll_up.html">roll_up()</a></code>, <code><a href="reference/check_coverage.html">check_coverage()</a></code>, <code><a href="reference/scenario_set.html">scenario_set()</a></code>, <code><a href="reference/add_scenario.html">add_scenario()</a></code>, <code><a href="reference/compare_scenarios.html">compare_scenarios()</a></code>, <code><a href="reference/line_item.html">line_item()</a></code>, <code><a href="reference/line_item_grain.html">line_item_grain()</a></code>, <code><a href="reference/status_levels.html">status_levels()</a></code>.</p>
+<p>Two optional column sets ride along on <code>@data</code>, validated but never part of the grain: the <strong>flighting</strong> columns (<code><a href="reference/flight_cols.html">flight_cols()</a></code>) recording the buy a row belongs to, and the <strong>unit</strong> columns (<code><a href="reference/unit_cols.html">unit_cols()</a></code>) recording what it buys.</p>
+<table class="table">
+<colgroup>
+<col width="50%">
+<col width="50%">
+</colgroup>
+<tbody>
+<tr>
+<td>Build a plan</td>
+<td>
+<code><a href="reference/media_plan_from_df.html">media_plan_from_df()</a></code>, <code><a href="reference/media_plan_from_flights.html">media_plan_from_flights()</a></code>
+</td>
+</tr>
+<tr>
+<td>Change one</td>
+<td><code><a href="reference/build_scenario.html">build_scenario()</a></code></td>
+</tr>
+<tr>
+<td>Look at it</td>
+<td>
+<code><a href="reference/line_item_summary.html">line_item_summary()</a></code>, <code><a href="reference/grain_values.html">grain_values()</a></code>, <code><a href="reference/flights.html">flights()</a></code>, <code><a href="reference/flight_window.html">flight_window()</a></code>, <code><a href="reference/week_start.html">week_start()</a></code>, <code><a href="reference/cost_per_unit.html">cost_per_unit()</a></code>, <code><a href="reference/cost_per_unit.html">cpm()</a></code>
+</td>
+</tr>
+<tr>
+<td>Aggregate it</td>
+<td>
+<code><a href="reference/roll_up.html">roll_up()</a></code> (dimensions), <code><a href="reference/calendarize.html">calendarize()</a></code> (time)</td>
+</tr>
+<tr>
+<td>Compare</td>
+<td>
+<code><a href="reference/scenario_set.html">scenario_set()</a></code>, <code><a href="reference/add_scenario.html">add_scenario()</a></code>, <code><a href="reference/compare_scenarios.html">compare_scenarios()</a></code>
+</td>
+</tr>
+<tr>
+<td>Vocabularies</td>
+<td>
+<code><a href="reference/status_levels.html">status_levels()</a></code>, <code><a href="reference/unit_type_levels.html">unit_type_levels()</a></code>, <code><a href="reference/period_basis_levels.html">period_basis_levels()</a></code>, <code><a href="reference/pacing_levels.html">pacing_levels()</a></code>
+</td>
+</tr>
+<tr>
+<td>Pair with a decomp</td>
+<td><code><a href="reference/check_coverage.html">check_coverage()</a></code></td>
+</tr>
+</tbody>
+</table>
+<div class="section level3">
+<h3 id="two-doors-in">Two doors in<a class="anchor" aria-label="anchor" href="#two-doors-in"></a>
+</h3>
+<p>A plan can be authored the way it is written down. By week:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span><span class="va">df</span>, grain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"week"</span><span class="op">)</span>, week <span class="op">=</span> <span class="st">"week"</span>, name <span class="op">=</span> <span class="st">"Q2"</span><span class="op">)</span></span></code></pre></div>
+<p>…or as <strong>flights</strong> — in-market dates and a total — which expand onto the weekly rows <code>@data</code> holds, exactly to the cent:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="reference/media_plan_from_flights.html">media_plan_from_flights</a></span><span class="op">(</span><span class="va">buys</span>, grain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"partner"</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Q2"</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="reference/flights.html">flights()</a></code> inverts that exactly, and reports nothing rather than guessing when a plan records no flight identity.</p>
+</div>
+<div class="section level3">
+<h3 id="what-it-runs-and-what-it-buys">What it runs, and what it buys<a class="anchor" aria-label="anchor" href="#what-it-runs-and-what-it-buys"></a>
+</h3>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">base</span><span class="op">@</span><span class="va">flight_start</span>               <span class="co"># first day in market</span></span>
+<span><span class="va">base</span><span class="op">@</span><span class="va">flight_end</span>                 <span class="co"># last day -- the final week's last day</span></span>
+<span><span class="fu"><a href="reference/grain_values.html">grain_values</a></span><span class="op">(</span><span class="va">base</span>, <span class="st">"channel"</span><span class="op">)</span>   <span class="co"># ready to use as an edit target</span></span>
+<span><span class="fu"><a href="reference/line_item_summary.html">line_item_summary</a></span><span class="op">(</span><span class="va">base</span><span class="op">)</span>         <span class="co"># per line item: spend, units, rate, own flight</span></span>
+<span><span class="fu"><a href="reference/calendarize.html">calendarize</a></span><span class="op">(</span><span class="va">base</span>, <span class="st">"month"</span><span class="op">)</span>      <span class="co"># re-cut onto any calendar</span></span></code></pre></div>
+<p>Everything here is derived from <code>@data</code> on every read, so none of it can go stale. That is the rule the package holds throughout: <strong>if a value can change without the plan changing, it does not belong on the plan.</strong> A plan’s flight window is its own extent; the through-date <code><a href="reference/check_coverage.html">check_coverage()</a></code> takes belongs to a plan-decomp pairing and moves every refresh.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="learn-more">Learn more<a class="anchor" aria-label="anchor" href="#learn-more"></a>
@@ -167,9 +243,9 @@
 </ul>
 </div>
 <div class="section level2">
-<h2 id="growth-path-not-now">Growth path (not now)<a class="anchor" aria-label="anchor" href="#growth-path-not-now"></a>
+<h2 id="growth-path">Growth path<a class="anchor" aria-label="anchor" href="#growth-path"></a>
 </h2>
-<p>Nested Channel→Tactic→Flight hierarchy; a channel-type registry for an extensible media taxonomy; attribution as a separate linked process; metrics beyond spend (impressions, GRPs); arbitrary-depth lineage trees; ids as an external join contract. The current flat grain and synthetic ids are the seeds these grow from.</p>
+<p>Nested <strong>SubPlans</strong> are next: a channel team’s detailed plan, at its own granularity, rolling up into the weekly topline. See <a href="https://github.com/Roeh-Marketing/mediaplanr/blob/main/Roadmap.md" class="external-link">Roadmap.md</a> for that design and for what is deliberately staying out — a channel-type registry, attribution, and anything derived from <code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date()</a></code>.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

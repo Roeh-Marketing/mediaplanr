@@ -85,10 +85,98 @@
 
         <dt>
 
+          <code><a href="line_item_summary.html">line_item_summary()</a></code>
+
+        </dt>
+        <dd>The roster of line items in a plan</dd>
+
+        <dt>
+
+          <code><a href="grain_values.html">grain_values()</a></code>
+
+        </dt>
+        <dd>The values present on a grain column</dd>
+
+        <dt>
+
           <code><a href="roll_up.html">roll_up()</a></code>
 
         </dt>
         <dd>Roll a plan up to a coarser grain</dd>
+      </dl></div><div class="section level2">
+      <h2 id="flight-dates">Flight dates<a class="anchor" aria-label="anchor" href="#flight-dates"></a></h2>
+
+      <div class="section-desc"><p>When the plan is in market. Derived from the plan’s own rows, so it is true of the plan alone – unlike a decomp’s through-date, which belongs to a pairing and moves every refresh.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="flight_window.html">flight_window()</a></code>
+
+        </dt>
+        <dd>The plan's flight window</dd>
+
+        <dt>
+
+          <code><a href="week_start.html">week_start()</a></code>
+
+        </dt>
+        <dd>The weekday a plan's weeks begin on</dd>
+      </dl></div><div class="section level2">
+      <h2 id="flighting">Flighting<a class="anchor" aria-label="anchor" href="#flighting"></a></h2>
+
+      <div class="section-desc"><p>A flight is how a buy is authored – in-market dates and a total. A week is how the plan is held. Build a plan from flights and it expands onto weekly rows exactly to the cent; flights() recovers the flights it was authored from, and reports none rather than guessing when a plan records no flight identity.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="media_plan_from_flights.html">media_plan_from_flights()</a></code>
+
+        </dt>
+        <dd>Build a plan from flights rather than weeks</dd>
+
+        <dt>
+
+          <code><a href="flights.html">flights()</a></code>
+
+        </dt>
+        <dd>The flights a plan was authored from</dd>
+
+        <dt>
+
+          <code><a href="calendarize.html">calendarize()</a></code>
+
+        </dt>
+        <dd>Re-cut a plan onto a different calendar</dd>
+
+        <dt>
+
+          <code><a href="flight_cols.html">flight_cols()</a></code>
+
+        </dt>
+        <dd>The columns that record flighting</dd>
+
+        <dt>
+
+          <code><a href="period_basis_levels.html">period_basis_levels()</a></code>
+
+        </dt>
+        <dd>The allowed buying cadences</dd>
+
+        <dt>
+
+          <code><a href="pacing_levels.html">pacing_levels()</a></code>
+
+        </dt>
+        <dd>The allowed pacing patterns</dd>
       </dl></div><div class="section level2">
       <h2 id="scenarios">Scenarios<a class="anchor" aria-label="anchor" href="#scenarios"></a></h2>
 
@@ -133,6 +221,36 @@
 
         </dt>
         <dd>A base plan plus named scenarios derived from it</dd>
+      </dl></div><div class="section level2">
+      <h2 id="what-a-line-item-buys">What a line item buys<a class="anchor" aria-label="anchor" href="#what-a-line-item-buys"></a></h2>
+
+      <div class="section-desc"><p>Spend is the common currency and stays mandatory. Alongside it a line item may record what it buys, how much of it, and at what price – bound by one identity, so any two of the three give the third. The rate is what survives an edit: a cut budget buys fewer impressions, it does not win a better CPM.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="cost_per_unit.html">cost_per_unit()</a></code> <code><a href="cost_per_unit.html">cpm()</a></code>
+
+        </dt>
+        <dd>The cost of one unit, and the cost per thousand</dd>
+
+        <dt>
+
+          <code><a href="unit_cols.html">unit_cols()</a></code>
+
+        </dt>
+        <dd>The columns that record what a line item buys</dd>
+
+        <dt>
+
+          <code><a href="unit_type_levels.html">unit_type_levels()</a></code>
+
+        </dt>
+        <dd>Unit types with a conventional rate basis</dd>
       </dl></div><div class="section level2">
       <h2 id="workflow-status">Workflow status<a class="anchor" aria-label="anchor" href="#workflow-status"></a></h2>
 

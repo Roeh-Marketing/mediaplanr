@@ -71,9 +71,9 @@ partners.</p></dd>
 
 
 <dt id="arg-through">through<a class="anchor" aria-label="anchor" href="#arg-through"></a></dt>
-<dd><p>Optional <code>Date</code>. Only plan rows with <code>week &lt; through</code> are
-considered. Without it (or on a plan with no week column) the whole plan is
-considered.</p></dd>
+<dd><p>Optional <code>Date</code>. Restricts the check to plan rows in market
+before that date; see <em>What <code>through</code> compares against</em>. Without it, or on
+a plan with no time dimension, the whole plan is considered.</p></dd>
 
 </dl></div>
     <div class="section level2">
@@ -92,6 +92,25 @@ decomp never modelled.</p>
 <p>This <strong>warns rather than errors</strong>. Both artifacts are individually valid; it
 is their pairing that disagrees, so an app should surface the mismatch and
 let the user resolve it, not refuse to load the plan.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="what-through-compares-against">What <code>through</code> compares against<a class="anchor" aria-label="anchor" href="#what-through-compares-against"></a></h2>
+
+
+<p>A row is in scope when <strong>any part of its in-market period falls before</strong>
+<code>through</code> — overlap, not containment. A decomp reporting through a Wednesday
+has measured part of the week that began on the Monday, so that line item
+should be expected in the plan.</p>
+<p>The comparison is against the row's period from <code><a href="flight_window.html">flight_window()</a></code>'s
+machinery, not the bare week value, so it is right for a flight that starts
+or ends mid-week: a buy whose flight begins on the Wednesday is <em>not</em> in
+scope for a decomp reporting through the Tuesday, even though its week
+started on the Monday.</p>
+<p>One consequence is worth stating rather than discovering. A long flight that
+began the day before <code>through</code> is in scope on the strength of a single
+measured day. That is deliberate — the decomp saw part of it, so the line
+item should appear in the plan — but it means being in scope says nothing
+about <em>how much</em> of a buy the decomp measured.</p>
     </div>
 
     <div class="section level2">

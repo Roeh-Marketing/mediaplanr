@@ -99,6 +99,7 @@ spend column.</p>
 <span><span class="va">simple</span></span>
 <span><span class="co">#&gt; &lt;MediaPlan&gt; Q3 sketch</span></span>
 <span><span class="co">#&gt;   grain       channel</span></span>
+<span><span class="co">#&gt;     channel   Search, Social, TV</span></span>
 <span><span class="co">#&gt;   rows        3</span></span>
 <span><span class="co">#&gt;   spend       160,000</span></span>
 <span><span class="co">#&gt;   id          plan_acd597</span></span>
@@ -145,8 +146,10 @@ quarter at <code>channel + partner + week</code>:</p>
 <span><span class="co">#&gt;   advertiser  Acme Corp</span></span>
 <span><span class="co">#&gt;   planner     R. Roe</span></span>
 <span><span class="co">#&gt;   grain       channel + partner + week</span></span>
-<span><span class="co">#&gt;   weeks       2026-04-06 to 2026-05-11  (6 weeks)</span></span>
+<span><span class="co">#&gt;   flight      2026-04-06 to 2026-05-17  (6 weeks)</span></span>
 <span><span class="co">#&gt;   line items  4</span></span>
+<span><span class="co">#&gt;     channel   Search, Social, TV</span></span>
+<span><span class="co">#&gt;     partner   ESPN, Google, Meta, NBC</span></span>
 <span><span class="co">#&gt;   rows        24</span></span>
 <span><span class="co">#&gt;   spend       672,000</span></span>
 <span><span class="co">#&gt;   id          plan_cb283f</span></span>
@@ -179,6 +182,60 @@ adds guarantees, not a wrapper you have to fight:</p>
 <span><span class="co">#&gt; [1] 672000</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="the-other-door-in-flights">The other door in: flights<a class="anchor" aria-label="anchor" href="#the-other-door-in-flights"></a>
+</h2>
+<p>Planners do not always write a plan by week. Often a buy is stated as
+<strong>in-market dates and a total</strong> — “OOH, 6 April to 3 May,
+120k”. That is a <strong>flight</strong>, and
+<code><a href="../reference/media_plan_from_flights.html">media_plan_from_flights()</a></code> takes it directly:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">buys</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>  channel       <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"OOH"</span>, <span class="st">"Search"</span>, <span class="st">"TV"</span><span class="op">)</span>,</span>
+<span>  partner       <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"JCDecaux"</span>, <span class="st">"Google"</span>, <span class="st">"NBC"</span><span class="op">)</span>,</span>
+<span>  flight_start  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"2026-04-06"</span>, <span class="st">"2026-04-08"</span>, <span class="st">"2026-04-06"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  flight_end    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"2026-05-03"</span>, <span class="st">"2026-04-08"</span>, <span class="st">"2026-04-12"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  planned_spend <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">120000</span>, <span class="fl">3100</span>, <span class="fl">33333</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">flighted</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/media_plan_from_flights.html">media_plan_from_flights</a></span><span class="op">(</span></span>
+<span>  <span class="va">buys</span>, grain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"partner"</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Q2 flighting"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">flighted</span><span class="op">@</span><span class="va">data</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"week"</span>, <span class="st">"planned_spend"</span>, <span class="st">"period_basis"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   channel       week planned_spend period_basis</span></span>
+<span><span class="co">#&gt; 1     OOH 2026-04-06         30000       flight</span></span>
+<span><span class="co">#&gt; 2     OOH 2026-04-13         30000       flight</span></span>
+<span><span class="co">#&gt; 3     OOH 2026-04-20         30000       flight</span></span>
+<span><span class="co">#&gt; 4     OOH 2026-04-27         30000       flight</span></span>
+<span><span class="co">#&gt; 5  Search 2026-04-06          3100          day</span></span>
+<span><span class="co">#&gt; 6      TV 2026-04-06         33333         week</span></span></code></pre></div>
+<p>The flight is <strong>expanded onto the weekly rows
+<code>@data</code> already holds</strong>, so the grid,
+<code><a href="../reference/roll_up.html">roll_up()</a></code>, <code><a href="../reference/build_scenario.html">build_scenario()</a></code> and
+<code><a href="../reference/compare_scenarios.html">compare_scenarios()</a></code> all see the ordinary shape. Spend is
+spread across the buy’s days and gathered into those weeks, exactly to
+the cent — note the 33,333 dividing cleanly, and the single-day Search
+buy sitting inside its week.</p>
+<p>Going back the other way is exact:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/flights.html">flights</a></span><span class="op">(</span><span class="va">flighted</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   channel  partner              flight_id flight_start flight_end period_basis</span></span>
+<span><span class="co">#&gt; 1     OOH JCDecaux fl_20260817005515_7766   2026-04-06 2026-05-03       flight</span></span>
+<span><span class="co">#&gt; 2      TV      NBC fl_20260817005515_c5c4   2026-04-06 2026-04-12         week</span></span>
+<span><span class="co">#&gt; 3  Search   Google fl_20260817005515_4a2f   2026-04-08 2026-04-08          day</span></span>
+<span><span class="co">#&gt;   pacing planned_spend n_weeks</span></span>
+<span><span class="co">#&gt; 1   even        120000       4</span></span>
+<span><span class="co">#&gt; 2   even         33333       1</span></span>
+<span><span class="co">#&gt; 3   even          3100       1</span></span></code></pre></div>
+<p>That works because each buy’s identity is stored. It is
+<strong>not</strong> inferred: a plan built by
+<code><a href="../reference/media_plan_from_df.html">media_plan_from_df()</a></code> records no flights and says so, rather
+than guessing that four equal weeks were one buy.</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/flights.html">flights</a></span><span class="op">(</span><span class="va">base</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
+</div>
+<div class="section level2">
 <h2 id="editing-three-shapes-one-door">Editing: three shapes, one door<a class="anchor" aria-label="anchor" href="#editing-three-shapes-one-door"></a>
 </h2>
 <p><code><a href="../reference/build_scenario.html">build_scenario()</a></code> is the only way to change spend, and it
@@ -191,7 +248,7 @@ things.</p>
 <p>State what you want done and let R compute it. <code>target</code>
 may name any <strong>subset</strong> of the grain, so one operation
 reaches many rows.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">trim</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span></span>
 <span>  <span class="va">base</span>,</span>
 <span>  edits    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"TV"</span><span class="op">)</span>, scale <span class="op">=</span> <span class="fl">0.8</span><span class="op">)</span>,</span>
@@ -203,7 +260,7 @@ reaches many rows.</p>
 <span><span class="co">#&gt; [1] 588000</span></span></code></pre></div>
 <p>Operations apply in order, so a budget-neutral shift is two of
 them:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">shift</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span></span>
 <span>  <span class="va">base</span>,</span>
 <span>  edits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
@@ -216,7 +273,8 @@ them:</p>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">shift</span><span class="op">@</span><span class="va">data</span><span class="op">$</span><span class="va">planned_spend</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] 664000</span></span></code></pre></div>
-<p>The four operations, and the distinction that catches people out:</p>
+<p>The five spend operations, and the distinction that catches people
+out:</p>
 <table class="table">
 <thead><tr class="header">
 <th>Operation</th>
@@ -224,40 +282,127 @@ them:</p>
 </tr></thead>
 <tbody>
 <tr class="odd">
-<td><code>set</code></td>
-<td>each row becomes exactly this</td>
-</tr>
-<tr class="even">
-<td><code>scale</code></td>
-<td>multiply each row (<code>1.2</code> = +20%)</td>
-</tr>
-<tr class="odd">
-<td><code>delta</code></td>
-<td>add to each row (may be negative)</td>
-</tr>
-<tr class="even">
 <td><code>total</code></td>
 <td>rows <strong>sum</strong> to this, holding their current mix</td>
 </tr>
+<tr class="even">
+<td><code>delta</code></td>
+<td>rows’ <strong>sum</strong> moves by this, holding their mix</td>
+</tr>
+<tr class="odd">
+<td><code>scale</code></td>
+<td>multiply each row (<code>1.2</code> = +20%)</td>
+</tr>
+<tr class="even">
+<td><code>set</code></td>
+<td>each row becomes exactly this</td>
+</tr>
+<tr class="odd">
+<td><code>delta_each</code></td>
+<td>add to each row (may be negative)</td>
+</tr>
 </tbody>
 </table>
-<p><code>set</code> is per row; <code>total</code> is across rows. “Set
-the TV budget to 350k” is almost always <code>total</code>.</p>
+<p>The split that catches people out runs both ways:</p>
+<table class="table">
+<thead><tr class="header">
+<th></th>
+<th>across the matched rows</th>
+<th>to each matched row</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td>absolute</td>
+<td><code>total</code></td>
+<td><code>set</code></td>
+</tr>
+<tr class="even">
+<td>relative</td>
+<td><code>delta</code></td>
+<td><code>delta_each</code></td>
+</tr>
+</tbody>
+</table>
+<p>“Set the TV budget to 350k” is <code>total</code>, not
+<code>set</code>. “Take 50k out of TV” is <code>delta</code>, not
+<code>delta_each</code> — on a 26-week plan
+<code>delta_each = -50000</code> would take out 1.3 million, and because
+the two sides of a transfer often cancel, the plan total still
+reconciles while every channel is wrong. Reach for the left-hand column
+unless you specifically mean “every week”.</p>
 <p>A target value that does not exist is an error naming the
 alternatives — never a silent no-op:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">base</span>, edits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"Radio"</span><span class="op">)</span>, scale <span class="op">=</span> <span class="fl">2</span><span class="op">)</span>,</span>
 <span>               name <span class="op">=</span> <span class="st">"typo"</span><span class="op">)</span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00; font-weight: bold;">Error</span><span style="font-weight: bold;">:</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">!</span> edit op 1: no such value(s) in 'channel': Radio. Valid: TV, Search, Social</span></span></code></pre></div>
 <p>That matters most when a language model is generating the calls: a
 quiet no-op would look exactly like success.</p>
+<div class="section level4">
+<h4 id="changing-which-rows-there-are">Changing which rows there are<a class="anchor" aria-label="anchor" href="#changing-which-rows-there-are"></a>
+</h4>
+<p>The operations above change spend on rows that already exist. Four
+more change the row set itself, so a plan can gain and lose line
+items:</p>
+<table class="table">
+<thead><tr class="header">
+<th>Operation</th>
+<th>Effect</th>
+</tr></thead>
+<tbody>
+<tr class="odd">
+<td><code>add</code></td>
+<td>introduce a line item, for one week or as a flight</td>
+</tr>
+<tr class="even">
+<td><code>drop</code></td>
+<td>remove the matched rows entirely</td>
+</tr>
+<tr class="odd">
+<td><code>shift</code></td>
+<td>move the matched buys by ±N days</td>
+</tr>
+<tr class="even">
+<td><code>restage</code></td>
+<td>move the matched buys to explicit dates</td>
+</tr>
+</tbody>
+</table>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">reshaped</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">base</span>, edits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>add <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"Audio"</span>, partner <span class="op">=</span> <span class="st">"Spotify"</span>,</span>
+<span>                  week <span class="op">=</span> <span class="va">weeks</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span>, planned_spend <span class="op">=</span> <span class="fl">25000</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>partner <span class="op">=</span> <span class="st">"ESPN"</span><span class="op">)</span>, drop <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Q2 2026 Brand Plan — Audio in, ESPN out"</span>, nickname <span class="op">=</span> <span class="st">"reshaped"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/grain_values.html">grain_values</a></span><span class="op">(</span><span class="va">reshaped</span>, <span class="st">"partner"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "Google"  "Meta"    "NBC"     "Spotify"</span></span></code></pre></div>
+<p><code>drop</code> is not the same as setting a row to zero: a dropped
+line item is not bought at all, where a zeroed one is still in the plan
+at nothing.</p>
+<p>Selection grows an axis too. <code>during</code> narrows any
+operation to rows whose in-market period <strong>overlaps</strong> a
+window, so “cut back the back half of April” reaches a buy that started
+in March and is still running:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">base</span>, edits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  during <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>from <span class="op">=</span> <span class="st">"2026-04-20"</span>, to <span class="op">=</span> <span class="st">"2026-04-30"</span><span class="op">)</span>, scale <span class="op">=</span> <span class="fl">0.5</span></span>
+<span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Q2 2026 Brand Plan — late April trim"</span>, nickname <span class="op">=</span> <span class="st">"late Apr -50%"</span><span class="op">)</span><span class="op">@</span><span class="va">data</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fl">3</span><span class="op">)</span></span>
+<span><span class="co">#&gt;         week partner channel planned_spend</span></span>
+<span><span class="co">#&gt; 1 2026-04-06     NBC      TV         42000</span></span>
+<span><span class="co">#&gt; 2 2026-04-13     NBC      TV         42000</span></span>
+<span><span class="co">#&gt; 3 2026-04-20     NBC      TV         21000</span></span></code></pre></div>
+<p><code>during</code> <em>selects</em> rows; it never slices them, so a
+buy half inside the window is matched whole.</p>
+</div>
 </div>
 <div class="section level3">
 <h3 id="a-data-frame-for-absolute-allocations">2. A data frame — for absolute allocations<a class="anchor" aria-label="anchor" href="#a-data-frame-for-absolute-allocations"></a>
 </h3>
 <p>Natural for optimizer output, where you already have the numbers:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">alloc</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
 <span>  channel       <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"TV"</span>, <span class="st">"TV"</span><span class="op">)</span>,</span>
 <span>  partner       <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"NBC"</span>, <span class="st">"ESPN"</span><span class="op">)</span>,</span>
@@ -278,7 +423,7 @@ it.</p>
 </h3>
 <p>Keyed by <code><a href="../reference/line_item.html">line_item()</a></code> over the full grain. Terse, and
 what an editable table produces:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">key</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/line_item.html">line_item</a></span><span class="op">(</span><span class="va">base</span><span class="op">@</span><span class="va">data</span>, <span class="va">base</span><span class="op">@</span><span class="va">grain</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">]</span></span>
 <span><span class="va">key</span></span>
 <span><span class="co">#&gt; [1] "TV | NBC | 2026-04-06"</span></span>
@@ -292,14 +437,14 @@ what an editable table produces:</p>
 </h2>
 <p>Deriving never touches the parent, and every scenario records where
 it came from:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">base</span><span class="op">@</span><span class="va">data</span><span class="op">$</span><span class="va">planned_spend</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">plan_df</span><span class="op">$</span><span class="va">planned_spend</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">trim</span><span class="op">@</span><span class="va">parent_id</span>, <span class="va">base</span><span class="op">@</span><span class="va">id</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
 <p><code>status</code> is deliberately <strong>not</strong> inherited —
 a scenario forked from an approved plan is not itself approved:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">base</span><span class="op">@</span><span class="va">status</span></span>
 <span><span class="co">#&gt; [1] "approved"</span></span>
 <span><span class="va">trim</span><span class="op">@</span><span class="va">status</span></span>
@@ -311,7 +456,7 @@ a scenario forked from an approved plan is not itself approved:</p>
 <p>A <code>ScenarioSet</code> is the comparison registry. Labels prefer
 <code>@nickname</code>, so a set under development reads well without
 renaming the formal plans:</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/scenario_set.html">scenario_set</a></span><span class="op">(</span><span class="va">base</span><span class="op">)</span></span>
 <span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="va">set</span>, <span class="va">trim</span><span class="op">)</span></span>
 <span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="va">set</span>, <span class="va">shift</span><span class="op">)</span></span>
@@ -327,17 +472,17 @@ renaming the formal plans:</p>
 <span><span class="co">#&gt; </span></span>
 <span><span class="co">#&gt;   * = baseline</span></span></code></pre></div>
 <p>Two levels of comparison:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span>, <span class="st">"summary"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    scenario                    plan_id                  parent_id</span></span>
-<span><span class="co">#&gt; 1  baseline plan_20260803222304_cb283f                       &lt;NA&gt;</span></span>
-<span><span class="co">#&gt; 2   TV -20% plan_20260803222305_e47766 plan_20260803222304_cb283f</span></span>
-<span><span class="co">#&gt; 3 TV→Social plan_20260803222305_6e4a2f plan_20260803222304_cb283f</span></span>
+<span><span class="co">#&gt; 1  baseline plan_20260817005515_cb283f                       &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 2   TV -20% plan_20260817005516_c45205 plan_20260817005515_cb283f</span></span>
+<span><span class="co">#&gt; 3 TV→Social plan_20260817005516_fe3218 plan_20260817005515_cb283f</span></span>
 <span><span class="co">#&gt;   total_planned_spend spend_vs_base spend_pct_vs_base</span></span>
 <span><span class="co">#&gt; 1              672000             0        0.00000000</span></span>
 <span><span class="co">#&gt; 2              588000        -84000       -0.12500000</span></span>
 <span><span class="co">#&gt; 3              664000         -8000       -0.01190476</span></span></code></pre></div>
-<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="../reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span>, <span class="st">"cell"</span><span class="op">)</span>, <span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   scenario channel partner       week planned_spend share_of_total</span></span>
 <span><span class="co">#&gt; 1 baseline      TV     NBC 2026-04-06         42000         0.0625</span></span>
@@ -353,6 +498,31 @@ renaming the formal plans:</p>
 <strong>union</strong> of grain cells across the set, so a line item one
 scenario adds and another lacks still gets a real delta rather than
 <code>NA</code> or a missing row.</p>
+<p>There is a third level, for plans that record flights. It compares
+the <strong>buys</strong> rather than the cells, and names what happened
+to each:</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">moved</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">flighted</span>,</span>
+<span>                        edits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"OOH"</span><span class="op">)</span>, shift <span class="op">=</span> <span class="fl">7</span><span class="op">)</span>,</span>
+<span>                        name <span class="op">=</span> <span class="st">"OOH pushed a week"</span>, nickname <span class="op">=</span> <span class="st">"pushed"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">fl_set</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="fu"><a href="../reference/scenario_set.html">scenario_set</a></span><span class="op">(</span><span class="va">flighted</span>, name <span class="op">=</span> <span class="st">"base"</span><span class="op">)</span>, <span class="va">moved</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">fl_set</span>, <span class="st">"flight"</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"scenario"</span>, <span class="st">"channel"</span>, <span class="st">"flight_start"</span>,</span>
+<span>                                        <span class="st">"spend_vs_base"</span>, <span class="st">"start_shift_days"</span>,</span>
+<span>                                        <span class="st">"change"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   scenario channel flight_start spend_vs_base start_shift_days    change</span></span>
+<span><span class="co">#&gt; 1     base     OOH   2026-04-06             0                0      base</span></span>
+<span><span class="co">#&gt; 2     base      TV   2026-04-06             0                0      base</span></span>
+<span><span class="co">#&gt; 3     base  Search   2026-04-08             0                0      base</span></span>
+<span><span class="co">#&gt; 4   pushed     OOH   2026-04-13             0                7     moved</span></span>
+<span><span class="co">#&gt; 5   pushed      TV   2026-04-06             0                0 unchanged</span></span>
+<span><span class="co">#&gt; 6   pushed  Search   2026-04-08             0                0 unchanged</span></span></code></pre></div>
+<p>At cell level that same change reads as money leaving one week and
+arriving in another — true, but it leaves you to infer that a single buy
+moved. Here it says so. This works within a <strong>derivation</strong>:
+buy identities are minted per import, so they trace a plan and the
+scenarios forked from it, and comparing two independently authored plans
+this way warns rather than reporting every buy as added and dropped.</p>
 </div>
 <div class="section level2">
 <h2 id="rolling-up">Rolling up<a class="anchor" aria-label="anchor" href="#rolling-up"></a>
@@ -360,7 +530,7 @@ scenario adds and another lacks still gets a real delta rather than
 <p><code><a href="../reference/roll_up.html">roll_up()</a></code> aggregates to a coarser grain — useful when
 you need channel totals, or to find the nearest level at which a
 response model exists for a brand-new partner:</p>
-<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/roll_up.html">roll_up</a></span><span class="op">(</span><span class="va">base</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"week"</span><span class="op">)</span><span class="op">)</span><span class="op">@</span><span class="va">data</span> <span class="op">|&gt;</span> <span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fl">4</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   channel       week planned_spend</span></span>
 <span><span class="co">#&gt; 1      TV 2026-04-06         70000</span></span>
@@ -369,16 +539,146 @@ response model exists for a brand-new partner:</p>
 <span><span class="co">#&gt; 4      TV 2026-04-27         70000</span></span></code></pre></div>
 </div>
 <div class="section level2">
+<h2 id="what-a-line-item-buys">What a line item buys<a class="anchor" aria-label="anchor" href="#what-a-line-item-buys"></a>
+</h2>
+<p>Spend is the common currency — the one quantity every channel shares
+— so it stays mandatory. Alongside it a line item can record
+<strong>what</strong> it buys, <strong>how much</strong>, and <strong>at
+what price</strong>. The three are bound by one identity:</p>
+<pre><code><span><span class="va">planned_spend</span> <span class="op">=</span> <span class="va">planned_units</span> <span class="op">*</span> <span class="va">planned_rate</span> <span class="op">/</span> <span class="fu">rate_per</span><span class="op">(</span><span class="va">unit_type</span><span class="op">)</span></span></code></pre>
+<p><code>rate_per</code> is 1000 for impressions, because the trade
+quotes a CPM rather than a price per impression, and 1 for everything
+else — a CPC per click, a CPP per GRP.</p>
+<p>So <strong>supply any two and the third is computed</strong>,
+whichever way you actually have it. A budget and a negotiated rate:</p>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">social</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>    channel       <span class="op">=</span> <span class="st">"Social"</span>,</span>
+<span>    unit_type     <span class="op">=</span> <span class="st">"impression"</span>,</span>
+<span>    planned_spend <span class="op">=</span> <span class="fl">140000</span>,</span>
+<span>    planned_rate  <span class="op">=</span> <span class="fl">5</span>          <span class="co"># a $5 CPM</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  grain <span class="op">=</span> <span class="st">"channel"</span>, name <span class="op">=</span> <span class="st">"Social plan"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">social</span><span class="op">@</span><span class="va">data</span><span class="op">$</span><span class="va">planned_units</span></span>
+<span><span class="co">#&gt; [1] 2.8e+07</span></span></code></pre></div>
+<p>Or a delivery goal and a rate, which gives the budget instead:</p>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"Social"</span>, unit_type <span class="op">=</span> <span class="st">"impression"</span>,</span>
+<span>             planned_units <span class="op">=</span> <span class="fl">28000000</span>, planned_rate <span class="op">=</span> <span class="fl">5</span><span class="op">)</span>,</span>
+<span>  grain <span class="op">=</span> <span class="st">"channel"</span>, name <span class="op">=</span> <span class="st">"Goal-led"</span></span>
+<span><span class="op">)</span><span class="op">@</span><span class="va">data</span><span class="op">$</span><span class="va">planned_spend</span></span>
+<span><span class="co">#&gt; [1] 140000</span></span></code></pre></div>
+<p>All three are stored, and the validator enforces the identity, so
+they cannot drift apart.</p>
+<div class="section level3">
+<h3 id="the-rate-is-what-survives-an-edit">The rate is what survives an edit<a class="anchor" aria-label="anchor" href="#the-rate-is-what-survives-an-edit"></a>
+</h3>
+<p>This is the part worth knowing. When you cut a budget, the negotiated
+rate does not improve — you buy fewer impressions:</p>
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cut</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">social</span>, edits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>delta <span class="op">=</span> <span class="op">-</span><span class="fl">40000</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"trimmed"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>spend <span class="op">=</span> <span class="va">cut</span><span class="op">@</span><span class="va">data</span><span class="op">$</span><span class="va">planned_spend</span>,</span>
+<span>  units <span class="op">=</span> <span class="va">cut</span><span class="op">@</span><span class="va">data</span><span class="op">$</span><span class="va">planned_units</span>,</span>
+<span>  rate  <span class="op">=</span> <span class="va">cut</span><span class="op">@</span><span class="va">data</span><span class="op">$</span><span class="va">planned_rate</span><span class="op">)</span></span>
+<span><span class="co">#&gt; spend units  rate </span></span>
+<span><span class="co">#&gt; 1e+05 2e+07 5e+00</span></span></code></pre></div>
+<p>Units follow the money at the held rate, everywhere money moves:
+through scaling and re-totalling, through a flight spreading across its
+weeks, through <code><a href="../reference/calendarize.html">calendarize()</a></code>. <code><a href="../reference/cost_per_unit.html">cost_per_unit()</a></code>
+and <code><a href="../reference/cost_per_unit.html">cpm()</a></code> derive from spend and units, so no third number
+can disagree with them.</p>
+<p><code><a href="../reference/roll_up.html">roll_up()</a></code> sums units only <strong>within</strong> one
+unit type, and reports none across a mix — summing GRPs and clicks would
+produce a figure nobody should act on. The spend always survives,
+because that is the point of a common currency:</p>
+<div class="sourceCode" id="cb26"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">mixed</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>bucket <span class="op">=</span> <span class="st">"all"</span>, channel <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Social"</span>, <span class="st">"Search"</span><span class="op">)</span>,</span>
+<span>             unit_type <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"impression"</span>, <span class="st">"click"</span><span class="op">)</span>,</span>
+<span>             planned_spend <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">140000</span>, <span class="fl">95000</span><span class="op">)</span>, planned_rate <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">5</span>, <span class="fl">0.80</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  grain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"bucket"</span>, <span class="st">"channel"</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Mixed"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/roll_up.html">roll_up</a></span><span class="op">(</span><span class="va">mixed</span>, <span class="st">"bucket"</span><span class="op">)</span><span class="op">@</span><span class="va">data</span></span>
+<span><span class="co">#&gt;   bucket planned_spend unit_type planned_units planned_rate</span></span>
+<span><span class="co">#&gt; 1    all        235000      &lt;NA&gt;            NA           NA</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
+<h2 id="re-cutting-the-calendar">Re-cutting the calendar<a class="anchor" aria-label="anchor" href="#re-cutting-the-calendar"></a>
+</h2>
+<p><code><a href="../reference/roll_up.html">roll_up()</a></code> aggregates over <em>dimensions</em>.
+<code><a href="../reference/calendarize.html">calendarize()</a></code> is its counterpart over <em>time</em>: it
+spreads each row’s spend across the days it is actually in market, then
+gathers those days into days, weeks or months.</p>
+<div class="sourceCode" id="cb27"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ooh</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/media_plan_from_flights.html">media_plan_from_flights</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span>
+<span>    channel       <span class="op">=</span> <span class="st">"OOH"</span>,</span>
+<span>    flight_start  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-04-20"</span><span class="op">)</span>,</span>
+<span>    flight_end    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-05-10"</span><span class="op">)</span>,</span>
+<span>    planned_spend <span class="op">=</span> <span class="fl">210000</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  grain <span class="op">=</span> <span class="st">"channel"</span>, name <span class="op">=</span> <span class="st">"A buy that crosses a month end"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/calendarize.html">calendarize</a></span><span class="op">(</span><span class="va">ooh</span>, <span class="st">"week"</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   channel       week planned_spend</span></span>
+<span><span class="co">#&gt; 1     OOH 2026-04-20         70000</span></span>
+<span><span class="co">#&gt; 2     OOH 2026-04-27         70000</span></span>
+<span><span class="co">#&gt; 3     OOH 2026-05-04         70000</span></span>
+<span><span class="fu"><a href="../reference/calendarize.html">calendarize</a></span><span class="op">(</span><span class="va">ooh</span>, <span class="st">"month"</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   channel      month planned_spend</span></span>
+<span><span class="co">#&gt; 1     OOH 2026-04-01        110000</span></span>
+<span><span class="co">#&gt; 2     OOH 2026-05-01        100000</span></span></code></pre></div>
+<p>The month cut splits the week of 27 April, which straddles the
+boundary: eleven days fall in April and ten in May. Doing that by hand
+is exactly the tedious, error-prone part of finance-facing
+reporting.</p>
+<p>The two verbs compose, in either order, because neither knows about
+the other’s axis:</p>
+<div class="sourceCode" id="cb28"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/calendarize.html">calendarize</a></span><span class="op">(</span><span class="fu"><a href="../reference/roll_up.html">roll_up</a></span><span class="op">(</span><span class="va">base</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"week"</span><span class="op">)</span><span class="op">)</span>, <span class="st">"month"</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   channel      month planned_spend</span></span>
+<span><span class="co">#&gt; 1  Search 2026-04-01      67857.14</span></span>
+<span><span class="co">#&gt; 2  Social 2026-04-01      82142.86</span></span>
+<span><span class="co">#&gt; 3      TV 2026-04-01     250000.00</span></span>
+<span><span class="co">#&gt; 4  Search 2026-05-01      46142.86</span></span>
+<span><span class="co">#&gt; 5  Social 2026-05-01      55857.14</span></span>
+<span><span class="co">#&gt; 6      TV 2026-05-01     170000.00</span></span></code></pre></div>
+<p><code><a href="../reference/calendarize.html">calendarize()</a></code> returns a plain data frame rather than a
+plan. Aggregating over time can merge two of a line item’s rows into one
+period, at which point the flight that spanned them is no longer one
+row’s worth of anything — so rather than guess, the flighting columns
+are dropped and the result is a projection to chart or export. Pass it
+to <code><a href="../reference/media_plan_from_df.html">media_plan_from_df()</a></code> if you do want a plan at the new
+grain.</p>
+</div>
+<div class="section level2">
 <h2 id="where-to-next">Where to next<a class="anchor" aria-label="anchor" href="#where-to-next"></a>
 </h2>
 <ul>
 <li>
 <code><a href="../articles/plan_concepts.html">vignette("plan_concepts")</a></code> — what a plan <em>is</em>,
-and the boundaries that keep it small.</li>
+why flights are authored but weeks are held, why the rate survives an
+edit, and the boundaries that keep the package small.</li>
 <li>
-<code><a href="../reference/build_scenario.html">?build_scenario</a></code> — the full edit-form reference.</li>
+<code><a href="../reference/build_scenario.html">?build_scenario</a></code> — the full edit-form and operation
+reference.</li>
 <li>
-<code><a href="../reference/check_coverage.html">?check_coverage</a></code> — pairing a plan with a decomp.</li>
+<code><a href="../reference/media_plan_from_flights.html">?media_plan_from_flights</a></code>, <code><a href="../reference/flights.html">?flights</a></code> —
+authoring by buy rather than by week.</li>
+<li>
+<code><a href="../reference/check_coverage.html">?check_coverage</a></code> — pairing a plan with a decomp, and
+what <code>through</code> compares against.</li>
+<li>
+<code>Roadmap.md</code> — what is deliberately not built yet, and
+what is staying out.</li>
 </ul>
 </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

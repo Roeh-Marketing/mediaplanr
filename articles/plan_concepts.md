@@ -107,17 +107,76 @@ measured should appear in the plan’s pre-through-date rows. The opposite
 direction is never flagged: the future portion of a plan is *expected*
 to introduce new partners and tactics.
 
-**It is scoped by `through`.** Only rows before that date are
-considered, since the decomp only knows about history.
+**It is scoped by `through`, on overlap.** A row is considered when
+**any part of its in-market period falls before** that date, since the
+decomp only knows about history. A decomp reporting through a Wednesday
+has measured part of the week that began on the Monday, so that line
+item should be expected in the plan.
+
+The comparison is against the row’s real period, not the bare week
+value, so it follows a flight that starts mid-week:
+
+``` r
+
+midweek <- media_plan_from_flights(
+  data.frame(channel = "TV", flight_start = as.Date("2026-04-08"),
+             flight_end = as.Date("2026-04-19"), planned_spend = 100),
+  grain = "channel", name = "Starts on the Wednesday"
+)
+
+# the buy was not live on the 7th, so nothing is in scope to check
+tryCatch(check_coverage(midweek, data.frame(channel = "TV"),
+                        through = as.Date("2026-04-07")),
+         warning = function(w) conditionMessage(w))
+#> [1] "no plan rows are in market before 2026-04-07; not checked."
+```
+
+Being in scope says the decomp saw *part* of a buy, not much of it: a
+long flight that began the day before `through` qualifies on a single
+measured day. That is the right answer for the question being asked —
+should this line item appear in the plan? — but it is not a statement
+about delivery.
 
 **It warns rather than errors.** Both artifacts are individually valid;
 it is their pairing that disagrees. An app should surface that and let
 the user resolve it, not refuse to load a perfectly well-formed plan.
 
-That last point is the one exception to the package’s general
-strictness. Structural problems — negative spend, duplicate rows, a week
-column that is not a `Date` — are hard errors, so an invalid plan cannot
-exist:
+### Extent is not a boundary
+
+A plan does know one thing about its own dates: **which ones it
+covers**. That is its *extent*, and it is not the same species of fact
+as a through-date.
+
+``` r
+
+c(plan@flight_start, plan@flight_end)
+#> [1] "2026-03-02" "2026-04-12"
+plan@flight_days
+#> [1] 42
+```
+
+The discriminating question is: **can this value change without the plan
+changing?** A decomp’s through-date can — it moves every refresh, and
+the plan sits still while it does. A flight window cannot: it is a pure
+function of `@data`. So one is an argument to
+[`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md)
+and the other is a property of the plan.
+
+That test is also what keeps the class from re-growing the things that
+were removed. `historical_spend`, `weeks_remaining`, `is_active`,
+`pct_delivered` all fail it — each needs either
+[`Sys.Date()`](https://rdrr.io/r/base/Sys.time.html) or a decomp — so
+none of them belongs here, however convenient they would be.
+
+Note that `@flight_end` is the last day the plan is in market, not the
+last week *start* stored in `@data`. A week is seven days of spend, so a
+plan whose final week begins on a Monday runs through the Sunday after
+it.
+
+That last point about warnings is the one exception to the package’s
+general strictness. Structural problems — negative spend, duplicate
+rows, a week column that is not a `Date` — are hard errors, so an
+invalid plan cannot exist:
 
 ``` r
 
@@ -152,6 +211,37 @@ unique(line_item(plan@data, line_item_grain(plan)))
 #> [1] "TV | NBC"        "Search | Google"
 ```
 
+[`line_item()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item.md)
+gives you the key for every *row*. For the distinct roster — one row per
+line item, with its total, its share of the plan’s rows and its own
+flight window — use
+[`line_item_summary()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_summary.md):
+
+``` r
+
+line_item_summary(plan)
+#>   channel partner       line_item planned_spend n_rows flight_start flight_end
+#> 1      TV     NBC        TV | NBC         65000      2   2026-03-02 2026-04-12
+#> 2  Search  Google Search | Google         45000      2   2026-03-02 2026-04-12
+```
+
+The grain values come back as columns rather than folded into the key,
+because that is the shape an edit `target` takes. So “which channels are
+in this plan?” is answered with values you can hand straight to
+[`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md):
+
+``` r
+
+grain_values(plan, "channel")
+#> [1] "Search" "TV"
+```
+
+There is deliberately no `channels()`. The package never privileges a
+column name — `channel` is simply a dimension you chose to key on, and
+another plan may key on `media_type` or `vehicle`. Naming your own
+column keeps that true, and a typo errors with the alternatives listed
+rather than returning nothing.
+
 `grain` is deliberately ordered coarsest-first, because
 [`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md)
 treats it as a nesting. Dropping the rightmost column gives the next
@@ -171,8 +261,101 @@ roll_up(plan, c("channel", "week"))@data
 The package is a **flat table at a configurable grain**, not a nested
 object tree. A plan keyed by `channel`, by `channel + partner`, or by
 `channel + partner + tactic + week` is the same class at different
-grains. A Channel → Tactic → Flight hierarchy is deferred, not designed
-out.
+grains. Nested plans — a channel team’s detail rolling up into the
+weekly topline — are deferred, not designed out; see `Roadmap.md`.
+
+## Flights are authored, weeks are held
+
+A planner states a buy as a **flight**: in-market dates and a total. A
+plan is *held*, charted and edited as weeks. These are different things,
+and the package keeps them apart rather than picking one.
+
+[`media_plan_from_flights()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_flights.md)
+expands a flight onto the weekly rows `@data` already holds, so
+everything downstream sees the ordinary shape.
+[`flights()`](https://roeh-marketing.github.io/mediaplanr/reference/flights.md)
+goes back the other way — and it is **exact, never inferred**:
+
+``` r
+
+weekly <- media_plan_from_df(
+  data.frame(week = seq(as.Date("2026-04-06"), by = "week", length.out = 4),
+             channel = "TV", planned_spend = rep(30000, 4)),
+  grain = c("channel", "week"), week = "week", name = "Four equal weeks"
+)
+
+nrow(flights(weekly))
+#> [1] 0
+```
+
+Nothing is reported, because nothing was authored. Four consecutive
+30,000 weeks are equally consistent with one 28-day flight, four weekly
+buys, or two fortnightly ones, and no rule can tell them apart. Guessing
+from runs of equal spend would be a guess presented as a fact — the
+failure mode the package refuses everywhere, the same reason a mistyped
+target errors instead of quietly matching nothing.
+
+So the inverse works only because each buy’s identity is *stored* when
+it is authored. That identity survives derivation, which is what lets
+`compare_scenarios(level = "flight")` say a buy **moved** rather than
+showing an unexplained subtraction in one week and an addition in
+another.
+
+### One period per line item per week
+
+A row is still one line item for one period, so two separate buys of the
+same line item cannot overlap the same week. That is an error naming the
+fix — add a column that tells them apart — rather than a silent sum that
+would merge two distinct buys.
+
+It is also the price of keeping `@data` in the long weekly shape that
+makes the package pleasant to chart, edit and export. Making the flight
+the stored row instead was tried and rejected: `@grain`’s time member
+would become the flight start, so two scenarios that stage the same
+money differently would share no cells, and every reshaping would read
+as an add plus a drop rather than a move.
+
+## The rate is what survives an edit
+
+Spend is the **common currency** — the one quantity every channel shares
+— so it stays mandatory. A line item may also record what it buys, how
+much, and at what price, bound by one identity:
+
+    planned_spend = planned_units * planned_rate / rate_per(unit_type)
+
+Supply any two and the third is computed, whichever way you actually
+have it. All three are then stored and the validator enforces the
+identity, so they cannot drift apart.
+
+The question that shapes everything else is: **when spend changes, which
+of the other two gives way?** A negotiated CPM does not improve because
+the budget was cut. So the rate holds and the units follow:
+
+``` r
+
+social <- media_plan_from_df(
+  data.frame(channel = "Social", unit_type = "impression",
+             planned_spend = 140000, planned_rate = 5),
+  grain = "channel", name = "Social"
+)
+
+cut <- build_scenario(social, edits = list(delta = -40000), name = "trimmed")
+cut@data[, c("planned_spend", "planned_units", "planned_rate")]
+#>   planned_spend planned_units planned_rate
+#> 1         1e+05         2e+07            5
+```
+
+That is one rule, applied wherever money moves — through scaling,
+through a flight spreading across its weeks, through
+[`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md).
+Had units been the invariant instead, every one of those places would
+have needed its own rule for keeping units in step.
+
+Units add up only **within** one unit type. Across a mix,
+[`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md)
+keeps the spend and reports no units, because a total that adds GRPs to
+clicks is a number nobody should act on — and the spend is exactly what
+a common currency is for.
 
 ## Scenarios are forks
 

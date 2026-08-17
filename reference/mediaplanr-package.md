@@ -8,6 +8,14 @@ optimize. Response modeling and optimization live in the 'mrmopt'
 engine; their results are joined to this package's output by scenario
 and grain.
 
+## See also
+
+Useful links:
+
+- <https://roeh-marketing.github.io/mediaplanr/>
+
+- Report bugs at <https://github.com/Roeh-Marketing/mediaplanr/issues>
+
 ## Author
 
 **Maintainer**: Ben Denis Shaffer <my.blogdown@gmail.com>

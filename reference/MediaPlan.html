@@ -143,6 +143,17 @@ See <code><a href="check_coverage.html">check_coverage()</a></code> for the one 
 <p>Construct one with <code><a href="media_plan_from_df.html">media_plan_from_df()</a></code> rather than calling the constructor
 directly.</p>
     </div>
+    <div class="section level2">
+    <h2 id="derived-properties">Derived properties<a class="anchor" aria-label="anchor" href="#derived-properties"></a></h2>
+
+
+<p><code>@flight_start</code>, <code>@flight_end</code> and <code>@flight_days</code> are computed from <code>@data</code>
+on every read and cannot be assigned. They describe the plan's own extent —
+the dates it has line items for — and so are true of the plan alone. See
+<code><a href="flight_window.html">flight_window()</a></code> for why that is a different thing from the decomp
+through-date <code><a href="check_coverage.html">check_coverage()</a></code> takes, and why only one of the two can live
+on a plan.</p>
+    </div>
 
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside></div>

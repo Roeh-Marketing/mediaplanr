@@ -62,14 +62,33 @@ trim <- build_scenario(
 # 3. Collect and compare.
 set <- add_scenario(scenario_set(base), trim)
 
-compare_scenarios(set)          # per scenario: total spend, delta vs base
-compare_scenarios(set, "cell")  # per cell: spend, share, delta vs base
+compare_scenarios(set)            # per scenario: total spend, delta vs base
+compare_scenarios(set, "cell")    # per cell: spend, share, delta vs base
+compare_scenarios(set, "flight")  # per buy: moved, resized, added, dropped
 ```
 
 `build_scenario(edits =)` also takes a data frame of absolute values
 (natural for optimizer output) or a named vector keyed by
 [`line_item()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item.md)
 (natural for an editable table).
+
+Operations do more than change spend. A plan can gain and lose line
+items, and a buy can move:
+
+``` r
+
+list(target = list(channel = "TV"), delta = -50000)   # take 50k out of TV
+list(target = list(channel = "OOH"), shift = 7)       # push the buy a week
+list(add = list(channel = "Audio", week = "2026-04-06", planned_spend = 25000))
+list(target = list(channel = "Search"), drop = TRUE)
+list(during = list(from = "2026-04-20", to = "2026-05-31"), scale = 0.5)
+```
+
+The distinction that catches people out runs both ways: `total` and
+`delta` act **across** the matched rows and hold their mix, `set` and
+`delta_each` act on **each** row. On a 26-week plan those differ by a
+factor of 26 — and because the two sides of a transfer usually cancel,
+getting it wrong still reconciles.
 
 ## Core model
 
@@ -78,17 +97,61 @@ compare_scenarios(set, "cell")  # per cell: spend, share, delta vs base
 | `MediaPlan` | One plan at a configurable grain. A flat `@data` table of grain columns + `planned_spend` (intent, on every row); any other columns ride along untouched. `@week_col` names the week column when the plan is weekly. |
 | `ScenarioSet` | A base plan plus named scenarios derived from it, all at one grain. The comparison registry. |
 
-Verbs and helpers:
-[`media_plan_from_df()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_df.md),
-[`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md),
-[`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md),
-[`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md),
-[`scenario_set()`](https://roeh-marketing.github.io/mediaplanr/reference/scenario_set.md),
-[`add_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/add_scenario.md),
-[`compare_scenarios()`](https://roeh-marketing.github.io/mediaplanr/reference/compare_scenarios.md),
-[`line_item()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item.md),
-[`line_item_grain()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_grain.md),
-[`status_levels()`](https://roeh-marketing.github.io/mediaplanr/reference/status_levels.md).
+Two optional column sets ride along on `@data`, validated but never part
+of the grain: the **flighting** columns
+([`flight_cols()`](https://roeh-marketing.github.io/mediaplanr/reference/flight_cols.md))
+recording the buy a row belongs to, and the **unit** columns
+([`unit_cols()`](https://roeh-marketing.github.io/mediaplanr/reference/unit_cols.md))
+recording what it buys.
+
+|  |  |
+|----|----|
+| Build a plan | [`media_plan_from_df()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_df.md), [`media_plan_from_flights()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_flights.md) |
+| Change one | [`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md) |
+| Look at it | [`line_item_summary()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_summary.md), [`grain_values()`](https://roeh-marketing.github.io/mediaplanr/reference/grain_values.md), [`flights()`](https://roeh-marketing.github.io/mediaplanr/reference/flights.md), [`flight_window()`](https://roeh-marketing.github.io/mediaplanr/reference/flight_window.md), [`week_start()`](https://roeh-marketing.github.io/mediaplanr/reference/week_start.md), [`cost_per_unit()`](https://roeh-marketing.github.io/mediaplanr/reference/cost_per_unit.md), [`cpm()`](https://roeh-marketing.github.io/mediaplanr/reference/cost_per_unit.md) |
+| Aggregate it | [`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md) (dimensions), [`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md) (time) |
+| Compare | [`scenario_set()`](https://roeh-marketing.github.io/mediaplanr/reference/scenario_set.md), [`add_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/add_scenario.md), [`compare_scenarios()`](https://roeh-marketing.github.io/mediaplanr/reference/compare_scenarios.md) |
+| Vocabularies | [`status_levels()`](https://roeh-marketing.github.io/mediaplanr/reference/status_levels.md), [`unit_type_levels()`](https://roeh-marketing.github.io/mediaplanr/reference/unit_type_levels.md), [`period_basis_levels()`](https://roeh-marketing.github.io/mediaplanr/reference/period_basis_levels.md), [`pacing_levels()`](https://roeh-marketing.github.io/mediaplanr/reference/pacing_levels.md) |
+| Pair with a decomp | [`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md) |
+
+### Two doors in
+
+A plan can be authored the way it is written down. By week:
+
+``` r
+
+media_plan_from_df(df, grain = c("channel", "week"), week = "week", name = "Q2")
+```
+
+…or as **flights** — in-market dates and a total — which expand onto the
+weekly rows `@data` holds, exactly to the cent:
+
+``` r
+
+media_plan_from_flights(buys, grain = c("channel", "partner"), name = "Q2")
+```
+
+[`flights()`](https://roeh-marketing.github.io/mediaplanr/reference/flights.md)
+inverts that exactly, and reports nothing rather than guessing when a
+plan records no flight identity.
+
+### What it runs, and what it buys
+
+``` r
+
+base@flight_start               # first day in market
+base@flight_end                 # last day -- the final week's last day
+grain_values(base, "channel")   # ready to use as an edit target
+line_item_summary(base)         # per line item: spend, units, rate, own flight
+calendarize(base, "month")      # re-cut onto any calendar
+```
+
+Everything here is derived from `@data` on every read, so none of it can
+go stale. That is the rule the package holds throughout: **if a value
+can change without the plan changing, it does not belong on the plan.**
+A plan’s flight window is its own extent; the through-date
+[`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md)
+takes belongs to a plan-decomp pairing and moves every refresh.
 
 ## Learn more
 
@@ -109,13 +172,14 @@ Two ideas the rest of the design hangs on, in one line each:
 - **A line item** (channel / partner / tactic) is the time-free identity
   that models attach to. A row is a line item for one week.
 
-## Growth path (not now)
+## Growth path
 
-Nested Channel→Tactic→Flight hierarchy; a channel-type registry for an
-extensible media taxonomy; attribution as a separate linked process;
-metrics beyond spend (impressions, GRPs); arbitrary-depth lineage trees;
-ids as an external join contract. The current flat grain and synthetic
-ids are the seeds these grow from.
+Nested **SubPlans** are next: a channel team’s detailed plan, at its own
+granularity, rolling up into the weekly topline. See
+[Roadmap.md](https://github.com/Roeh-Marketing/mediaplanr/blob/main/Roadmap.md)
+for that design and for what is deliberately staying out — a
+channel-type registry, attribution, and anything derived from
+[`Sys.Date()`](https://rdrr.io/r/base/Sys.time.html).
 
 # Package index
 
@@ -140,8 +204,44 @@ week.
   : Line item identifier for each row
 - [`line_item_grain()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_grain.md)
   : The grain columns that identify a line item, excluding the week
+- [`line_item_summary()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_summary.md)
+  : The roster of line items in a plan
+- [`grain_values()`](https://roeh-marketing.github.io/mediaplanr/reference/grain_values.md)
+  : The values present on a grain column
 - [`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md)
   : Roll a plan up to a coarser grain
+
+## Flight dates
+
+When the plan is in market. Derived from the plan’s own rows, so it is
+true of the plan alone – unlike a decomp’s through-date, which belongs
+to a pairing and moves every refresh.
+
+- [`flight_window()`](https://roeh-marketing.github.io/mediaplanr/reference/flight_window.md)
+  : The plan's flight window
+- [`week_start()`](https://roeh-marketing.github.io/mediaplanr/reference/week_start.md)
+  : The weekday a plan's weeks begin on
+
+## Flighting
+
+A flight is how a buy is authored – in-market dates and a total. A week
+is how the plan is held. Build a plan from flights and it expands onto
+weekly rows exactly to the cent; flights() recovers the flights it was
+authored from, and reports none rather than guessing when a plan records
+no flight identity.
+
+- [`media_plan_from_flights()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_flights.md)
+  : Build a plan from flights rather than weeks
+- [`flights()`](https://roeh-marketing.github.io/mediaplanr/reference/flights.md)
+  : The flights a plan was authored from
+- [`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md)
+  : Re-cut a plan onto a different calendar
+- [`flight_cols()`](https://roeh-marketing.github.io/mediaplanr/reference/flight_cols.md)
+  : The columns that record flighting
+- [`period_basis_levels()`](https://roeh-marketing.github.io/mediaplanr/reference/period_basis_levels.md)
+  : The allowed buying cadences
+- [`pacing_levels()`](https://roeh-marketing.github.io/mediaplanr/reference/pacing_levels.md)
+  : The allowed pacing patterns
 
 ## Scenarios
 
@@ -159,6 +259,22 @@ records the plan it came from.
   : Compare the scenarios in a set
 - [`ScenarioSet()`](https://roeh-marketing.github.io/mediaplanr/reference/ScenarioSet.md)
   : A base plan plus named scenarios derived from it
+
+## What a line item buys
+
+Spend is the common currency and stays mandatory. Alongside it a line
+item may record what it buys, how much of it, and at what price – bound
+by one identity, so any two of the three give the third. The rate is
+what survives an edit: a cut budget buys fewer impressions, it does not
+win a better CPM.
+
+- [`cost_per_unit()`](https://roeh-marketing.github.io/mediaplanr/reference/cost_per_unit.md)
+  [`cpm()`](https://roeh-marketing.github.io/mediaplanr/reference/cost_per_unit.md)
+  : The cost of one unit, and the cost per thousand
+- [`unit_cols()`](https://roeh-marketing.github.io/mediaplanr/reference/unit_cols.md)
+  : The columns that record what a line item buys
+- [`unit_type_levels()`](https://roeh-marketing.github.io/mediaplanr/reference/unit_type_levels.md)
+  : Unit types with a conventional rate basis
 
 ## Workflow status
 

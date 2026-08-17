@@ -165,18 +165,67 @@ data guarantees it goes stale.</li>
 item the model measured should appear in the plan’s pre-through-date
 rows. The opposite direction is never flagged: the future portion of a
 plan is <em>expected</em> to introduce new partners and tactics.</p>
-<p><strong>It is scoped by <code>through</code>.</strong> Only rows
-before that date are considered, since the decomp only knows about
-history.</p>
+<p><strong>It is scoped by <code>through</code>, on overlap.</strong> A
+row is considered when <strong>any part of its in-market period falls
+before</strong> that date, since the decomp only knows about history. A
+decomp reporting through a Wednesday has measured part of the week that
+began on the Monday, so that line item should be expected in the
+plan.</p>
+<p>The comparison is against the row’s real period, not the bare week
+value, so it follows a flight that starts mid-week:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">midweek</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/media_plan_from_flights.html">media_plan_from_flights</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"TV"</span>, flight_start <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-04-08"</span><span class="op">)</span>,</span>
+<span>             flight_end <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-04-19"</span><span class="op">)</span>, planned_spend <span class="op">=</span> <span class="fl">100</span><span class="op">)</span>,</span>
+<span>  grain <span class="op">=</span> <span class="st">"channel"</span>, name <span class="op">=</span> <span class="st">"Starts on the Wednesday"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># the buy was not live on the 7th, so nothing is in scope to check</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">tryCatch</a></span><span class="op">(</span><span class="fu"><a href="../reference/check_coverage.html">check_coverage</a></span><span class="op">(</span><span class="va">midweek</span>, <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"TV"</span><span class="op">)</span>,</span>
+<span>                        through <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-04-07"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>         warning <span class="op">=</span> <span class="kw">function</span><span class="op">(</span><span class="va">w</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/base/conditions.html" class="external-link">conditionMessage</a></span><span class="op">(</span><span class="va">w</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "no plan rows are in market before 2026-04-07; not checked."</span></span></code></pre></div>
+<p>Being in scope says the decomp saw <em>part</em> of a buy, not much
+of it: a long flight that began the day before <code>through</code>
+qualifies on a single measured day. That is the right answer for the
+question being asked — should this line item appear in the plan? — but
+it is not a statement about delivery.</p>
 <p><strong>It warns rather than errors.</strong> Both artifacts are
 individually valid; it is their pairing that disagrees. An app should
 surface that and let the user resolve it, not refuse to load a perfectly
 well-formed plan.</p>
-<p>That last point is the one exception to the package’s general
-strictness. Structural problems — negative spend, duplicate rows, a week
-column that is not a <code>Date</code> — are hard errors, so an invalid
-plan cannot exist:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="section level3">
+<h3 id="extent-is-not-a-boundary">Extent is not a boundary<a class="anchor" aria-label="anchor" href="#extent-is-not-a-boundary"></a>
+</h3>
+<p>A plan does know one thing about its own dates: <strong>which ones it
+covers</strong>. That is its <em>extent</em>, and it is not the same
+species of fact as a through-date.</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="va">plan</span><span class="op">@</span><span class="va">flight_start</span>, <span class="va">plan</span><span class="op">@</span><span class="va">flight_end</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "2026-03-02" "2026-04-12"</span></span>
+<span><span class="va">plan</span><span class="op">@</span><span class="va">flight_days</span></span>
+<span><span class="co">#&gt; [1] 42</span></span></code></pre></div>
+<p>The discriminating question is: <strong>can this value change without
+the plan changing?</strong> A decomp’s through-date can — it moves every
+refresh, and the plan sits still while it does. A flight window cannot:
+it is a pure function of <code>@data</code>. So one is an argument to
+<code><a href="../reference/check_coverage.html">check_coverage()</a></code> and the other is a property of the
+plan.</p>
+<p>That test is also what keeps the class from re-growing the things
+that were removed. <code>historical_spend</code>,
+<code>weeks_remaining</code>, <code>is_active</code>,
+<code>pct_delivered</code> all fail it — each needs either
+<code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date()</a></code> or a decomp — so none of them belongs here,
+however convenient they would be.</p>
+<p>Note that <code>@flight_end</code> is the last day the plan is in
+market, not the last week <em>start</em> stored in <code>@data</code>. A
+week is seven days of spend, so a plan whose final week begins on a
+Monday runs through the Sunday after it.</p>
+<p>That last point about warnings is the one exception to the package’s
+general strictness. Structural problems — negative spend, duplicate
+rows, a week column that is not a <code>Date</code> — are hard errors,
+so an invalid plan cannot exist:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"TV"</span>, <span class="st">"TV"</span><span class="op">)</span>, planned_spend <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  grain <span class="op">=</span> <span class="st">"channel"</span>, name <span class="op">=</span> <span class="st">"duplicated"</span></span>
@@ -184,6 +233,7 @@ plan cannot exist:</p>
 <span><span class="co">#&gt; <span style="color: #BBBB00; font-weight: bold;">Error</span><span style="font-weight: bold;">:</span></span></span>
 <span><span class="co">#&gt; <span style="color: #BBBB00;">!</span> &lt;mediaplanr::MediaPlan&gt; object is invalid:</span></span>
 <span><span class="co">#&gt; - @data has duplicate rows at grain (channel): TV. One row per grain cell is required.</span></span></code></pre></div>
+</div>
 </div>
 <div class="section level2">
 <h2 id="line-item-grain-row">Line item, grain, row<a class="anchor" aria-label="anchor" href="#line-item-grain-row"></a>
@@ -196,7 +246,7 @@ to.</p>
 <p>The <strong>grain</strong> is the set of columns identifying a
 <strong>row</strong>. At a weekly grain a row is a line item <em>for one
 week</em>.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">plan</span><span class="op">@</span><span class="va">grain</span>              <span class="co"># what identifies a row</span></span>
 <span><span class="co">#&gt; [1] "channel" "partner" "week"</span></span>
 <span><span class="fu"><a href="../reference/line_item_grain.html">line_item_grain</a></span><span class="op">(</span><span class="va">plan</span><span class="op">)</span>   <span class="co"># what identifies a line item — the grain minus the week</span></span>
@@ -204,11 +254,33 @@ week</em>.</p>
 <span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="fu"><a href="../reference/line_item.html">line_item</a></span><span class="op">(</span><span class="va">plan</span><span class="op">@</span><span class="va">data</span>, <span class="fu"><a href="../reference/line_item_grain.html">line_item_grain</a></span><span class="op">(</span><span class="va">plan</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "TV | NBC"        "Search | Google"</span></span></code></pre></div>
+<p><code><a href="../reference/line_item.html">line_item()</a></code> gives you the key for every <em>row</em>.
+For the distinct roster — one row per line item, with its total, its
+share of the plan’s rows and its own flight window — use
+<code><a href="../reference/line_item_summary.html">line_item_summary()</a></code>:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/line_item_summary.html">line_item_summary</a></span><span class="op">(</span><span class="va">plan</span><span class="op">)</span></span>
+<span><span class="co">#&gt;   channel partner       line_item planned_spend n_rows flight_start flight_end</span></span>
+<span><span class="co">#&gt; 1      TV     NBC        TV | NBC         65000      2   2026-03-02 2026-04-12</span></span>
+<span><span class="co">#&gt; 2  Search  Google Search | Google         45000      2   2026-03-02 2026-04-12</span></span></code></pre></div>
+<p>The grain values come back as columns rather than folded into the
+key, because that is the shape an edit <code>target</code> takes. So
+“which channels are in this plan?” is answered with values you can hand
+straight to <code><a href="../reference/build_scenario.html">build_scenario()</a></code>:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/grain_values.html">grain_values</a></span><span class="op">(</span><span class="va">plan</span>, <span class="st">"channel"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "Search" "TV"</span></span></code></pre></div>
+<p>There is deliberately no <code>channels()</code>. The package never
+privileges a column name — <code>channel</code> is simply a dimension
+you chose to key on, and another plan may key on <code>media_type</code>
+or <code>vehicle</code>. Naming your own column keeps that true, and a
+typo errors with the alternatives listed rather than returning
+nothing.</p>
 <p><code>grain</code> is deliberately ordered coarsest-first, because
 <code><a href="../reference/roll_up.html">roll_up()</a></code> treats it as a nesting. Dropping the rightmost
 column gives the next coarsest level — which is how you find a model for
 a line item that has none of its own:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/roll_up.html">roll_up</a></span><span class="op">(</span><span class="va">plan</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"week"</span><span class="op">)</span><span class="op">)</span><span class="op">@</span><span class="va">data</span></span>
 <span><span class="co">#&gt;   channel       week planned_spend</span></span>
 <span><span class="co">#&gt; 1      TV 2026-03-02         30000</span></span>
@@ -219,8 +291,92 @@ a line item that has none of its own:</p>
 not a nested object tree. A plan keyed by <code>channel</code>, by
 <code>channel + partner</code>, or by
 <code>channel + partner + tactic + week</code> is the same class at
-different grains. A Channel → Tactic → Flight hierarchy is deferred, not
-designed out.</p>
+different grains. Nested plans — a channel team’s detail rolling up into
+the weekly topline — are deferred, not designed out; see
+<code>Roadmap.md</code>.</p>
+</div>
+<div class="section level2">
+<h2 id="flights-are-authored-weeks-are-held">Flights are authored, weeks are held<a class="anchor" aria-label="anchor" href="#flights-are-authored-weeks-are-held"></a>
+</h2>
+<p>A planner states a buy as a <strong>flight</strong>: in-market dates
+and a total. A plan is <em>held</em>, charted and edited as weeks. These
+are different things, and the package keeps them apart rather than
+picking one.</p>
+<p><code><a href="../reference/media_plan_from_flights.html">media_plan_from_flights()</a></code> expands a flight onto the
+weekly rows <code>@data</code> already holds, so everything downstream
+sees the ordinary shape. <code><a href="../reference/flights.html">flights()</a></code> goes back the other way
+— and it is <strong>exact, never inferred</strong>:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">weekly</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>week <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.Date.html" class="external-link">as.Date</a></span><span class="op">(</span><span class="st">"2026-04-06"</span><span class="op">)</span>, by <span class="op">=</span> <span class="st">"week"</span>, length.out <span class="op">=</span> <span class="fl">4</span><span class="op">)</span>,</span>
+<span>             channel <span class="op">=</span> <span class="st">"TV"</span>, planned_spend <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">30000</span>, <span class="fl">4</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  grain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"week"</span><span class="op">)</span>, week <span class="op">=</span> <span class="st">"week"</span>, name <span class="op">=</span> <span class="st">"Four equal weeks"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="fu"><a href="../reference/flights.html">flights</a></span><span class="op">(</span><span class="va">weekly</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] 0</span></span></code></pre></div>
+<p>Nothing is reported, because nothing was authored. Four consecutive
+30,000 weeks are equally consistent with one 28-day flight, four weekly
+buys, or two fortnightly ones, and no rule can tell them apart. Guessing
+from runs of equal spend would be a guess presented as a fact — the
+failure mode the package refuses everywhere, the same reason a mistyped
+target errors instead of quietly matching nothing.</p>
+<p>So the inverse works only because each buy’s identity is
+<em>stored</em> when it is authored. That identity survives derivation,
+which is what lets <code>compare_scenarios(level = "flight")</code> say
+a buy <strong>moved</strong> rather than showing an unexplained
+subtraction in one week and an addition in another.</p>
+<div class="section level3">
+<h3 id="one-period-per-line-item-per-week">One period per line item per week<a class="anchor" aria-label="anchor" href="#one-period-per-line-item-per-week"></a>
+</h3>
+<p>A row is still one line item for one period, so two separate buys of
+the same line item cannot overlap the same week. That is an error naming
+the fix — add a column that tells them apart — rather than a silent sum
+that would merge two distinct buys.</p>
+<p>It is also the price of keeping <code>@data</code> in the long weekly
+shape that makes the package pleasant to chart, edit and export. Making
+the flight the stored row instead was tried and rejected:
+<code>@grain</code>’s time member would become the flight start, so two
+scenarios that stage the same money differently would share no cells,
+and every reshaping would read as an add plus a drop rather than a
+move.</p>
+</div>
+</div>
+<div class="section level2">
+<h2 id="the-rate-is-what-survives-an-edit">The rate is what survives an edit<a class="anchor" aria-label="anchor" href="#the-rate-is-what-survives-an-edit"></a>
+</h2>
+<p>Spend is the <strong>common currency</strong> — the one quantity
+every channel shares — so it stays mandatory. A line item may also
+record what it buys, how much, and at what price, bound by one
+identity:</p>
+<pre><code><span><span class="va">planned_spend</span> <span class="op">=</span> <span class="va">planned_units</span> <span class="op">*</span> <span class="va">planned_rate</span> <span class="op">/</span> <span class="fu">rate_per</span><span class="op">(</span><span class="va">unit_type</span><span class="op">)</span></span></code></pre>
+<p>Supply any two and the third is computed, whichever way you actually
+have it. All three are then stored and the validator enforces the
+identity, so they cannot drift apart.</p>
+<p>The question that shapes everything else is: <strong>when spend
+changes, which of the other two gives way?</strong> A negotiated CPM
+does not improve because the budget was cut. So the rate holds and the
+units follow:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">social</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"Social"</span>, unit_type <span class="op">=</span> <span class="st">"impression"</span>,</span>
+<span>             planned_spend <span class="op">=</span> <span class="fl">140000</span>, planned_rate <span class="op">=</span> <span class="fl">5</span><span class="op">)</span>,</span>
+<span>  grain <span class="op">=</span> <span class="st">"channel"</span>, name <span class="op">=</span> <span class="st">"Social"</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">cut</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">social</span>, edits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>delta <span class="op">=</span> <span class="op">-</span><span class="fl">40000</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"trimmed"</span><span class="op">)</span></span>
+<span><span class="va">cut</span><span class="op">@</span><span class="va">data</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"planned_spend"</span>, <span class="st">"planned_units"</span>, <span class="st">"planned_rate"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   planned_spend planned_units planned_rate</span></span>
+<span><span class="co">#&gt; 1         1e+05         2e+07            5</span></span></code></pre></div>
+<p>That is one rule, applied wherever money moves — through scaling,
+through a flight spreading across its weeks, through
+<code><a href="../reference/calendarize.html">calendarize()</a></code>. Had units been the invariant instead, every
+one of those places would have needed its own rule for keeping units in
+step.</p>
+<p>Units add up only <strong>within</strong> one unit type. Across a
+mix, <code><a href="../reference/roll_up.html">roll_up()</a></code> keeps the spend and reports no units,
+because a total that adds GRPs to clicks is a number nobody should act
+on — and the spend is exactly what a common currency is for.</p>
 </div>
 <div class="section level2">
 <h2 id="scenarios-are-forks">Scenarios are forks<a class="anchor" aria-label="anchor" href="#scenarios-are-forks"></a>
@@ -229,7 +385,7 @@ designed out.</p>
 modified — <code>MediaPlan</code> uses value semantics for exactly this
 reason. If deriving mutated the parent, the thing you are comparing
 against would change underneath you.</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">before</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">plan</span><span class="op">@</span><span class="va">data</span><span class="op">$</span><span class="va">planned_spend</span><span class="op">)</span></span>
 <span><span class="va">s</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">plan</span>, edits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>scale <span class="op">=</span> <span class="fl">2</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"double"</span><span class="op">)</span></span>
 <span><span class="va">after</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/sum.html" class="external-link">sum</a></span><span class="op">(</span><span class="va">plan</span><span class="op">@</span><span class="va">data</span><span class="op">$</span><span class="va">planned_spend</span><span class="op">)</span></span>
@@ -238,7 +394,7 @@ against would change underneath you.</p>
 <span><span class="co">#&gt;    before     after unchanged </span></span>
 <span><span class="co">#&gt;    110000    110000         1</span></span></code></pre></div>
 <p>Every derivation records its parent, so lineage chains:</p>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">s2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">s</span>, edits <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>scale <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"back down"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="va">s</span><span class="op">@</span><span class="va">parent_id</span>, <span class="va">plan</span><span class="op">@</span><span class="va">id</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] TRUE</span></span>
@@ -252,13 +408,13 @@ do not build one on them.</p>
 <h3 id="status-is-not-inherited">Status is not inherited<a class="anchor" aria-label="anchor" href="#status-is-not-inherited"></a>
 </h3>
 <p><code>@status</code> moves through a fixed vocabulary:</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/status_levels.html">status_levels</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="co">#&gt; [1] "in development" "to review"      "approved"</span></span></code></pre></div>
 <p>A scenario derived from an <strong>approved</strong> plan is not
 itself approved. Carrying that forward would manufacture an approval
 nobody gave, so it resets:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">approved</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"TV"</span>, planned_spend <span class="op">=</span> <span class="fl">100000</span><span class="op">)</span>,</span>
 <span>  grain <span class="op">=</span> <span class="st">"channel"</span>, name <span class="op">=</span> <span class="st">"Signed off"</span>, status <span class="op">=</span> <span class="st">"approved"</span></span>
@@ -284,7 +440,7 @@ where a scenario has no row.</p>
 exact row set. It matters when scenarios are authored independently —
 one workbook tab each, say — because then their row sets need not
 match:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">a</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
 <span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"TV"</span>, <span class="st">"Search"</span><span class="op">)</span>, planned_spend <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">80000</span>, <span class="fl">40000</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  grain <span class="op">=</span> <span class="st">"channel"</span>, name <span class="op">=</span> <span class="st">"Plan"</span>, nickname <span class="op">=</span> <span class="st">"baseline"</span></span>
@@ -336,7 +492,7 @@ compared without them.</li>
 </ul>
 <p>An allocation computed by an optimizer re-enters through the same
 door a hand edit uses:</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">result</span> <span class="op">&lt;-</span> <span class="fu">mrmopt</span><span class="fu">::</span><span class="fu">opt_mix</span><span class="op">(</span><span class="va">models</span>, budget <span class="op">=</span> <span class="fl">160000</span><span class="op">)</span></span>
 <span><span class="va">alloc</span>  <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="va">result</span><span class="op">$</span><span class="va">solution</span><span class="op">$</span><span class="va">channel</span>,</span>
 <span>                     planned_spend <span class="op">=</span> <span class="va">result</span><span class="op">$</span><span class="va">solution</span><span class="op">$</span><span class="va">optimal_spend</span><span class="op">)</span></span>

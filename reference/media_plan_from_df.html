@@ -55,6 +55,9 @@ to <code>Date</code>, and runs the full validator on construction.</p>
 <span>  <span class="va">grain</span>,</span>
 <span>  week <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  planned_spend <span class="op">=</span> <span class="st">"planned_spend"</span>,</span>
+<span>  planned_units <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  planned_rate <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  unit_type <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  <span class="va">name</span>,</span>
 <span>  nickname <span class="op">=</span> <span class="st">""</span>,</span>
 <span>  advertiser <span class="op">=</span> <span class="st">""</span>,</span>
@@ -89,6 +92,18 @@ are coerced to <code>Date</code> (the week start).</p></dd>
 <dd><p>Name of the planned-spend column in <code>df</code>. Renamed to
 <code>planned_spend</code>. Holds intent on every row, including past weeks. Default
 <code>"planned_spend"</code>.</p></dd>
+
+
+<dt id="arg-planned-units-planned-rate-unit-type">planned_units, planned_rate, unit_type<a class="anchor" aria-label="anchor" href="#arg-planned-units-planned-rate-unit-type"></a></dt>
+<dd><p>Optional names of the columns
+recording what the line item buys: how much of it, at what price, and of
+what (<code>"impression"</code>, <code>"click"</code>, <code>"grp"</code>, ...). Renamed to the canonical
+names. The three quantities are bound by
+<code>planned_spend = planned_units * planned_rate / rate_per(unit_type)</code>, where
+<code>rate_per</code> is 1000 for impressions and 1 otherwise, so <strong>supply any two and
+the third is computed</strong> — a budget and a negotiated CPM give the
+impressions, a delivery goal and a rate give the budget. See
+<code><a href="cost_per_unit.html">cost_per_unit()</a></code> and <code><a href="unit_type_levels.html">unit_type_levels()</a></code>.</p></dd>
 
 
 <dt id="arg-name">name<a class="anchor" aria-label="anchor" href="#arg-name"></a></dt>
@@ -147,9 +162,10 @@ re-run whenever the decomp refreshes, without rebuilding the plan.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> &lt;MediaPlan&gt; Q3 plan  [in development]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   advertiser  Acme</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   grain       channel</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>     channel   Search, Social, TV</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   rows        3</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   spend       240</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_36adab</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_1f7fb5</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    channel planned_spend</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         TV           100</span>
