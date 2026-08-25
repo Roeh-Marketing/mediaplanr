@@ -82,8 +82,8 @@ set <- add_scenario(set, build_scenario(base, edits = c("Search" = 120),
                                         name = "Search boost"))
 compare_scenarios(set)
 #>       scenario                    plan_id                  parent_id
-#> 1         base plan_20260817005511_3d322b                       <NA>
-#> 2 Search boost plan_20260817005511_2b87bd plan_20260817005511_3d322b
+#> 1         base plan_20260825013853_3d322b                       <NA>
+#> 2 Search boost plan_20260825013853_2b87bd plan_20260825013853_3d322b
 #>   total_planned_spend spend_vs_base spend_pct_vs_base
 #> 1                 120             0         0.0000000
 #> 2                 200            80         0.6666667
