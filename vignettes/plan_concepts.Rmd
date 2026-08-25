@@ -265,6 +265,70 @@ instead was tried and rejected: `@grain`'s time member would become the flight
 start, so two scenarios that stage the same money differently would share no
 cells, and every reshaping would read as an add plus a drop rather than a move.
 
+### Pacing records shape, not history
+
+A flight has a **shape** as well as a size. By default its spend is spread
+evenly across its days, so its weekly figures are whatever that gives — which
+for a buy with ragged ends is not four equal numbers:
+
+```{r}
+ragged <- media_plan_from_flights(
+  data.frame(channel = "OOH", flight_start = as.Date("2026-04-08"),
+             flight_end = as.Date("2026-05-03"), planned_spend = 100000),
+  grain = "channel", name = "Starts on a Wednesday"
+)
+
+ragged@data$planned_spend      # 5 days, then 7, 7, 7
+flights(ragged)$pacing
+```
+
+`pacing` is **re-derived after every edit**, not remembered. The question it
+answers is "do these rows still match an even spread?", never "did somebody
+touch this?" — and that distinction is what makes it behave sensibly:
+
+```{r}
+shape <- function(p) flights(p)$pacing
+
+# scaling changes the buy's SIZE, not its shape
+shape(build_scenario(ragged, edits = list(scale = 0.5), name = "half"))
+
+# a flat amount on every week cannot stay proportional to days, so it does
+shape(build_scenario(ragged, edits = list(delta_each = 1000), name = "flat"))
+```
+
+Because it is derived rather than remembered, shaping a flight by hand and then
+shaping it back reports `"even"` again. There is no permanent mark.
+
+A hand-shaped flight is never **broken** by the edit: it keeps its identity, so
+`flights()` still reports it whole and it can still be compared, moved and
+restaged as one buy. `"custom"` says the shape is no longer a rule, not that the
+buy has stopped being a buy.
+
+### The one place the package rewrites a number
+
+Worth knowing because it is the exception to everything else here. When a flight
+is still evenly paced, its rows are **snapped** to the canonical allocation —
+the same figures a fresh import would produce.
+
+The reason is drift. Scaling values already rounded to the cent does not land on
+the cent-exact allocation of the scaled total, so without snapping a long chain
+of scenarios would accumulate fractions of a cent and slowly stop being even at
+all. With it, the chain is stable:
+
+```{r}
+chain <- ragged
+for (i in 1:12) {
+  chain <- build_scenario(chain, edits = list(scale = 1.37), name = paste0("s", i))
+}
+back <- build_scenario(chain, edits = list(total = 100000), name = "back to 100k")
+
+identical(back@data$planned_spend, ragged@data$planned_spend)
+```
+
+The snap only touches flights already even to within a rounding tolerance, moves
+at most a cent between weeks, and **never changes a flight's total**. A
+hand-shaped flight is left exactly as the planner set it.
+
 ## The rate is what survives an edit
 
 Spend is the **common currency** — the one quantity every channel shares — so it
