@@ -466,6 +466,34 @@ than guess, the flighting columns are dropped and the result is a projection to
 chart or export. Pass it to `media_plan_from_df()` if you do want a plan at the
 new grain.
 
+## Saving and reloading
+
+A plan is persisted and handed between processes as JSON. `plan_to_json()`
+writes it; `plan_from_json()` rebuilds it.
+
+```{r}
+js <- plan_to_json(base)
+identical(plan_from_json(js)@data, base@data)
+```
+
+The rebuild goes back through `media_plan_from_df()`, so the plan is
+re-validated and its unit identity re-solved on the way in — a hand-edited file
+comes back *clean*, not merely reconstructed. `@id` and `@parent_id` ride along,
+so lineage survives, and flighted or mixed plans need nothing special: the
+flight columns travel in the data.
+
+A whole `ScenarioSet` round-trips the same way, each scenario written exactly as
+a standalone plan, with the baseline and names preserved:
+
+```{r}
+reloaded <- plan_from_json(plan_to_json(set))
+identical(compare_scenarios(reloaded), compare_scenarios(set))
+```
+
+Only the settable slots are written; derived facts — the flight window, pacing,
+the week start — are recomputed on load, so a saved plan can never carry a stale
+one.
+
 ## Where to next
 
 - `vignette("plan_concepts")` — what a plan *is*, why flights are authored but
@@ -473,6 +501,7 @@ new grain.
   the package small.
 - `?build_scenario` — the full edit-form and operation reference.
 - `?media_plan_from_flights`, `?flights` — authoring by buy rather than by week.
+- `?plan_to_json`, `?plan_from_json` — persisting a plan or set as JSON.
 - `?check_coverage` — pairing a plan with a decomp, and what `through` compares
   against.
 - `Roadmap.md` — what is deliberately not built yet, and what is staying out.

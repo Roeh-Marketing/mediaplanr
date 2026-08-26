@@ -100,6 +100,16 @@ reference:
   contents:
   - check_coverage
 
+- title: Saving and reloading
+  desc: >
+    Persist a plan or a whole scenario set as JSON and rebuild it. The rebuild
+    goes back through media_plan_from_df(), so it is re-validated and its unit
+    identity re-solved; id and lineage survive, and flighted or mixed plans need
+    no special path.
+  contents:
+  - plan_to_json
+  - plan_from_json
+
 - title: Utilities
   contents:
   - short_id

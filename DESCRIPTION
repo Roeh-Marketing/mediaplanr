@@ -16,13 +16,15 @@ RoxygenNote: 7.3.3
 Depends:
     R (>= 4.1.0)
 Imports:
+    jsonlite,
     S7,
     stats,
     utils
 Suggests:
     knitr,
     rmarkdown,
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
 VignetteBuilder: knitr
 Config/Needs/website: brand.yml
 Config/testthat/edition: 3
@@ -36,6 +38,7 @@ Collate:
     'inventory.R'
     'verbs.R'
     'scenario-set.R'
+    'serialize.R'
     'print.R'
     'zzz.R'
 URL: https://roeh-marketing.github.io/mediaplanr/
