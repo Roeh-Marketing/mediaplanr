@@ -293,6 +293,18 @@ answerable.
 - [`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md)
   : Check a plan against a decomp (the one pairing operation)
 
+## Saving and reloading
+
+Persist a plan or a whole scenario set as JSON and rebuild it. The
+rebuild goes back through media_plan_from_df(), so it is re-validated
+and its unit identity re-solved; id and lineage survive, and flighted or
+mixed plans need no special path.
+
+- [`plan_to_json()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_to_json.md)
+  : Serialize a media plan or scenario set to JSON
+- [`plan_from_json()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_from_json.md)
+  : Rebuild a media plan or scenario set from JSON
+
 ## Utilities
 
 - [`short_id()`](https://roeh-marketing.github.io/mediaplanr/reference/short_id.md)

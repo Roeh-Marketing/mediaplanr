@@ -220,9 +220,9 @@ buy sitting inside its week.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/flights.html">flights</a></span><span class="op">(</span><span class="va">flighted</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   channel  partner              flight_id flight_start flight_end period_basis</span></span>
-<span><span class="co">#&gt; 1     OOH JCDecaux fl_20260825013858_7766   2026-04-06 2026-05-03       flight</span></span>
-<span><span class="co">#&gt; 2      TV      NBC fl_20260825013858_c5c4   2026-04-06 2026-04-12         week</span></span>
-<span><span class="co">#&gt; 3  Search   Google fl_20260825013858_4a2f   2026-04-08 2026-04-08          day</span></span>
+<span><span class="co">#&gt; 1     OOH JCDecaux fl_20260826035306_7766   2026-04-06 2026-05-03       flight</span></span>
+<span><span class="co">#&gt; 2      TV      NBC fl_20260826035306_c5c4   2026-04-06 2026-04-12         week</span></span>
+<span><span class="co">#&gt; 3  Search   Google fl_20260826035306_4a2f   2026-04-08 2026-04-08          day</span></span>
 <span><span class="co">#&gt;   pacing planned_spend n_weeks</span></span>
 <span><span class="co">#&gt; 1   even        120000       4</span></span>
 <span><span class="co">#&gt; 2   even         33333       1</span></span>
@@ -475,9 +475,9 @@ renaming the formal plans:</p>
 <div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span>, <span class="st">"summary"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    scenario                    plan_id                  parent_id</span></span>
-<span><span class="co">#&gt; 1  baseline plan_20260825013858_cb283f                       &lt;NA&gt;</span></span>
-<span><span class="co">#&gt; 2   TV -20% plan_20260825013858_c45205 plan_20260825013858_cb283f</span></span>
-<span><span class="co">#&gt; 3 TV→Social plan_20260825013858_fe3218 plan_20260825013858_cb283f</span></span>
+<span><span class="co">#&gt; 1  baseline plan_20260826035306_cb283f                       &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 2   TV -20% plan_20260826035307_c45205 plan_20260826035306_cb283f</span></span>
+<span><span class="co">#&gt; 3 TV→Social plan_20260826035307_fe3218 plan_20260826035306_cb283f</span></span>
 <span><span class="co">#&gt;   total_planned_spend spend_vs_base spend_pct_vs_base</span></span>
 <span><span class="co">#&gt; 1              672000             0        0.00000000</span></span>
 <span><span class="co">#&gt; 2              588000        -84000       -0.12500000</span></span>
@@ -660,6 +660,33 @@ to <code><a href="../reference/media_plan_from_df.html">media_plan_from_df()</a>
 grain.</p>
 </div>
 <div class="section level2">
+<h2 id="saving-and-reloading">Saving and reloading<a class="anchor" aria-label="anchor" href="#saving-and-reloading"></a>
+</h2>
+<p>A plan is persisted and handed between processes as JSON.
+<code><a href="../reference/plan_to_json.html">plan_to_json()</a></code> writes it; <code><a href="../reference/plan_from_json.html">plan_from_json()</a></code>
+rebuilds it.</p>
+<div class="sourceCode" id="cb29"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">js</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_to_json.html">plan_to_json</a></span><span class="op">(</span><span class="va">base</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="../reference/plan_from_json.html">plan_from_json</a></span><span class="op">(</span><span class="va">js</span><span class="op">)</span><span class="op">@</span><span class="va">data</span>, <span class="va">base</span><span class="op">@</span><span class="va">data</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] FALSE</span></span></code></pre></div>
+<p>The rebuild goes back through <code><a href="../reference/media_plan_from_df.html">media_plan_from_df()</a></code>, so
+the plan is re-validated and its unit identity re-solved on the way in —
+a hand-edited file comes back <em>clean</em>, not merely reconstructed.
+<code>@id</code> and <code>@parent_id</code> ride along, so lineage
+survives, and flighted or mixed plans need nothing special: the flight
+columns travel in the data.</p>
+<p>A whole <code>ScenarioSet</code> round-trips the same way, each
+scenario written exactly as a standalone plan, with the baseline and
+names preserved:</p>
+<div class="sourceCode" id="cb30"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">reloaded</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/plan_from_json.html">plan_from_json</a></span><span class="op">(</span><span class="fu"><a href="../reference/plan_to_json.html">plan_to_json</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/identical.html" class="external-link">identical</a></span><span class="op">(</span><span class="fu"><a href="../reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">reloaded</span><span class="op">)</span>, <span class="fu"><a href="../reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] FALSE</span></span></code></pre></div>
+<p>Only the settable slots are written; derived facts — the flight
+window, pacing, the week start — are recomputed on load, so a saved plan
+can never carry a stale one.</p>
+</div>
+<div class="section level2">
 <h2 id="where-to-next">Where to next<a class="anchor" aria-label="anchor" href="#where-to-next"></a>
 </h2>
 <ul>
@@ -673,6 +700,9 @@ reference.</li>
 <li>
 <code><a href="../reference/media_plan_from_flights.html">?media_plan_from_flights</a></code>, <code><a href="../reference/flights.html">?flights</a></code> —
 authoring by buy rather than by week.</li>
+<li>
+<code><a href="../reference/plan_to_json.html">?plan_to_json</a></code>, <code><a href="../reference/plan_from_json.html">?plan_from_json</a></code> —
+persisting a plan or set as JSON.</li>
 <li>
 <code><a href="../reference/check_coverage.html">?check_coverage</a></code> — pairing a plan with a decomp, and
 what <code>through</code> compares against.</li>

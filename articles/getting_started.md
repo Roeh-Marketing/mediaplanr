@@ -166,9 +166,9 @@ Going back the other way is exact:
 
 flights(flighted)
 #>   channel  partner              flight_id flight_start flight_end period_basis
-#> 1     OOH JCDecaux fl_20260825013858_7766   2026-04-06 2026-05-03       flight
-#> 2      TV      NBC fl_20260825013858_c5c4   2026-04-06 2026-04-12         week
-#> 3  Search   Google fl_20260825013858_4a2f   2026-04-08 2026-04-08          day
+#> 1     OOH JCDecaux fl_20260826035306_7766   2026-04-06 2026-05-03       flight
+#> 2      TV      NBC fl_20260826035306_c5c4   2026-04-06 2026-04-12         week
+#> 3  Search   Google fl_20260826035306_4a2f   2026-04-08 2026-04-08          day
 #>   pacing planned_spend n_weeks
 #> 1   even        120000       4
 #> 2   even         33333       1
@@ -405,9 +405,9 @@ Two levels of comparison:
 
 compare_scenarios(set, "summary")
 #>    scenario                    plan_id                  parent_id
-#> 1  baseline plan_20260825013858_cb283f                       <NA>
-#> 2   TV -20% plan_20260825013858_c45205 plan_20260825013858_cb283f
-#> 3 TV→Social plan_20260825013858_fe3218 plan_20260825013858_cb283f
+#> 1  baseline plan_20260826035306_cb283f                       <NA>
+#> 2   TV -20% plan_20260826035307_c45205 plan_20260826035306_cb283f
+#> 3 TV→Social plan_20260826035307_fe3218 plan_20260826035306_cb283f
 #>   total_planned_spend spend_vs_base spend_pct_vs_base
 #> 1              672000             0        0.00000000
 #> 2              588000        -84000       -0.12500000
@@ -631,6 +631,42 @@ projection to chart or export. Pass it to
 [`media_plan_from_df()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_df.md)
 if you do want a plan at the new grain.
 
+## Saving and reloading
+
+A plan is persisted and handed between processes as JSON.
+[`plan_to_json()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_to_json.md)
+writes it;
+[`plan_from_json()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_from_json.md)
+rebuilds it.
+
+``` r
+
+js <- plan_to_json(base)
+identical(plan_from_json(js)@data, base@data)
+#> [1] FALSE
+```
+
+The rebuild goes back through
+[`media_plan_from_df()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_df.md),
+so the plan is re-validated and its unit identity re-solved on the way
+in — a hand-edited file comes back *clean*, not merely reconstructed.
+`@id` and `@parent_id` ride along, so lineage survives, and flighted or
+mixed plans need nothing special: the flight columns travel in the data.
+
+A whole `ScenarioSet` round-trips the same way, each scenario written
+exactly as a standalone plan, with the baseline and names preserved:
+
+``` r
+
+reloaded <- plan_from_json(plan_to_json(set))
+identical(compare_scenarios(reloaded), compare_scenarios(set))
+#> [1] FALSE
+```
+
+Only the settable slots are written; derived facts — the flight window,
+pacing, the week start — are recomputed on load, so a saved plan can
+never carry a stale one.
+
 ## Where to next
 
 - [`vignette("plan_concepts")`](https://roeh-marketing.github.io/mediaplanr/articles/plan_concepts.md)
@@ -642,6 +678,9 @@ if you do want a plan at the new grain.
 - [`?media_plan_from_flights`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_flights.md),
   [`?flights`](https://roeh-marketing.github.io/mediaplanr/reference/flights.md)
   — authoring by buy rather than by week.
+- [`?plan_to_json`](https://roeh-marketing.github.io/mediaplanr/reference/plan_to_json.md),
+  [`?plan_from_json`](https://roeh-marketing.github.io/mediaplanr/reference/plan_from_json.md)
+  — persisting a plan or set as JSON.
 - [`?check_coverage`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md)
   — pairing a plan with a decomp, and what `through` compares against.
 - `Roadmap.md` — what is deliberately not built yet, and what is staying
