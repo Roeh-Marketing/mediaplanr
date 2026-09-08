@@ -207,6 +207,14 @@ is, unless you say otherwise.
 `name` is required and `nickname` is per-scenario, so neither is
 inherited.
 
+`@subplans` **carry**: the scenario is still a topline. Rows a subplan
+backs are read-only, so an edit reaching one — including a whole-plan op
+like `list(total = 200)` — errors naming the subplan to edit instead.
+See
+[`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md).
+`@revision` restarts at 1, since a new id is a new revision history; see
+[`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md).
+
 ## Examples
 
 ``` r
@@ -224,7 +232,7 @@ build_scenario(base, edits = list(target = list(channel = "Search"),
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       168
-#>   id          plan_cb283f   derived from plan_acd597
+#>   id          plan_6e4a2f   derived from plan_e47766
 #> 
 #>    channel planned_spend
 #>         TV            80
@@ -238,7 +246,7 @@ build_scenario(base, edits = list(total = 200), name = "Budget 200")
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       200
-#>   id          plan_e47766   derived from plan_acd597
+#>   id          plan_9ec5c4   derived from plan_e47766
 #> 
 #>    channel planned_spend
 #>         TV           100
@@ -256,7 +264,7 @@ build_scenario(base, edits = list(
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       160
-#>   id          plan_6e4a2f   derived from plan_acd597
+#>   id          plan_e52cc9   derived from plan_e47766
 #> 
 #>    channel planned_spend
 #>         TV            70
@@ -274,7 +282,7 @@ build_scenario(
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       160
-#>   id          plan_9ec5c4   derived from plan_acd597
+#>   id          plan_c45205   derived from plan_e47766
 #> 
 #>    channel planned_spend
 #>         TV            50
@@ -288,7 +296,7 @@ build_scenario(base, edits = c("Search" = 120), name = "Search boost")
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       240
-#>   id          plan_e52cc9   derived from plan_acd597
+#>   id          plan_fe3218   derived from plan_e47766
 #> 
 #>    channel planned_spend
 #>         TV            80
@@ -304,7 +312,7 @@ build_scenario(base, edits = list(add = list(channel = "Audio",
 #>     channel   Audio, Search, Social, TV
 #>   rows        4
 #>   spend       185
-#>   id          plan_c45205   derived from plan_acd597
+#>   id          plan_4e104d   derived from plan_e47766
 #> 
 #>    channel planned_spend
 #>         TV            80
@@ -318,7 +326,7 @@ build_scenario(base, edits = list(target = list(channel = "TV"), drop = TRUE),
 #>     channel   Search, Social
 #>   rows        2
 #>   spend       80
-#>   id          plan_fe3218   derived from plan_acd597
+#>   id          plan_81f9be   derived from plan_e47766
 #> 
 #>    channel planned_spend
 #>     Search            40

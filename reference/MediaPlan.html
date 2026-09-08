@@ -64,7 +64,9 @@ the class adds a validator, a synthetic identity (<code>@id</code>), and lineage
 <span>  advertiser <span class="op">=</span> <span class="st">""</span>,</span>
 <span>  planner <span class="op">=</span> <span class="st">""</span>,</span>
 <span>  status <span class="op">=</span> <span class="st">""</span>,</span>
-<span>  objective <span class="op">=</span> <span class="st">""</span></span>
+<span>  objective <span class="op">=</span> <span class="st">""</span>,</span>
+<span>  revision <span class="op">=</span> <span class="fl">1L</span>,</span>
+<span>  subplans <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -121,6 +123,18 @@ unset.</p></dd>
 
 <dt id="arg-objective">objective<a class="anchor" aria-label="anchor" href="#arg-objective"></a></dt>
 <dd><p>Human-facing objective / notes.</p></dd>
+
+
+<dt id="arg-revision">revision<a class="anchor" aria-label="anchor" href="#arg-revision"></a></dt>
+<dd><p>Integer revision number, default <code>1</code>. Set by <code><a href="revise.html">revise()</a></code>;
+never bumped automatically. Printed as <code>Rev 2</code> when above 1.</p></dd>
+
+
+<dt id="arg-subplans">subplans<a class="anchor" aria-label="anchor" href="#arg-subplans"></a></dt>
+<dd><p>Named list of <code>MediaPlan</code>s, one per parent line item they
+back. Populate through <code><a href="attach_subplan.html">attach_subplan()</a></code>, not by hand: attaching
+recomputes the parent's rows for that cell and the validator refuses a
+subplan whose rollup the parent's rows do not match.</p></dd>
 
 </dl></div>
     <div class="section level2">

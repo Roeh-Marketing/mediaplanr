@@ -53,6 +53,13 @@ Dates are written as ISO-8601 strings, since JSON has no date type, and
 missing flight cells (rows that are not part of an authored flight) are
 written as `null`.
 
+**Subplans recurse.** A topline's `@subplans` is written as a `subplans`
+object, each entry serialized exactly as a standalone plan is, one level
+down. The key is omitted when there are none, so a flat plan's JSON is
+unchanged. The parent's `@data` is still written in full, so a reader
+that ignores `subplans` still gets the right totals. Schema version 2
+added `revision` and `subplans`.
+
 ## See also
 
 [`plan_from_json()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_from_json.md)

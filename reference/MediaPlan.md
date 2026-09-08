@@ -19,7 +19,9 @@ MediaPlan(
   advertiser = "",
   planner = "",
   status = "",
-  objective = ""
+  objective = "",
+  revision = 1L,
+  subplans = list()
 )
 ```
 
@@ -75,6 +77,21 @@ MediaPlan(
 - objective:
 
   Human-facing objective / notes.
+
+- revision:
+
+  Integer revision number, default `1`. Set by
+  [`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md);
+  never bumped automatically. Printed as `Rev 2` when above 1.
+
+- subplans:
+
+  Named list of `MediaPlan`s, one per parent line item they back.
+  Populate through
+  [`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md),
+  not by hand: attaching recomputes the parent's rows for that cell and
+  the validator refuses a subplan whose rollup the parent's rows do not
+  match.
 
 ## Value
 

@@ -171,7 +171,14 @@
 </tr>
 <tr>
 <td>Change one</td>
-<td><code><a href="reference/build_scenario.html">build_scenario()</a></code></td>
+<td>
+<code><a href="reference/build_scenario.html">build_scenario()</a></code> (spend), <code><a href="reference/revise.html">revise()</a></code> (metadata)</td>
+</tr>
+<tr>
+<td>Nest one</td>
+<td>
+<code><a href="reference/attach_subplan.html">attach_subplan()</a></code>, <code><a href="reference/attach_subplan.html">detach_subplan()</a></code>, <code><a href="reference/attach_subplan.html">is_topline()</a></code>
+</td>
 </tr>
 <tr>
 <td>Look at it</td>
@@ -243,9 +250,14 @@
 </ul>
 </div>
 <div class="section level2">
+<h2 id="subplans">Subplans<a class="anchor" aria-label="anchor" href="#subplans"></a>
+</h2>
+<p>A channel team’s detailed plan — at its own grain, on its own calendar — can be attached beneath one cell of the topline with <code><a href="reference/attach_subplan.html">attach_subplan()</a></code>. The cell’s rows become the subplan’s rollup and are read-only until detached, so there is one number with one owner and re-attaching is the reconcile. See <code><a href="articles/plan_concepts.html">vignette("plan_concepts")</a></code>.</p>
+</div>
+<div class="section level2">
 <h2 id="growth-path">Growth path<a class="anchor" aria-label="anchor" href="#growth-path"></a>
 </h2>
-<p>Nested <strong>SubPlans</strong> are next: a channel team’s detailed plan, at its own granularity, rolling up into the weekly topline. See <a href="https://github.com/Roeh-Marketing/mediaplanr/blob/main/Roadmap.md" class="external-link">Roadmap.md</a> for that design and for what is deliberately staying out — a channel-type registry, attribution, and anything derived from <code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date()</a></code>.</p>
+<p>See <a href="https://github.com/Roeh-Marketing/mediaplanr/blob/main/Roadmap.md" class="external-link">Roadmap.md</a> for what is next and for what is deliberately staying out — a channel-type registry, attribution, and anything derived from <code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date()</a></code>.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

@@ -11,6 +11,7 @@
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/MediaPlan.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/ScenarioSet.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/add_scenario.html</loc></url>
+<url><loc>https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/calendarize.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.html</loc></url>
@@ -32,6 +33,7 @@
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/plan_from_json.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/plan_to_json.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/print.html</loc></url>
+<url><loc>https://roeh-marketing.github.io/mediaplanr/reference/revise.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/roll_up.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/scenario_set.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/short_id.html</loc></url>

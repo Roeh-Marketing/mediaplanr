@@ -261,8 +261,53 @@ roll_up(plan, c("channel", "week"))@data
 The package is a **flat table at a configurable grain**, not a nested
 object tree. A plan keyed by `channel`, by `channel + partner`, or by
 `channel + partner + tactic + week` is the same class at different
-grains. Nested plans — a channel team’s detail rolling up into the
-weekly topline — are deferred, not designed out; see `Roadmap.md`.
+grains.
+
+## Subplans: one number, one owner
+
+A channel team plans its own detail at its own grain and cadence, and
+that detail rolls up into the topline everyone else looks at. A
+**subplan** is an ordinary `MediaPlan` held beneath one cell of another
+— composition, not a new class. What changes is the *parent’s*
+behaviour.
+
+The subplan says which cell it backs through its data: its line item
+grain must contain the parent’s, and across the parent’s columns its
+rows hold one value — `channel == "TV"` throughout. So the cell is a
+fact in the table, not a string to be trusted, and reconciliation is the
+rollup the package already does.
+
+``` r
+
+tv <- media_plan_from_df(
+  data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+             planned_spend = c(70000, 50000)),
+  grain = c("channel", "partner"), name = "TV detail"
+)
+topline <- attach_subplan(roll_up(plan, "channel"), tv)
+topline@data
+#>   channel planned_spend
+#> 1  Search         45000
+#> 2      TV        120000
+```
+
+Attaching **replaces** the parent’s rows for that cell with the
+subplan’s rollup and makes them read-only. An edit that reaches them
+errors naming the right door — *“channel TV is planned in a subplan;
+edit the subplan and re-attach”* — so the topline cannot quietly drift
+from the detail beneath it. Re-attaching is the reconcile; there is no
+separate step.
+[`detach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md)
+releases the rows as ordinary editable rows, so detaching is never
+destructive.
+
+A weekly parent re-cuts the subplan onto its own weeks with
+[`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md)
+first, so a daily flight or a Sunday-start plan lands correctly.
+[`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md)
+drops subplans (a rollup is a coarser view);
+[`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md)
+carries them.
 
 ## Flights are authored, weeks are held
 

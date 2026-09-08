@@ -215,6 +215,11 @@ would manufacture an approval nobody gave. It resets to <code>"in development"</
 which is what a freshly derived scenario actually is, unless you say
 otherwise.</p>
 <p><code>name</code> is required and <code>nickname</code> is per-scenario, so neither is inherited.</p>
+<p><code>@subplans</code> <strong>carry</strong>: the scenario is still a topline. Rows a subplan
+backs are read-only, so an edit reaching one — including a whole-plan op
+like <code>list(total = 200)</code> — errors naming the subplan to edit instead. See
+<code><a href="attach_subplan.html">attach_subplan()</a></code>. <code>@revision</code> restarts at 1, since a new id is a new
+revision history; see <code><a href="revise.html">revise()</a></code>.</p>
     </div>
 
     <div class="section level2">
@@ -233,7 +238,7 @@ otherwise.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     channel   Search, Social, TV</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   rows        3</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   spend       168</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_cb283f   derived from plan_acd597</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_6e4a2f   derived from plan_e47766</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    channel planned_spend</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         TV            80</span>
@@ -247,7 +252,7 @@ otherwise.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     channel   Search, Social, TV</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   rows        3</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   spend       200</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_e47766   derived from plan_acd597</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_9ec5c4   derived from plan_e47766</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    channel planned_spend</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         TV           100</span>
@@ -265,7 +270,7 @@ otherwise.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     channel   Search, Social, TV</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   rows        3</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   spend       160</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_6e4a2f   derived from plan_acd597</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_e52cc9   derived from plan_e47766</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    channel planned_spend</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         TV            70</span>
@@ -283,7 +288,7 @@ otherwise.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     channel   Search, Social, TV</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   rows        3</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   spend       160</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_9ec5c4   derived from plan_acd597</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_c45205   derived from plan_e47766</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    channel planned_spend</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         TV            50</span>
@@ -297,7 +302,7 @@ otherwise.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     channel   Search, Social, TV</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   rows        3</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   spend       240</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_e52cc9   derived from plan_acd597</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_fe3218   derived from plan_e47766</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    channel planned_spend</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         TV            80</span>
@@ -313,7 +318,7 @@ otherwise.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     channel   Audio, Search, Social, TV</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   rows        4</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   spend       185</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_c45205   derived from plan_acd597</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_4e104d   derived from plan_e47766</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    channel planned_spend</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         TV            80</span>
@@ -327,7 +332,7 @@ otherwise.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     channel   Search, Social</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   rows        2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   spend       80</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_fe3218   derived from plan_acd597</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_81f9be   derived from plan_e47766</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    channel planned_spend</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     Search            40</span>

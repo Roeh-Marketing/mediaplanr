@@ -166,9 +166,9 @@ Going back the other way is exact:
 
 flights(flighted)
 #>   channel  partner              flight_id flight_start flight_end period_basis
-#> 1     OOH JCDecaux fl_20260826035306_7766   2026-04-06 2026-05-03       flight
-#> 2      TV      NBC fl_20260826035306_c5c4   2026-04-06 2026-04-12         week
-#> 3  Search   Google fl_20260826035306_4a2f   2026-04-08 2026-04-08          day
+#> 1     OOH JCDecaux fl_20260908210007_7766   2026-04-06 2026-05-03       flight
+#> 2      TV      NBC fl_20260908210007_c5c4   2026-04-06 2026-04-12         week
+#> 3  Search   Google fl_20260908210007_4a2f   2026-04-08 2026-04-08          day
 #>   pacing planned_spend n_weeks
 #> 1   even        120000       4
 #> 2   even         33333       1
@@ -405,9 +405,9 @@ Two levels of comparison:
 
 compare_scenarios(set, "summary")
 #>    scenario                    plan_id                  parent_id
-#> 1  baseline plan_20260826035306_cb283f                       <NA>
-#> 2   TV -20% plan_20260826035307_c45205 plan_20260826035306_cb283f
-#> 3 TV→Social plan_20260826035307_fe3218 plan_20260826035306_cb283f
+#> 1  baseline plan_20260908210007_cb283f                       <NA>
+#> 2   TV -20% plan_20260908210007_c45205 plan_20260908210007_cb283f
+#> 3 TV→Social plan_20260908210007_fe3218 plan_20260908210007_cb283f
 #>   total_planned_spend spend_vs_base spend_pct_vs_base
 #> 1              672000             0        0.00000000
 #> 2              588000        -84000       -0.12500000

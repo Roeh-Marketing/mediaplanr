@@ -44,6 +44,15 @@ is detected from its `object` tag (or, for tagless JSON, from the
 presence of `scenarios`) and each scenario is rebuilt the same way, with
 the baseline and scenario names preserved.
 
+Subplans are rebuilt first and then **attached** through
+[`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md),
+never assigned into the slot. Attaching recomputes the parent's rows for
+each cell, so a hand-edited parent row is corrected rather than trusted,
+and a file describing an illegal tree — a subplan at the wrong grain, or
+a plan beneath itself — is refused with the same error an interactive
+attach would give. A file nesting more than 32 levels deep is refused
+outright: a written tree is always finite, a parsed one need not be.
+
 ## See also
 
 [`plan_to_json()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_to_json.md)
@@ -61,7 +70,7 @@ plan_from_json(plan_to_json(p))
 #>     channel   Search, TV
 #>   rows        2
 #>   spend       120,000
-#>   id          plan_7463a2
+#>   id          plan_b78816
 #> 
 #>    channel planned_spend
 #>         TV         80000

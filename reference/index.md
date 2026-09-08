@@ -77,6 +77,21 @@ records the plan it came from.
 - [`ScenarioSet()`](https://roeh-marketing.github.io/mediaplanr/reference/ScenarioSet.md)
   : A base plan plus named scenarios derived from it
 
+## Subplans and revisions
+
+A channel team plans its own detail, at its own grain and cadence, and
+it rolls up into one cell of the topline. Attaching makes that cell’s
+rows the subplan’s rollup and locks them, so there is one number with
+one owner; re-attaching is the reconcile. revise() edits metadata on the
+same plan without touching what it plans.
+
+- [`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md)
+  [`detach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md)
+  [`is_topline()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md)
+  : Attach a subplan to the cell of the plan it refines
+- [`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md)
+  : Revise a plan's metadata without changing what it plans
+
 ## What a line item buys
 
 Spend is the common currency and stays mandatory. Alongside it a line

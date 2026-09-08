@@ -81,6 +81,13 @@ Non-flight rows keep <code>NA</code> in those columns.</p>
 <p>A <a href="ScenarioSet.html">ScenarioSet</a> is detected from its <code>object</code> tag (or, for tagless JSON, from
 the presence of <code>scenarios</code>) and each scenario is rebuilt the same way, with
 the baseline and scenario names preserved.</p>
+<p>Subplans are rebuilt first and then <strong>attached</strong> through
+<code><a href="attach_subplan.html">attach_subplan()</a></code>, never assigned into the slot. Attaching recomputes the
+parent's rows for each cell, so a hand-edited parent row is corrected rather
+than trusted, and a file describing an illegal tree — a subplan at the
+wrong grain, or a plan beneath itself — is refused with the same error an
+interactive attach would give. A file nesting more than 32 levels deep is
+refused outright: a written tree is always finite, a parsed one need not be.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -99,7 +106,7 @@ the baseline and scenario names preserved.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span>     channel   Search, TV</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   rows        2</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>   spend       120,000</span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_7463a2</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>   id          plan_b78816</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>    channel planned_spend</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span>         TV         80000</span>

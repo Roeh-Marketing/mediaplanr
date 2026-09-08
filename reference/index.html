@@ -222,6 +222,29 @@
         </dt>
         <dd>A base plan plus named scenarios derived from it</dd>
       </dl></div><div class="section level2">
+      <h2 id="subplans-and-revisions">Subplans and revisions<a class="anchor" aria-label="anchor" href="#subplans-and-revisions"></a></h2>
+
+      <div class="section-desc"><p>A channel team plans its own detail, at its own grain and cadence, and it rolls up into one cell of the topline. Attaching makes that cell’s rows the subplan’s rollup and locks them, so there is one number with one owner; re-attaching is the reconcile. revise() edits metadata on the same plan without touching what it plans.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="attach_subplan.html">attach_subplan()</a></code> <code><a href="attach_subplan.html">detach_subplan()</a></code> <code><a href="attach_subplan.html">is_topline()</a></code>
+
+        </dt>
+        <dd>Attach a subplan to the cell of the plan it refines</dd>
+
+        <dt>
+
+          <code><a href="revise.html">revise()</a></code>
+
+        </dt>
+        <dd>Revise a plan's metadata without changing what it plans</dd>
+      </dl></div><div class="section level2">
       <h2 id="what-a-line-item-buys">What a line item buys<a class="anchor" aria-label="anchor" href="#what-a-line-item-buys"></a></h2>
 
       <div class="section-desc"><p>Spend is the common currency and stays mandatory. Alongside it a line item may record what it buys, how much of it, and at what price – bound by one identity, so any two of the three give the third. The rate is what survives an edit: a cut budget buys fewer impressions, it does not win a better CPM.</p></div>

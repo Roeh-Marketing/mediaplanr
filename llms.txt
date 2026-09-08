@@ -107,7 +107,8 @@ recording what it buys.
 |  |  |
 |----|----|
 | Build a plan | [`media_plan_from_df()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_df.md), [`media_plan_from_flights()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_flights.md) |
-| Change one | [`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md) |
+| Change one | [`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md) (spend), [`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md) (metadata) |
+| Nest one | [`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md), [`detach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md), [`is_topline()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md) |
 | Look at it | [`line_item_summary()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_summary.md), [`grain_values()`](https://roeh-marketing.github.io/mediaplanr/reference/grain_values.md), [`flights()`](https://roeh-marketing.github.io/mediaplanr/reference/flights.md), [`flight_window()`](https://roeh-marketing.github.io/mediaplanr/reference/flight_window.md), [`week_start()`](https://roeh-marketing.github.io/mediaplanr/reference/week_start.md), [`cost_per_unit()`](https://roeh-marketing.github.io/mediaplanr/reference/cost_per_unit.md), [`cpm()`](https://roeh-marketing.github.io/mediaplanr/reference/cost_per_unit.md) |
 | Aggregate it | [`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md) (dimensions), [`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md) (time) |
 | Compare | [`scenario_set()`](https://roeh-marketing.github.io/mediaplanr/reference/scenario_set.md), [`add_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/add_scenario.md), [`compare_scenarios()`](https://roeh-marketing.github.io/mediaplanr/reference/compare_scenarios.md) |
@@ -172,12 +173,21 @@ Two ideas the rest of the design hangs on, in one line each:
 - **A line item** (channel / partner / tactic) is the time-free identity
   that models attach to. A row is a line item for one week.
 
+## Subplans
+
+A channel team’s detailed plan — at its own grain, on its own calendar —
+can be attached beneath one cell of the topline with
+[`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md).
+The cell’s rows become the subplan’s rollup and are read-only until
+detached, so there is one number with one owner and re-attaching is the
+reconcile. See
+[`vignette("plan_concepts")`](https://roeh-marketing.github.io/mediaplanr/articles/plan_concepts.md).
+
 ## Growth path
 
-Nested **SubPlans** are next: a channel team’s detailed plan, at its own
-granularity, rolling up into the weekly topline. See
+See
 [Roadmap.md](https://github.com/Roeh-Marketing/mediaplanr/blob/main/Roadmap.md)
-for that design and for what is deliberately staying out — a
+for what is next and for what is deliberately staying out — a
 channel-type registry, attribution, and anything derived from
 [`Sys.Date()`](https://rdrr.io/r/base/Sys.time.html).
 
@@ -259,6 +269,21 @@ records the plan it came from.
   : Compare the scenarios in a set
 - [`ScenarioSet()`](https://roeh-marketing.github.io/mediaplanr/reference/ScenarioSet.md)
   : A base plan plus named scenarios derived from it
+
+## Subplans and revisions
+
+A channel team plans its own detail, at its own grain and cadence, and
+it rolls up into one cell of the topline. Attaching makes that cell’s
+rows the subplan’s rollup and locks them, so there is one number with
+one owner; re-attaching is the reconcile. revise() edits metadata on the
+same plan without touching what it plans.
+
+- [`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md)
+  [`detach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md)
+  [`is_topline()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md)
+  : Attach a subplan to the cell of the plan it refines
+- [`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md)
+  : Revise a plan's metadata without changing what it plans
 
 ## What a line item buys
 

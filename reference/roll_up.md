@@ -33,7 +33,8 @@ roll_up(plan, grain, name = NULL)
 
 A new
 [MediaPlan](https://roeh-marketing.github.io/mediaplanr/reference/MediaPlan.md)
-at the coarser grain.
+at the coarser grain. Any subplans are dropped: a rollup is a coarser
+*view*, and the cells they backed may no longer exist at the new grain.
 
 ## Details
 

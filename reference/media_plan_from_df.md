@@ -23,7 +23,8 @@ media_plan_from_df(
   status = "",
   objective = "",
   id = NULL,
-  parent_id = character(0)
+  parent_id = character(0),
+  revision = 1L
 )
 ```
 
@@ -99,6 +100,11 @@ media_plan_from_df(
 
   Optional parent id for lineage.
 
+- revision:
+
+  Integer revision number; default `1`. See
+  [`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md).
+
 ## Value
 
 A validated
@@ -127,7 +133,7 @@ media_plan_from_df(df, grain = "channel", name = "Q3 plan",
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       240
-#>   id          plan_1f7fb5
+#>   id          plan_95c3ff
 #> 
 #>    channel planned_spend
 #>         TV           100
