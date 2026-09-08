@@ -15,7 +15,9 @@ MediaPlan(
   advertiser = "",
   planner = "",
   status = "",
-  objective = ""
+  objective = "",
+  revision = 1L,
+  subplans = list()
 )
 }
 \arguments{
@@ -47,6 +49,14 @@ scenarios reads well without renaming the formal plan.}
 unset.}
 
 \item{objective}{Human-facing objective / notes.}
+
+\item{revision}{Integer revision number, default \code{1}. Set by \code{\link[=revise]{revise()}};
+never bumped automatically. Printed as \verb{Rev 2} when above 1.}
+
+\item{subplans}{Named list of \code{MediaPlan}s, one per parent line item they
+back. Populate through \code{\link[=attach_subplan]{attach_subplan()}}, not by hand: attaching
+recomputes the parent's rows for that cell and the validator refuses a
+subplan whose rollup the parent's rows do not match.}
 }
 \value{
 A \code{MediaPlan} S7 object.

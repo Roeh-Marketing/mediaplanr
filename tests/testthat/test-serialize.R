@@ -95,10 +95,24 @@ test_that("a mixed plan (some rows flighted, some not) round-trips", {
 
 test_that("schema_version is written and a newer one warns", {
   js <- plan_to_json(std_plan(), pretty = FALSE)
-  expect_match(js, "\"schema_version\":1")
+  expect_match(js, "\"schema_version\":2")
 
-  newer <- sub("\"schema_version\":1", "\"schema_version\":999", js, fixed = TRUE)
+  newer <- sub("\"schema_version\":2", "\"schema_version\":999", js, fixed = TRUE)
   expect_warning(plan_from_json(newer), "schema_version")
+})
+
+test_that("a v1 file, with neither revision nor subplans, still reads", {
+  v1 <- '{"object":"MediaPlan","schema_version":1,
+          "data":[{"channel":"TV","planned_spend":80},
+                  {"channel":"Search","planned_spend":40}],
+          "grain":"channel","week_col":[],"id":"plan_1_abc","parent_id":[],
+          "name":"old","nickname":"","advertiser":"","planner":"",
+          "status":"","objective":""}'
+  p <- plan_from_json(v1)
+  expect_identical(p@revision, 1L)
+  expect_identical(p@subplans, list())
+  expect_identical(p@id, "plan_1_abc")
+  expect_equal(sum(p@data$planned_spend), 120)
 })
 
 test_that("plan_to_json and plan_from_json survive a file round-trip", {
@@ -113,6 +127,94 @@ test_that("plan_to_json and plan_from_json survive a file round-trip", {
 test_that("non-plan JSON and non-plan input error clearly", {
   expect_error(plan_from_json('{"foo":1}'), "not a plan")
   expect_error(plan_to_json(list(a = 1)), "must be a MediaPlan")
+})
+
+# ---- revision and subplans ---------------------------------------------------
+
+sub_tv <- function() {
+  media_plan_from_df(
+    data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+               planned_spend = c(70, 50), stringsAsFactors = FALSE),
+    grain = c("channel", "partner"), name = "TV detail")
+}
+
+test_that("revision survives the trip", {
+  q <- rt(revise(std_plan(), revision = 3))
+  expect_identical(q@revision, 3L)
+})
+
+test_that("a flat plan writes no subplans key", {
+  expect_false(grepl("subplans", plan_to_json(std_plan(), pretty = FALSE)))
+})
+
+test_that("a topline round-trips with its subplans attached and its rows reconciled", {
+  p <- attach_subplan(std_plan(), sub_tv())
+  js <- plan_to_json(p, pretty = FALSE)
+  expect_match(js, "\"subplans\":\\{\"TV\":\\{")
+  q <- rt(p)
+  expect_identical(names(q@subplans), "TV")
+  expect_identical(q@subplans$TV@id, p@subplans$TV@id)
+  expect_equal(norm(q@subplans$TV@data), norm(p@subplans$TV@data))
+  expect_equal(norm(q@data), norm(p@data))
+  expect_identical(q@id, p@id)
+  expect_true(is_topline(q))
+})
+
+test_that("a key with the separator in it survives", {
+  p <- attach_subplan(fine_plan(), media_plan_from_df(
+    data.frame(channel = "TV", partner = "A", tactic = c("brand", "promo"),
+               planned_spend = c(20, 25)),
+    grain = c("channel", "partner", "tactic"), name = "tv a"))
+  q <- rt(p)
+  expect_identical(names(q@subplans), "TV | A")
+})
+
+test_that("a hand-drifted parent row is corrected on read, not trusted", {
+  p  <- attach_subplan(std_plan(), sub_tv())
+  js <- plan_to_json(p, pretty = FALSE)
+  # the TV row was written as 120; a hand edit changes it
+  drifted <- sub("\"channel\":\"TV\",\"planned_spend\":120",
+                 "\"channel\":\"TV\",\"planned_spend\":999", js, fixed = TRUE)
+  expect_false(identical(drifted, js))
+  q <- plan_from_json(drifted)
+  expect_equal(q@data$planned_spend[q@data$channel == "TV"], 120)
+})
+
+test_that("a file describing an illegal tree is refused", {
+  p  <- attach_subplan(std_plan(), sub_tv())
+  js <- plan_to_json(p, pretty = FALSE)
+  # make the subplan span two channels
+  bad <- sub("\"channel\":\"TV\",\"partner\":\"ESPN\"",
+             "\"channel\":\"Search\",\"partner\":\"ESPN\"", js, fixed = TRUE)
+  expect_error(plan_from_json(bad), "spans 2 cells")
+})
+
+test_that("a file nested too deep is refused", {
+  leaf <- '{"data":[{"channel":"TV","planned_spend":1}],"grain":"channel","name":"l"}'
+  js <- leaf
+  for (i in seq_len(33)) {
+    js <- paste0('{"data":[{"channel":"TV","planned_spend":1}],"grain":"channel",',
+                 '"name":"n', i, '","subplans":{"TV":', js, '}}')
+  }
+  expect_error(plan_from_json(js), "more than 32 levels deep")
+})
+
+test_that("a nested subplan (two levels) round-trips", {
+  nbc <- media_plan_from_df(
+    data.frame(channel = "TV", partner = "NBC", daypart = c("prime", "day"),
+               planned_spend = c(60, 15)),
+    grain = c("channel", "partner", "daypart"), name = "nbc")
+  p <- attach_subplan(std_plan(), attach_subplan(sub_tv(), nbc))
+  q <- rt(p)
+  expect_identical(names(q@subplans$TV@subplans), "TV | NBC")
+  expect_equal(q@data$planned_spend[q@data$channel == "TV"], 125)
+})
+
+test_that("a set containing a topline keeps its subplans", {
+  p   <- attach_subplan(std_plan(), sub_tv())
+  set <- add_scenario(scenario_set(p), build_scenario(p, c(Search = 1), name = "s"))
+  q   <- plan_from_json(plan_to_json(set))
+  expect_true(all(vapply(q@scenarios, is_topline, logical(1))))
 })
 
 # ---- scenario sets -----------------------------------------------------------

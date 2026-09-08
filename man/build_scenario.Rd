@@ -148,6 +148,12 @@ which is what a freshly derived scenario actually is, unless you say
 otherwise.
 
 \code{name} is required and \code{nickname} is per-scenario, so neither is inherited.
+
+\verb{@subplans} \strong{carry}: the scenario is still a topline. Rows a subplan
+backs are read-only, so an edit reaching one — including a whole-plan op
+like \code{list(total = 200)} — errors naming the subplan to edit instead. See
+\code{\link[=attach_subplan]{attach_subplan()}}. \verb{@revision} restarts at 1, since a new id is a new
+revision history; see \code{\link[=revise]{revise()}}.
 }
 
 \examples{

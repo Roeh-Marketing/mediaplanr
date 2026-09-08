@@ -37,6 +37,7 @@ Collate:
     'units.R'
     'inventory.R'
     'verbs.R'
+    'subplan.R'
     'scenario-set.R'
     'serialize.R'
     'print.R'

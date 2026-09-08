@@ -86,6 +86,7 @@ S7::method(print, MediaPlan) <- function(x, ...) {
     hdr <- paste0(hdr, ' ("', x@nickname, '")')
   }
   hdr <- paste0("<MediaPlan> ", .trunc(hdr, 56))
+  if (x@revision > 1L) hdr <- paste0(hdr, "  Rev ", x@revision)
   if (length(x@status) && nzchar(x@status)) {
     hdr <- paste0(hdr, "  [", x@status, "]")
   }
@@ -128,6 +129,17 @@ S7::method(print, MediaPlan) <- function(x, ...) {
     .field("flights", paste0(
       nrow(fl), "  (",
       paste(paste0(basis, " ", names(basis)), collapse = ", "), ")"))
+  }
+
+  # Which cells are owned by a subplan -- the rows a planner cannot edit here.
+  if (is_topline(x)) {
+    keys  <- names(x@subplans)
+    shown <- utils::head(keys, 6L)
+    txt   <- paste(shown, collapse = ", ")
+    if (length(keys) > length(shown)) {
+      txt <- paste0(txt, " (+", length(keys) - length(shown), " more)")
+    }
+    .field("subplans", paste0(length(keys), "  (", .trunc(txt, 54), ")"))
   }
   .field("rows", nrow(d))
   .field("spend", .fmt_num(sum(d[["planned_spend"]])))

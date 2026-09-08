@@ -114,6 +114,12 @@ status_levels <- function() {
 #' @param status Optional workflow state; one of [status_levels()], or `""` when
 #'   unset.
 #' @param objective Human-facing objective / notes.
+#' @param revision Integer revision number, default `1`. Set by [revise()];
+#'   never bumped automatically. Printed as `Rev 2` when above 1.
+#' @param subplans Named list of `MediaPlan`s, one per parent line item they
+#'   back. Populate through [attach_subplan()], not by hand: attaching
+#'   recomputes the parent's rows for that cell and the validator refuses a
+#'   subplan whose rollup the parent's rows do not match.
 #' @section Derived properties:
 #' `@flight_start`, `@flight_end` and `@flight_days` are computed from `@data`
 #' on every read and cannot be assigned. They describe the plan's own extent —
@@ -137,6 +143,17 @@ MediaPlan <- S7::new_class(
     planner    = S7::new_property(S7::class_character, default = ""),
     status     = S7::new_property(S7::class_character, default = ""),
     objective  = S7::new_property(S7::class_character, default = ""),
+
+    # Planners say "Rev 2". Manual, never auto-bumped: revise() sets it, and
+    # anything that mints a new @id starts again at 1.
+    revision   = S7::new_property(S7::class_integer, default = 1L),
+
+    # Subplans: a named list of MediaPlans, keyed by the parent line item each
+    # one backs (line_item(@data, line_item_grain(self)) -- "TV", "TV | NBC").
+    # Composition, not inheritance: a subplan is an ordinary plan, and what
+    # changes is the PARENT's behaviour. Its rows for that cell are the
+    # subplan's rollup and are read-only. See ?attach_subplan.
+    subplans   = S7::new_property(S7::class_list, default = quote(list())),
 
     # Derived, never stored: getter properties are read-only, so these cannot
     # drift from @data. S7 does not enforce the declared class on a getter's
@@ -231,6 +248,15 @@ MediaPlan <- S7::new_class(
                              paste(status_levels(), collapse = ", "),
                              " (or \"\" for unset)."))
     }
+
+    if (length(self@revision) != 1 || is.na(self@revision) ||
+        self@revision < 1L) {
+      errs <- c(errs, "@revision must be a single positive integer.")
+    }
+
+    # Only when the table itself is sound: the subplan invariant compares
+    # rows against rollups, which is meaningless on a malformed table.
+    if (!length(errs)) errs <- c(errs, .validate_subplans(self))
 
     if (length(errs)) errs else NULL
   }
@@ -385,6 +411,7 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' @param objective Human-facing objective / notes.
 #' @param id Optional explicit id; generated when `NULL`.
 #' @param parent_id Optional parent id for lineage.
+#' @param revision Integer revision number; default `1`. See [revise()].
 #' @return A validated [MediaPlan].
 #' @examples
 #' df <- data.frame(
@@ -400,7 +427,8 @@ media_plan_from_df <- function(df, grain, week = NULL,
                                unit_type = NULL,
                                name, nickname = "", advertiser = "",
                                planner = "", status = "", objective = "",
-                               id = NULL, parent_id = character(0)) {
+                               id = NULL, parent_id = character(0),
+                               revision = 1L) {
   if (missing(name) || !length(name) || is.na(name[1]) || !nzchar(name[1])) {
     stop("`name` is required: every plan carries a formal name. Use ",
          "`nickname` for a short working handle.", call. = FALSE)
@@ -463,8 +491,18 @@ media_plan_from_df <- function(df, grain, week = NULL,
     advertiser = advertiser,
     planner    = planner,
     status     = .normalise_status(status),
-    objective  = objective
+    objective  = objective,
+    revision   = .as_revision(revision)
   )
+}
+
+# Coerce a user-supplied revision to a single integer, or error.
+.as_revision <- function(revision) {
+  r <- suppressWarnings(as.integer(revision))
+  if (length(r) != 1L || is.na(r) || r < 1L || !isTRUE(all.equal(r, revision))) {
+    stop("`revision` must be a single positive whole number.", call. = FALSE)
+  }
+  r
 }
 
 #' Roll a plan up to a coarser grain
@@ -481,7 +519,9 @@ media_plan_from_df <- function(df, grain, week = NULL,
 #' @param grain Character vector; a subset of `plan@grain` to aggregate to.
 #' @param name Optional name for the resulting plan; defaults to the source
 #'   plan's name, since a rollup is the same plan viewed at a coarser grain.
-#' @return A new [MediaPlan] at the coarser grain.
+#' @return A new [MediaPlan] at the coarser grain. Any subplans are dropped:
+#'   a rollup is a coarser *view*, and the cells they backed may no longer
+#'   exist at the new grain.
 #' @examples
 #' p <- media_plan_from_df(
 #'   data.frame(channel = c("TV", "TV", "Search"),
@@ -505,28 +545,78 @@ roll_up <- function(plan, grain, name = NULL) {
     stop("`grain` must name at least one column.", call. = FALSE)
   }
 
-  d <- plan@data
-  k <- line_item(d, grain)
-  first <- !duplicated(k)
-  out <- d[first, grain, drop = FALSE]
-  sums <- tapply(d[["planned_spend"]], k, sum)
-  out[["planned_spend"]] <- as.numeric(sums[k[first]])
-  # Units add up only within one unit_type; a mixed group keeps its spend and
-  # reports no units. The rate that comes back is the blended one.
-  out <- .attach_units(out, .aggregate_units(d, k, k[first]))
-  rownames(out) <- NULL
+  out <- .aggregate_to(plan@data, grain)
 
-  MediaPlan(
-    data       = out,
-    grain      = grain,
-    week_col   = intersect(plan@week_col, grain),
-    id         = new_id("plan"),
-    parent_id  = plan@id,
-    name       = name %||% plan@name,
-    nickname   = plan@nickname,
-    advertiser = plan@advertiser,
-    planner    = plan@planner,
-    status     = plan@status,
-    objective  = plan@objective
+  # A rollup is a coarser VIEW, so it drops the subplans: the cells they back
+  # may not exist at the new grain, and a view does not own anything. A new id
+  # starts the revision count over.
+  .copy_plan(
+    plan,
+    data      = out,
+    grain     = grain,
+    week_col  = intersect(plan@week_col, grain),
+    id        = new_id("plan"),
+    parent_id = plan@id,
+    name      = name %||% plan@name,
+    revision  = 1L,
+    subplans  = list()
   )
+}
+
+#' Revise a plan's metadata without changing what it plans
+#'
+#' The metadata-only edit verb. Changes any of `name`, `nickname`,
+#' `advertiser`, `planner`, `status`, `objective` and `revision`, and leaves
+#' everything else — `@data`, `@grain`, `@id`, `@parent_id`, `@subplans` —
+#' exactly as it was. Because `@id` is kept, the result is *the same plan*,
+#' revised, rather than a derivative of it; that is the difference from
+#' [build_scenario()], which mints a new id and lineage.
+#'
+#' This exists so that a consumer never has to rebuild a plan by naming its
+#' slots by hand — the habit that silently drops any slot added later. Use
+#' `revise()` for metadata, [build_scenario()] for spend, and
+#' [attach_subplan()] / [detach_subplan()] for structure.
+#'
+#' `@revision` is never bumped automatically. Planners say *Rev 2* when they
+#' mean it, so it is set here explicitly. It prints in the header once above 1.
+#'
+#' @param plan A [MediaPlan].
+#' @param ... Named metadata fields to change: `name`, `nickname`,
+#'   `advertiser`, `planner`, `status`, `objective`, `revision`. At least one.
+#' @return The same plan (same `@id`) with the named fields changed.
+#' @examples
+#' p <- media_plan_from_df(
+#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
+#'   grain = "channel", name = "Q3 plan"
+#' )
+#' q <- revise(p, status = "approved", revision = 2)
+#' identical(q@id, p@id)
+#' q@revision
+#' @export
+revise <- function(plan, ...) {
+  if (!S7::S7_inherits(plan, MediaPlan)) {
+    stop("`plan` must be a MediaPlan.", call. = FALSE)
+  }
+  changes <- list(...)
+  allowed <- c("name", "nickname", "advertiser", "planner", "status",
+               "objective", "revision")
+  if (!length(changes)) {
+    stop("nothing to revise: name at least one of ",
+         paste(allowed, collapse = ", "), ".", call. = FALSE)
+  }
+  if (is.null(names(changes)) || any(!nzchar(names(changes)))) {
+    stop("`revise()` takes named arguments only (", paste(allowed, collapse = ", "),
+         ").", call. = FALSE)
+  }
+  bad <- setdiff(names(changes), allowed)
+  if (length(bad)) {
+    stop("`revise()` changes metadata only; cannot set: ",
+         paste(bad, collapse = ", "), ". Allowed: ",
+         paste(allowed, collapse = ", "), ". Use build_scenario() to change ",
+         "spend and attach_subplan() / detach_subplan() to change structure.",
+         call. = FALSE)
+  }
+  if ("status"   %in% names(changes)) changes$status   <- .normalise_status(changes$status)
+  if ("revision" %in% names(changes)) changes$revision <- .as_revision(changes$revision)
+  do.call(.copy_plan, c(list(plan), changes))
 }

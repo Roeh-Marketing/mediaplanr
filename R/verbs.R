@@ -101,7 +101,23 @@
       stop(where, "no rows are in market during that window.", call. = FALSE)
     }
   }
+  .stop_if_backed(plan, d, keep, where)
   keep
+}
+
+# Rows a subplan owns are read-only on the parent. Every edit door passes its
+# selection through here, so the error names the right door -- the subplan --
+# rather than silently letting the topline drift from the detail beneath it.
+.stop_if_backed <- function(plan, d, keep, where = "") {
+  if (!length(plan@subplans)) return(invisible(NULL))
+  hit <- keep & .backed_rows(plan, d)
+  hit[is.na(hit)] <- FALSE
+  if (any(hit)) {
+    key <- line_item(d, line_item_grain(plan))[hit][1]
+    stop(where, .cell_label(plan, key), " is planned in a subplan; edit the ",
+         "subplan and re-attach.", call. = FALSE)
+  }
+  invisible(NULL)
 }
 
 # The weekday this plan's weeks begin on, for ops that create new weeks.
@@ -263,6 +279,8 @@
     new[["planned_spend"]] <- spend
   }
   for (nm in li) new[[nm]] <- spec[[nm]]
+  # Adding into a cell a subplan owns is an edit to that cell.
+  .stop_if_backed(plan, new, rep(TRUE, nrow(new)), where)
 
   # Anything else the caller named that the plan carries as a column.
   for (nm in setdiff(names(spec), c(li, wk, "planned_spend",
@@ -455,6 +473,7 @@
            paste(utils::head(unknown, 5), collapse = "; "), call. = FALSE)
     }
     idx <- match(ek, base_key)
+    .stop_if_backed(plan, d, seq_len(nrow(d)) %in% idx)
     d[["planned_spend"]][idx] <- as.numeric(edits[["planned_spend"]])
 
   } else if (is.numeric(edits) && !is.null(names(edits))) {
@@ -464,6 +483,7 @@
            paste(utils::head(unknown, 5), collapse = "; "), call. = FALSE)
     }
     idx <- match(names(edits), base_key)
+    .stop_if_backed(plan, d, seq_len(nrow(d)) %in% idx)
     d[["planned_spend"]][idx] <- as.numeric(edits)
 
   } else if (is.list(edits)) {
@@ -603,6 +623,12 @@
 #'
 #' `name` is required and `nickname` is per-scenario, so neither is inherited.
 #'
+#' `@subplans` **carry**: the scenario is still a topline. Rows a subplan
+#' backs are read-only, so an edit reaching one — including a whole-plan op
+#' like `list(total = 200)` — errors naming the subplan to edit instead. See
+#' [attach_subplan()]. `@revision` restarts at 1, since a new id is a new
+#' revision history; see [revise()].
+#'
 #' @param plan The base [MediaPlan].
 #' @param edits The edits to apply; see *Edit forms*.
 #' @param name Formal name for the new scenario. **Required**.
@@ -669,10 +695,12 @@ S7::method(build_scenario, MediaPlan) <- function(plan, edits, name,
     stop("`name` is required: every scenario carries a formal name. Use ",
          "`nickname` for a short working handle.", call. = FALSE)
   }
-  MediaPlan(
+  # Everything not named here is carried from the parent -- including its
+  # subplans, whose rows the edit path refuses to touch, so the scenario is
+  # still a valid topline.
+  .copy_plan(
+    plan,
     data       = .apply_edits(plan, edits),
-    grain      = plan@grain,
-    week_col   = plan@week_col,
     id         = new_id("plan"),
     parent_id  = plan@id,
     name       = name,
@@ -682,6 +710,8 @@ S7::method(build_scenario, MediaPlan) <- function(plan, edits, name,
     planner    = planner %||% plan@planner,
     # NOT inherited: a derivative of an approved plan is not itself approved.
     status     = .normalise_status(status),
-    objective  = objective
+    objective  = objective,
+    # A new id is a new revision history.
+    revision   = 1L
   )
 }

@@ -99,7 +99,8 @@ belongs to, and the **unit** columns (`unit_cols()`) recording what it buys.
 | | |
 |---|---|
 | Build a plan | `media_plan_from_df()`, `media_plan_from_flights()` |
-| Change one | `build_scenario()` |
+| Change one | `build_scenario()` (spend), `revise()` (metadata) |
+| Nest one | `attach_subplan()`, `detach_subplan()`, `is_topline()` |
 | Look at it | `line_item_summary()`, `grain_values()`, `flights()`, `flight_window()`, `week_start()`, `cost_per_unit()`, `cpm()` |
 | Aggregate it | `roll_up()` (dimensions), `calendarize()` (time) |
 | Compare | `scenario_set()`, `add_scenario()`, `compare_scenarios()` |
@@ -157,10 +158,17 @@ Two ideas the rest of the design hangs on, in one line each:
 - **A line item** (channel / partner / tactic) is the time-free identity that
   models attach to. A row is a line item for one week.
 
+## Subplans
+
+A channel team's detailed plan — at its own grain, on its own calendar — can be
+attached beneath one cell of the topline with `attach_subplan()`. The cell's
+rows become the subplan's rollup and are read-only until detached, so there is
+one number with one owner and re-attaching is the reconcile. See
+`vignette("plan_concepts")`.
+
 ## Growth path
 
-Nested **SubPlans** are next: a channel team's detailed plan, at its own
-granularity, rolling up into the weekly topline. See
+See
 [Roadmap.md](https://github.com/Roeh-Marketing/mediaplanr/blob/main/Roadmap.md)
-for that design and for what is deliberately staying out — a channel-type
+for what is next and for what is deliberately staying out — a channel-type
 registry, attribution, and anything derived from `Sys.Date()`.

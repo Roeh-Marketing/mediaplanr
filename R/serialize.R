@@ -5,25 +5,47 @@
 # ScenarioSet is the same idea one level up: its own scalars plus each scenario
 # serialized exactly as a standalone plan is.
 
-.plan_schema_version <- 1L
+# v1: the flat plan. v2 adds `revision` and a recursive `subplans` object; a v1
+# file has neither and reads exactly as it did.
+.plan_schema_version <- 2L
 
-# The settable (non-getter) slots of an S7 class.
-.settable_props <- function(cls) {
-  ps <- attr(cls, "properties")
-  names(ps)[vapply(ps, function(p) is.null(p$getter), logical(1))]
-}
+# A written tree came through attach_subplan() and is finite. A PARSED file is
+# untrusted and can nest arbitrarily, so the reader carries a defensive bound,
+# as any JSON parser does. This is not a constraint on the model.
+.max_subplan_depth <- 32L
 
 # A schema-free named list of a plan's settable slots. Wrapped with an object
 # tag and schema_version for a standalone plan, or nested inside a set.
+#
+# Subplans recurse: each is the same object serialized the same way, one level
+# down. The key is omitted when there are none, so a flat plan's JSON carries
+# no trace of the feature. The parent's @data is still written in full, so a
+# reader that ignores `subplans` still gets the right totals.
 .plan_payload <- function(plan) {
-  S7::props(plan)[.settable_props(MediaPlan)]
+  p <- S7::props(plan)[.settable_props(MediaPlan)]
+  if (length(p$subplans)) {
+    p$subplans <- lapply(p$subplans, .plan_payload)
+  } else {
+    p$subplans <- NULL
+  }
+  p
 }
 
 # Rebuild a MediaPlan from a parsed payload list (the inverse of .plan_payload).
 # Reconstruction runs through media_plan_from_df(), so the plan is re-validated
 # and its unit identity re-solved; flight columns ride in `data` and need no
 # special path.
-.plan_from_payload <- function(x) {
+#
+# Subplans are rebuilt first and then ATTACHED, never assigned into the slot.
+# Attaching recomputes the parent's rows for each cell, so a hand-edited parent
+# is corrected rather than trusted, and an illegal tree -- wrong grain, a
+# subplan spanning cells, a plan beneath itself -- is refused by the same
+# checks that refuse it interactively.
+.plan_from_payload <- function(x, depth = 1L) {
+  if (depth > .max_subplan_depth) {
+    stop("plan JSON nests subplans more than ", .max_subplan_depth,
+         " levels deep; refusing to read it.", call. = FALSE)
+  }
   if (is.null(x$data) || is.null(x$grain)) {
     stop("not a plan JSON: expected `data` and `grain`.", call. = FALSE)
   }
@@ -47,7 +69,10 @@
   id_v <- if (!is.null(x$id) && length(x$id) &&
               nzchar(as.character(x$id)[1])) as.character(x$id)[1] else NULL
 
-  media_plan_from_df(
+  rev  <- if (!is.null(x$revision) && length(x$revision) &&
+              !is.na(x$revision[1])) x$revision[1] else 1L
+
+  plan <- media_plan_from_df(
     df, grain = grain, week = wk,
     planned_units = if ("planned_units" %in% uc) "planned_units" else NULL,
     planned_rate  = if ("planned_rate"  %in% uc) "planned_rate"  else NULL,
@@ -59,8 +84,17 @@
     status     = scal(x$status),
     objective  = scal(x$objective),
     id         = id_v,
-    parent_id  = as.character(if (is.null(x$parent_id)) character(0) else x$parent_id)
+    parent_id  = as.character(if (is.null(x$parent_id)) character(0) else x$parent_id),
+    revision   = rev
   )
+
+  # The written key is informative only; attach_subplan() re-derives the cell
+  # from the child's own data, which is the fact that cannot be hand-edited
+  # into inconsistency.
+  for (child in x$subplans) {
+    plan <- attach_subplan(plan, .plan_from_payload(child, depth + 1L))
+  }
+  plan
 }
 
 #' Serialize a media plan or scenario set to JSON
@@ -77,6 +111,13 @@
 #' Dates are written as ISO-8601 strings, since JSON has no date type, and
 #' missing flight cells (rows that are not part of an authored flight) are
 #' written as `null`.
+#'
+#' **Subplans recurse.** A topline's `@subplans` is written as a `subplans`
+#' object, each entry serialized exactly as a standalone plan is, one level
+#' down. The key is omitted when there are none, so a flat plan's JSON is
+#' unchanged. The parent's `@data` is still written in full, so a reader that
+#' ignores `subplans` still gets the right totals. Schema version 2 added
+#' `revision` and `subplans`.
 #'
 #' @param x A [MediaPlan] or [ScenarioSet].
 #' @param path Optional file path. When supplied, the JSON is written there and
@@ -140,6 +181,14 @@ plan_to_json <- function(x, path = NULL, pretty = TRUE) {
 #' A [ScenarioSet] is detected from its `object` tag (or, for tagless JSON, from
 #' the presence of `scenarios`) and each scenario is rebuilt the same way, with
 #' the baseline and scenario names preserved.
+#'
+#' Subplans are rebuilt first and then **attached** through
+#' [attach_subplan()], never assigned into the slot. Attaching recomputes the
+#' parent's rows for each cell, so a hand-edited parent row is corrected rather
+#' than trusted, and a file describing an illegal tree — a subplan at the
+#' wrong grain, or a plan beneath itself — is refused with the same error an
+#' interactive attach would give. A file nesting more than 32 levels deep is
+#' refused outright: a written tree is always finite, a parsed one need not be.
 #'
 #' @param txt A JSON string produced by [plan_to_json()], or a path to a file
 #'   containing one.

@@ -15,7 +15,9 @@ roll_up(plan, grain, name = NULL)
 plan's name, since a rollup is the same plan viewed at a coarser grain.}
 }
 \value{
-A new \link{MediaPlan} at the coarser grain.
+A new \link{MediaPlan} at the coarser grain. Any subplans are dropped:
+a rollup is a coarser \emph{view}, and the cells they backed may no longer
+exist at the new grain.
 }
 \description{
 Aggregates \code{planned_spend} to a subset of the plan's grain, returning a new

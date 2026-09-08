@@ -86,6 +86,22 @@ test_that("a derived plan shows its lineage", {
   expect_match(out, short_id(p@id))
 })
 
+test_that("the revision shows in the header only once above 1", {
+  p <- std_plan(name = "Base")
+  expect_false(grepl("Rev", grab(p)))
+  out <- grab(revise(p, revision = 2, status = "approved"))
+  expect_match(out, "<MediaPlan> Base  Rev 2  \\[approved\\]")
+})
+
+test_that("a topline lists its subplans; a flat plan has no such line", {
+  expect_false(grepl("subplans", grab(std_plan())))
+  tv <- media_plan_from_df(
+    data.frame(channel = "TV", partner = c("A", "B"), planned_spend = c(1, 2)),
+    grain = c("channel", "partner"), name = "tv")
+  out <- grab(attach_subplan(std_plan(), tv))
+  expect_match(out, "subplans    1  \\(TV\\)")
+})
+
 test_that("the data preview is truncated with a count of the remainder", {
   out <- grab(weekly_plan())          # 5 rows, 3 shown
   expect_match(out, "\\.\\.\\. 2 more rows")

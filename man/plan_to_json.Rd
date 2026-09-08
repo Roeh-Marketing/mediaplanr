@@ -31,6 +31,13 @@ stale value. A \link{ScenarioSet} writes its own scalars (\verb{@grain}, \verb{@
 Dates are written as ISO-8601 strings, since JSON has no date type, and
 missing flight cells (rows that are not part of an authored flight) are
 written as \code{null}.
+
+\strong{Subplans recurse.} A topline's \verb{@subplans} is written as a \code{subplans}
+object, each entry serialized exactly as a standalone plan is, one level
+down. The key is omitted when there are none, so a flat plan's JSON is
+unchanged. The parent's \verb{@data} is still written in full, so a reader that
+ignores \code{subplans} still gets the right totals. Schema version 2 added
+\code{revision} and \code{subplans}.
 }
 \examples{
 p <- media_plan_from_df(

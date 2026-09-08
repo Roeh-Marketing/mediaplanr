@@ -582,12 +582,7 @@ calendarize <- function(plan, basis = c("week", "day", "month"),
   # a month, or two flights of the same buy -- so periods are summed. This is
   # aggregation, unlike the import path, where a collision means two distinct
   # buys and is an error.
-  k     <- line_item(out, c(lg, basis))
-  first <- !duplicated(k)
-  res   <- out[first, c(lg, basis), drop = FALSE]
-  res[["planned_spend"]] <- as.numeric(tapply(out[["planned_spend"]], k,
-                                              sum)[k[first]])
-  res <- .attach_units(res, .aggregate_units(out, k, k[first]))
+  res <- .aggregate_to(out, c(lg, basis))
 
   res <- res[order(res[[basis]], line_item(res, lg)), , drop = FALSE]
   rownames(res) <- NULL

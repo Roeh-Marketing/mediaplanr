@@ -74,6 +74,17 @@ reference:
   - compare_scenarios
   - ScenarioSet
 
+- title: Subplans and revisions
+  desc: >
+    A channel team plans its own detail, at its own grain and cadence, and it
+    rolls up into one cell of the topline. Attaching makes that cell's rows
+    the subplan's rollup and locks them, so there is one number with one
+    owner; re-attaching is the reconcile. revise() edits metadata on the same
+    plan without touching what it plans.
+  contents:
+  - attach_subplan
+  - revise
+
 - title: What a line item buys
   desc: >
     Spend is the common currency and stays mandatory. Alongside it a line item

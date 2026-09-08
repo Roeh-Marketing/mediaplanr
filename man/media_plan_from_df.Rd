@@ -19,7 +19,8 @@ media_plan_from_df(
   status = "",
   objective = "",
   id = NULL,
-  parent_id = character(0)
+  parent_id = character(0),
+  revision = 1L
 )
 }
 \arguments{
@@ -63,6 +64,8 @@ case-insensitively) or \code{""} when unset.}
 \item{id}{Optional explicit id; generated when \code{NULL}.}
 
 \item{parent_id}{Optional parent id for lineage.}
+
+\item{revision}{Integer revision number; default \code{1}. See \code{\link[=revise]{revise()}}.}
 }
 \value{
 A validated \link{MediaPlan}.

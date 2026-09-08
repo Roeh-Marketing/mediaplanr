@@ -29,6 +29,14 @@ Non-flight rows keep \code{NA} in those columns.
 A \link{ScenarioSet} is detected from its \code{object} tag (or, for tagless JSON, from
 the presence of \code{scenarios}) and each scenario is rebuilt the same way, with
 the baseline and scenario names preserved.
+
+Subplans are rebuilt first and then \strong{attached} through
+\code{\link[=attach_subplan]{attach_subplan()}}, never assigned into the slot. Attaching recomputes the
+parent's rows for each cell, so a hand-edited parent row is corrected rather
+than trusted, and a file describing an illegal tree — a subplan at the
+wrong grain, or a plan beneath itself — is refused with the same error an
+interactive attach would give. A file nesting more than 32 levels deep is
+refused outright: a written tree is always finite, a parsed one need not be.
 }
 \examples{
 p <- media_plan_from_df(

@@ -29,6 +29,36 @@ new_id <- function(prefix = "obj") {
   paste0(prefix, "_", stamp, "_", rand)
 }
 
+# The settable (non-getter) slots of an S7 class. S7::props() includes the
+# getter-backed ones, which cannot be passed to the constructor.
+.settable_props <- function(cls) {
+  ps <- attr(cls, "properties")
+  names(ps)[vapply(ps, function(p) is.null(p$getter), logical(1))]
+}
+
+# Rebuild a plan from its settable slots, overriding the ones named in `...`.
+#
+# THE ONE DOOR through which a plan is copied. A constructor call that names
+# every slot by hand silently drops any slot added later -- which is how a
+# status change would quietly detach every subplan. Going through the property
+# list instead means a new slot is carried by default and dropped only on
+# purpose.
+#
+# Whole-slot replacement, deliberately not modifyList(): that recurses into
+# list-like values, and @data is a list. Clear a slot with list() /
+# character(0), never NULL.
+.copy_plan <- function(x, ...) {
+  props   <- S7::props(x)[.settable_props(MediaPlan)]
+  changes <- list(...)
+  unknown <- setdiff(names(changes), names(props))
+  if (length(unknown)) {
+    stop("not a settable MediaPlan slot: ", paste(unknown, collapse = ", "),
+         call. = FALSE)
+  }
+  props[names(changes)] <- changes
+  do.call(MediaPlan, props)
+}
+
 #' Abbreviate a synthetic id for printing
 #'
 #' Keeps the human-readable prefix and the trailing random segment, collapsing
