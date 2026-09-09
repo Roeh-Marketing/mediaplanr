@@ -101,6 +101,7 @@ belongs to, and the **unit** columns (`unit_cols()`) recording what it buys.
 | Build a plan | `media_plan_from_df()`, `media_plan_from_flights()` |
 | Change one | `build_scenario()` (spend), `revise()` (metadata) |
 | Nest one | `attach_subplan()`, `detach_subplan()`, `is_topline()` |
+| See the structure | `plan_tree()`, `subplan_map()`, `ownership_map()`, `lineage()`, `plan_mermaid()` |
 | Look at it | `line_item_summary()`, `grain_values()`, `flights()`, `flight_window()`, `week_start()`, `cost_per_unit()`, `cpm()` |
 | Aggregate it | `roll_up()` (dimensions), `calendarize()` (time) |
 | Compare | `scenario_set()`, `add_scenario()`, `compare_scenarios()` |

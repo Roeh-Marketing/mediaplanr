@@ -39,6 +39,7 @@ Collate:
     'verbs.R'
     'subplan.R'
     'scenario-set.R'
+    'structure.R'
     'serialize.R'
     'print.R'
     'zzz.R'

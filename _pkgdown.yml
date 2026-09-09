@@ -85,6 +85,19 @@ reference:
   - attach_subplan
   - revise
 
+- title: Structure and lineage
+  desc: >
+    What hangs beneath a plan, and where a scenario came from. Projections for
+    something else to render -- a table a UI builds a tree from, a lineage
+    table over a set, a Mermaid string -- plus a console tree, because the
+    console is where a planner looks first.
+  contents:
+  - plan_tree
+  - subplan_map
+  - ownership_map
+  - lineage
+  - plan_mermaid
+
 - title: What a line item buys
   desc: >
     Spend is the common currency and stays mandatory. Alongside it a line item
