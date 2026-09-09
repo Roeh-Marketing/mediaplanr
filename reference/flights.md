@@ -48,7 +48,7 @@ p <- media_plan_from_flights(buys, grain = "channel", name = "Q2 flights")
 
 flights(p)
 #>   channel              flight_id flight_start flight_end period_basis pacing
-#> 1     OOH fl_20260908210003_f2d6   2026-04-06 2026-05-03       flight   even
+#> 1     OOH fl_20260909171948_f2d6   2026-04-06 2026-05-03       flight   even
 #>   planned_spend n_weeks
 #> 1        120000       4
 sum(flights(p)$planned_spend) == sum(p@data$planned_spend)

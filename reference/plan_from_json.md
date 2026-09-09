@@ -70,7 +70,7 @@ plan_from_json(plan_to_json(p))
 #>     channel   Search, TV
 #>   rows        2
 #>   spend       120,000
-#>   id          plan_b78816
+#>   id          plan_a43108
 #> 
 #>    channel planned_spend
 #>         TV         80000

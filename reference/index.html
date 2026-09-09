@@ -245,6 +245,50 @@
         </dt>
         <dd>Revise a plan's metadata without changing what it plans</dd>
       </dl></div><div class="section level2">
+      <h2 id="structure-and-lineage">Structure and lineage<a class="anchor" aria-label="anchor" href="#structure-and-lineage"></a></h2>
+
+      <div class="section-desc"><p>What hangs beneath a plan, and where a scenario came from. Projections for something else to render – a table a UI builds a tree from, a lineage table over a set, a Mermaid string – plus a console tree, because the console is where a planner looks first.</p></div>
+
+      <dl></dl></div><div class="section level2">
+
+
+
+
+      <dl><dt>
+
+          <code><a href="plan_tree.html">plan_tree()</a></code>
+
+        </dt>
+        <dd>Print a plan's subplan tree</dd>
+
+        <dt>
+
+          <code><a href="subplan_map.html">subplan_map()</a></code>
+
+        </dt>
+        <dd>The subplan tree as a table</dd>
+
+        <dt>
+
+          <code><a href="ownership_map.html">ownership_map()</a></code>
+
+        </dt>
+        <dd>Who owns each cell of a plan</dd>
+
+        <dt>
+
+          <code><a href="lineage.html">lineage()</a></code>
+
+        </dt>
+        <dd>The derivation tree of a scenario set</dd>
+
+        <dt>
+
+          <code><a href="plan_mermaid.html">plan_mermaid()</a></code>
+
+        </dt>
+        <dd>A plan's structure, or a set's lineage, as a Mermaid diagram</dd>
+      </dl></div><div class="section level2">
       <h2 id="what-a-line-item-buys">What a line item buys<a class="anchor" aria-label="anchor" href="#what-a-line-item-buys"></a></h2>
 
       <div class="section-desc"><p>Spend is the common currency and stays mandatory. Alongside it a line item may record what it buys, how much of it, and at what price – bound by one identity, so any two of the three give the third. The rate is what survives an edit: a cut budget buys fewer impressions, it does not win a better CPM.</p></div>

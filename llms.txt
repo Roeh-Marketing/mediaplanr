@@ -109,6 +109,7 @@ recording what it buys.
 | Build a plan | [`media_plan_from_df()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_df.md), [`media_plan_from_flights()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_flights.md) |
 | Change one | [`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md) (spend), [`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md) (metadata) |
 | Nest one | [`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md), [`detach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md), [`is_topline()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md) |
+| See the structure | [`plan_tree()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_tree.md), [`subplan_map()`](https://roeh-marketing.github.io/mediaplanr/reference/subplan_map.md), [`ownership_map()`](https://roeh-marketing.github.io/mediaplanr/reference/ownership_map.md), [`lineage()`](https://roeh-marketing.github.io/mediaplanr/reference/lineage.md), [`plan_mermaid()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_mermaid.md) |
 | Look at it | [`line_item_summary()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_summary.md), [`grain_values()`](https://roeh-marketing.github.io/mediaplanr/reference/grain_values.md), [`flights()`](https://roeh-marketing.github.io/mediaplanr/reference/flights.md), [`flight_window()`](https://roeh-marketing.github.io/mediaplanr/reference/flight_window.md), [`week_start()`](https://roeh-marketing.github.io/mediaplanr/reference/week_start.md), [`cost_per_unit()`](https://roeh-marketing.github.io/mediaplanr/reference/cost_per_unit.md), [`cpm()`](https://roeh-marketing.github.io/mediaplanr/reference/cost_per_unit.md) |
 | Aggregate it | [`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md) (dimensions), [`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md) (time) |
 | Compare | [`scenario_set()`](https://roeh-marketing.github.io/mediaplanr/reference/scenario_set.md), [`add_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/add_scenario.md), [`compare_scenarios()`](https://roeh-marketing.github.io/mediaplanr/reference/compare_scenarios.md) |
@@ -284,6 +285,24 @@ same plan without touching what it plans.
   : Attach a subplan to the cell of the plan it refines
 - [`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md)
   : Revise a plan's metadata without changing what it plans
+
+## Structure and lineage
+
+What hangs beneath a plan, and where a scenario came from. Projections
+for something else to render – a table a UI builds a tree from, a
+lineage table over a set, a Mermaid string – plus a console tree,
+because the console is where a planner looks first.
+
+- [`plan_tree()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_tree.md)
+  : Print a plan's subplan tree
+- [`subplan_map()`](https://roeh-marketing.github.io/mediaplanr/reference/subplan_map.md)
+  : The subplan tree as a table
+- [`ownership_map()`](https://roeh-marketing.github.io/mediaplanr/reference/ownership_map.md)
+  : Who owns each cell of a plan
+- [`lineage()`](https://roeh-marketing.github.io/mediaplanr/reference/lineage.md)
+  : The derivation tree of a scenario set
+- [`plan_mermaid()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_mermaid.md)
+  : A plan's structure, or a set's lineage, as a Mermaid diagram
 
 ## What a line item buys
 

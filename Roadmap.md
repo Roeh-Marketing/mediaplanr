@@ -234,10 +234,19 @@ says all plan semantics live in `mediaplanr`:
 
 - **`describe_plan(plan)`** → a plain list: grain, each grain column’s
   distinct values, the flight window, the line-item roster, units by
-  type, totals, and later the subplan map. The app has a `describe_plan`
-  tool that rebuilds this by hand; making the package’s version
-  canonical means the model and R cannot drift apart. Phase 1 and 3
-  already deliver the pieces.
+  type, and totals. The app has a `describe_plan` tool that rebuilds
+  this by hand; making the package’s version canonical means the model
+  and R cannot drift apart. Phase 1 and 3 already deliver the pieces,
+  and the subplan map is now
+  [`subplan_map()`](https://roeh-marketing.github.io/mediaplanr/reference/subplan_map.md)
+  — built on the same argument, along with
+  [`ownership_map()`](https://roeh-marketing.github.io/mediaplanr/reference/ownership_map.md),
+  [`lineage()`](https://roeh-marketing.github.io/mediaplanr/reference/lineage.md)
+  and
+  [`plan_mermaid()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_mermaid.md):
+  projections the package owns so a renderer cannot drift. Anything that
+  needs a graphics dependency belongs in the companion,
+  `mediaplanr.viz`, which draws only from these projections.
 - **`plan_ops_schema()`** → the JSON Schema for the operations array.
   The app passes ops to the model as an unschema’d JSON *string*,
   because `ellmer`’s typed arguments cannot express the recursive shape,

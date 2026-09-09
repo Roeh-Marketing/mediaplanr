@@ -133,7 +133,7 @@ media_plan_from_df(df, grain = "channel", name = "Q3 plan",
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       240
-#>   id          plan_95c3ff
+#>   id          plan_b78816
 #> 
 #>    channel planned_spend
 #>         TV           100

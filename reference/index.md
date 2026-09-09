@@ -92,6 +92,24 @@ same plan without touching what it plans.
 - [`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md)
   : Revise a plan's metadata without changing what it plans
 
+## Structure and lineage
+
+What hangs beneath a plan, and where a scenario came from. Projections
+for something else to render – a table a UI builds a tree from, a
+lineage table over a set, a Mermaid string – plus a console tree,
+because the console is where a planner looks first.
+
+- [`plan_tree()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_tree.md)
+  : Print a plan's subplan tree
+- [`subplan_map()`](https://roeh-marketing.github.io/mediaplanr/reference/subplan_map.md)
+  : The subplan tree as a table
+- [`ownership_map()`](https://roeh-marketing.github.io/mediaplanr/reference/ownership_map.md)
+  : Who owns each cell of a plan
+- [`lineage()`](https://roeh-marketing.github.io/mediaplanr/reference/lineage.md)
+  : The derivation tree of a scenario set
+- [`plan_mermaid()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_mermaid.md)
+  : A plan's structure, or a set's lineage, as a Mermaid diagram
+
 ## What a line item buys
 
 Spend is the common currency and stays mandatory. Alongside it a line
