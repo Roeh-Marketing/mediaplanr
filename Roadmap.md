@@ -326,3 +326,6 @@ Listed because earlier revisions of the README named these as future work:
 - **Ids as an external join contract.** `@id`, `@parent_id` and `flight_id` are
   opaque, exist for identity and lineage, and are scoped to a derivation tree.
   Do not build an external join on them.
+
+
+  ## Tydification

@@ -1,29 +1,6 @@
 # mediaplanr <a href="https://roeh-marketing.github.io/mediaplanr/"><img src="man/figures/logo.png" align="right" height="139" alt="mediaplanr website" /></a>
 
-A thin R package that turns an uploaded media plan into a **validated, typed
-object** at a configurable grain, derives scenarios from it, and collects them
-into a comparable set.
-
-It does not fit models, forecast, or optimize — and depends on nothing but
-[S7](https://rconsortium.github.io/S7/).
-
-## Scope
-
-```
-             mediaplanr                         mrmopt
-   ┌──────────────────────────┐      ┌──────────────────────────┐
-   │ plan object, grain,      │      │ response curves, fitting,│
-   │ validation, lineage,     │      │ forecasting, budget      │
-   │ scenarios, comparison    │      │ optimization (opt_mix)   │
-   └──────────────────────────┘      └──────────────────────────┘
-                    ↘                      ↙
-                      a caller wires them together
-```
-
-Response modeling and optimization belong to the `mrmopt` engine. A caller runs
-those and joins the results back onto `compare_scenarios()` output by scenario
-and grain. Keeping that boundary means a change to the modeling API cannot break
-the plan object, and modeling decisions never leak into a container.
+A thin R package that defines a structure capturing the anatomy of a media plan and media planning operations.
 
 ## Install
 
@@ -37,8 +14,8 @@ devtools::install_github("Roeh-Marketing/mediaplanr")
 ```r
 library(mediaplanr)
 
-# 1. A validated plan. `name` is required; the week column is typed as a Date.
-base <- media_plan_from_df(
+# 1. Define a media plan 
+my_media_plan <- media_plan_from_df(
   plan_df,
   grain      = c("channel", "partner", "week"),
   week       = "week",
@@ -48,29 +25,47 @@ base <- media_plan_from_df(
   status     = "approved"
 )
 
-# 2. Fork a scenario. State the operation; R does the arithmetic.
-#    `target` may name any subset of the grain.
-trim <- build_scenario(
-  base,
+# 2. Build a scenario by editing the plan via a set of operations; R does the arithmetic.
+reduced_budget <- build_scenario(
+  my_media_plan,
   edits    = list(target = list(channel = "TV"), scale = 0.8),
   name     = "Q2 2026 Brand Plan — TV trim",
   nickname = "TV -20%"
 )
 
-# 3. Collect and compare.
-set <- add_scenario(scenario_set(base), trim)
+# 3. Collect a set of scenario options for comparison and review.
+set <- add_scenario(scenario_set(my_media_plan), reduced_budget)
 
-compare_scenarios(set)            # per scenario: total spend, delta vs base
-compare_scenarios(set, "cell")    # per cell: spend, share, delta vs base
-compare_scenarios(set, "flight")  # per buy: moved, resized, added, dropped
+compare_scenarios(set)
 ```
 
-`build_scenario(edits =)` also takes a data frame of absolute values (natural
-for optimizer output) or a named vector keyed by `line_item()` (natural for an
-editable table).
+### What you can change in a scenario
 
-Operations do more than change spend. A plan can gain and lose line items, and a
-buy can move:
+A comprehensive set of opperations are avalible to mutate the media plan. Every edit says **what to change** and **how**.
+
+**Pick what to change**
+- `target` — any mix of channel, partner, week: "all TV", "Google in March", or leave it out for the whole plan
+- `during` — anything in market between two dates, including a buy that started earlier and is still running
+
+**Change the budget**
+- `total` — make it add up to this
+- `delta` — add or take away this much overall ← *the everyday one*
+- `scale` — up or down by a percentage (1.2 = +20%)
+- `set` — this exact amount on every week you picked
+- `delta_each` — add this to every week you picked
+
+> **Note.** `delta -50,000` takes 50k out of TV. `delta_each -50,000` takes 50k out of *every TV week* — 1.3m on a 26-week plan.
+
+**Change what's in the plan**
+- `add` — a new line item, for a week or with in-market dates
+- `drop` — take it out altogether (not the same as setting it to zero)
+- `shift` — move a buy a number of days earlier or later
+- `restage` — move a buy to new dates
+
+Moving a buy keeps it recognisable as the *same* buy, so you can compare before and after.
+
+**Not edits.** Pacing (even or hand-shaped) is read off the numbers, never set. Names, status and approvals change separately. Anything planned in a detail plan is locked — edit that plan instead.
+
 
 ```r
 list(target = list(channel = "TV"), delta = -50000)   # take 50k out of TV
@@ -80,16 +75,11 @@ list(target = list(channel = "Search"), drop = TRUE)
 list(during = list(from = "2026-04-20", to = "2026-05-31"), scale = 0.5)
 ```
 
-The distinction that catches people out runs both ways: `total` and `delta` act
-**across** the matched rows and hold their mix, `set` and `delta_each` act on
-**each** row. On a 26-week plan those differ by a factor of 26 — and because the
-two sides of a transfer usually cancel, getting it wrong still reconciles.
-
 ## Core model
 
 | Class | What it is |
 |---|---|
-| `MediaPlan` | One plan at a configurable grain. A flat `@data` table of grain columns + `planned_spend` (intent, on every row); any other columns ride along untouched. `@week_col` names the week column when the plan is weekly. |
+| `MediaPlan` | One plan at a chosen level of granularity, and following a chosen nomenclature. A flat `@data` table of grain columns + `planned_spend`; any other columns ride along untouched|
 | `ScenarioSet` | A base plan plus named scenarios derived from it, all at one grain. The comparison registry. |
 
 Two optional column sets ride along on `@data`, validated but never part of the
@@ -108,39 +98,6 @@ belongs to, and the **unit** columns (`unit_cols()`) recording what it buys.
 | Vocabularies | `status_levels()`, `unit_type_levels()`, `period_basis_levels()`, `pacing_levels()` |
 | Pair with a decomp | `check_coverage()` |
 
-### Two doors in
-
-A plan can be authored the way it is written down. By week:
-
-```r
-media_plan_from_df(df, grain = c("channel", "week"), week = "week", name = "Q2")
-```
-
-…or as **flights** — in-market dates and a total — which expand onto the weekly
-rows `@data` holds, exactly to the cent:
-
-```r
-media_plan_from_flights(buys, grain = c("channel", "partner"), name = "Q2")
-```
-
-`flights()` inverts that exactly, and reports nothing rather than guessing when
-a plan records no flight identity.
-
-### What it runs, and what it buys
-
-```r
-base@flight_start               # first day in market
-base@flight_end                 # last day -- the final week's last day
-grain_values(base, "channel")   # ready to use as an edit target
-line_item_summary(base)         # per line item: spend, units, rate, own flight
-calendarize(base, "month")      # re-cut onto any calendar
-```
-
-Everything here is derived from `@data` on every read, so none of it can go
-stale. That is the rule the package holds throughout: **if a value can change
-without the plan changing, it does not belong on the plan.** A plan's flight
-window is its own extent; the through-date `check_coverage()` takes belongs to a
-plan-decomp pairing and moves every refresh.
 
 ## Learn more
 
@@ -159,17 +116,3 @@ Two ideas the rest of the design hangs on, in one line each:
 - **A line item** (channel / partner / tactic) is the time-free identity that
   models attach to. A row is a line item for one week.
 
-## Subplans
-
-A channel team's detailed plan — at its own grain, on its own calendar — can be
-attached beneath one cell of the topline with `attach_subplan()`. The cell's
-rows become the subplan's rollup and are read-only until detached, so there is
-one number with one owner and re-attaching is the reconcile. See
-`vignette("plan_concepts")`.
-
-## Growth path
-
-See
-[Roadmap.md](https://github.com/Roeh-Marketing/mediaplanr/blob/main/Roadmap.md)
-for what is next and for what is deliberately staying out — a channel-type
-registry, attribution, and anything derived from `Sys.Date()`.
