@@ -5,61 +5,154 @@
 library(mediaplanr)
 ```
 
-This walks the whole path: get a plan in, change it, fork scenarios,
-compare them. It sticks to *what to type*. For *why the package is
-shaped this way* — what a line item is, why a plan cannot tell you what
-is historical — read
-[`vignette("plan_concepts")`](https://roeh-marketing.github.io/mediaplanr/articles/plan_concepts.md).
+In this vignette you will learn what a MediaPlan and what you can do
+with it. We will cover
 
-## A plan in three lines
+- Creating a MediaPlan
+- Creating a scenario from a MediaPlan
+- Comparing two MediaPlans
 
-The smallest useful plan is a table with something to key on and a spend
-column.
+## A `MediaPlan`
+
+In it’s simplest form a media plan is a set of rows and columns that
+hold infomration about what, how much, and when, media is intended to be
+flighted. In R this could be represented by a simple data.frame.
 
 ``` r
 
-simple <- media_plan_from_df(
-  data.frame(
+media_plan_df <- data.frame(
     channel       = c("TV", "Search", "Social"),
-    planned_spend = c(80000, 40000, 40000)
-  ),
-  grain = "channel",
+    planned_spend = c(80000, 40000, 40000),
+    week = c("2026-09-14","2026-09-21","2026-09-28")
+  )
+
+media_plan_df
+#>   channel planned_spend       week
+#> 1      TV         80000 2026-09-14
+#> 2  Search         40000 2026-09-21
+#> 3  Social         40000 2026-09-28
+```
+
+In this example:
+
+- `channel` = the what
+- `planned_spend` = the how much
+- `week` = when
+
+In practice, a media plan is more complex and `mediaplanr` provides the
+`MediaPlan` object to capture, hold, and work with this complexity.
+
+### From a timeseries data.frame
+
+To create this object we can use the `media_plan_from_df`. We simply
+wrap around the earlier sample data.frame and fill in a few required
+arguments.
+
+``` r
+
+media_plan <- media_plan_from_df(
+  media_plan_df,
+  grain = c("channel", "week"),
+  week = "week",
   name  = "Q3 sketch"
 )
+```
 
-simple
+Printing a `MediaPlan` will immediately reveal that this is not a simple
+data.frame.
+
+``` r
+
+print(media_plan)
 #> <MediaPlan> Q3 sketch
-#>   grain       channel
+#>   grain       channel + week
+#>   flight      2026-09-14 to 2026-10-04  (3 weeks)
+#>   line items  3
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       160,000
 #>   id          plan_acd597
 #> 
-#>    channel planned_spend
-#>         TV         80000
-#>     Search         40000
-#>     Social         40000
+#>    channel planned_spend       week
+#>         TV         80000 2026-09-14
+#>     Search         40000 2026-09-21
+#>     Social         40000 2026-09-28
 ```
 
-`name` is required — every plan carries one. Everything else is
-optional.
-
-## A realistic plan
-
-Real plans are weekly and keyed by more than channel. Here is a quarter
-at `channel + partner + week`:
+The structure of the object shows additional proporties a `MediaPlan`
+can have.
 
 ``` r
 
-weeks <- seq(as.Date("2026-04-06"), by = "week", length.out = 6)
+str(media_plan)
+#> <mediaplanr::MediaPlan>
+#>  @ data        :'data.frame':    3 obs. of  3 variables:
+#>  .. $ channel      : chr  "TV" "Search" "Social"
+#>  .. $ planned_spend: num  80000 40000 40000
+#>  .. $ week         : Date, format: "2026-09-14" "2026-09-21" ...
+#>  @ grain       : chr [1:2] "channel" "week"
+#>  @ week_col    : chr "week"
+#>  @ id          : chr "plan_20260916002730_acd597"
+#>  @ parent_id   : chr(0) 
+#>  @ name        : chr "Q3 sketch"
+#>  @ nickname    : chr ""
+#>  @ advertiser  : chr ""
+#>  @ planner     : chr ""
+#>  @ status      : chr ""
+#>  @ objective   : chr ""
+#>  @ revision    : int 1
+#>  @ subplans    : list()
+#>  @ flight_start: Date[1:1], format: "2026-09-14"
+#>  @ flight_end  : Date[1:1], format: "2026-10-04"
+#>  @ flight_days : int 21
+```
+
+Note: when using `media_plan_from_df` the `@data` property of the media
+plan will be of the same structure as the input `media_plan_df`.
+
+``` r
+
+identical(str(media_plan@data), str(media_plan_df))
+#> 'data.frame':    3 obs. of  3 variables:
+#>  $ channel      : chr  "TV" "Search" "Social"
+#>  $ planned_spend: num  80000 40000 40000
+#>  $ week         : Date, format: "2026-09-14" "2026-09-21" ...
+#> 'data.frame':    3 obs. of  3 variables:
+#>  $ channel      : chr  "TV" "Search" "Social"
+#>  $ planned_spend: num  80000 40000 40000
+#>  $ week         : chr  "2026-09-14" "2026-09-21" "2026-09-28"
+#> [1] TRUE
+```
+
+`@data` property always follows the *long format* structure no matter
+how the `MediaPlan` is created. This will become relevant when we look
+of other way to create a `MediaPlan`
+
+### Adding info about the plan
+
+In reality a plan will contain a lot more details regarding the intended
+buy and will have a long time horizon. The `grain` property of the
+`MediaPlan` tells us all of the dimentions of the plan. Here we’ll add
+just one more (`partner`) to keep things simple. In reality this will
+hold a whole host of dimentions (ex. tactic, audience, creative, format
+etc.)
+
+Additionally we’ll want to hold information about the plan, for example:
+
+- planner - the name of the planner/agency that works on the plan
+- advertiser - the name of the firm for whom the media is flighted
+- status - whether the plan is in-review, approved etc.
+
+``` r
+
+weeks <- seq(as.Date("2026-04-06"), by = "week", length.out = 52)
 
 plan_df <- expand.grid(
   week    = weeks,
   partner = c("NBC", "ESPN", "Google", "Meta"),
   stringsAsFactors = FALSE
 )
-plan_df$channel <- c(NBC = "TV", ESPN = "TV",
-                     Google = "Search", Meta = "Social")[plan_df$partner]
+plan_df$channel <- c(NBC = "TV", ESPN = "TV",Google = "Search", Meta = "Social")[plan_df$partner]
 plan_df$planned_spend <- c(42000, 28000, 19000, 23000)[
   match(plan_df$partner, c("NBC", "ESPN", "Google", "Meta"))
 ]
@@ -71,41 +164,35 @@ base <- media_plan_from_df(
   name       = "Q2 2026 Brand Plan",
   nickname   = "baseline",
   advertiser = "Acme Corp",
-  planner    = "R. Roe",
-  status     = "approved"
+  planner    = "Roeh Marketing"
 )
 
 base
-#> <MediaPlan> Q2 2026 Brand Plan ("baseline")  [approved]
+#> <MediaPlan> Q2 2026 Brand Plan ("baseline")
 #>   advertiser  Acme Corp
-#>   planner     R. Roe
+#>   planner     Roeh Marketing
 #>   grain       channel + partner + week
-#>   flight      2026-04-06 to 2026-05-17  (6 weeks)
+#>   flight      2026-04-06 to 2027-04-04  (52 weeks)
 #>   line items  4
 #>     channel   Search, Social, TV
 #>     partner   ESPN, Google, Meta, NBC
-#>   rows        24
-#>   spend       672,000
+#>   rows        208
+#>   spend       5,824,000
 #>   id          plan_cb283f
 #> 
 #>          week partner channel planned_spend
 #>    2026-04-06     NBC      TV         42000
 #>    2026-04-13     NBC      TV         42000
 #>    2026-04-20     NBC      TV         42000
-#>   ... 21 more rows
+#>   ... 205 more rows
 ```
 
 Two things to notice in that call:
 
-- `grain` names the columns that identify a **row**. Order it
-  coarsest-first;
-  [`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md)
-  later relies on that nesting.
-- `week` marks which grain column is the week. It is validated as a
-  `Date`, so ordering and range checks work without re-parsing.
-
-`@data` stays an ordinary data frame throughout. The class adds
-guarantees, not a wrapper you have to fight:
+- `grain` names the columns that identify a **line itme**. The order
+  matters and needs to follow from least to most granular.  
+- `week` marks which grain column thet represents date. It is validated
+  as a `Date` and gets special treatment compared to all other grains.
 
 ``` r
 
@@ -115,14 +202,15 @@ head(base@data, 3)
 #> 2 2026-04-13     NBC      TV         42000
 #> 3 2026-04-20     NBC      TV         42000
 sum(base@data$planned_spend)
-#> [1] 672000
+#> [1] 5824000
 ```
 
-## The other door in: flights
+### From a flights data.frame
 
-Planners do not always write a plan by week. Often a buy is stated as
-**in-market dates and a total** — “OOH, 6 April to 3 May, 120k”. That is
-a **flight**, and
+Instead of planning media spend for each specific day or week, a media
+plan is often build from flights or date ranges for which a planned
+bugget is allocated. For example: **in-market dates and a total** —
+“OOH, 6 April to 3 May, 120k”. That is a **flight**, and
 [`media_plan_from_flights()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_flights.md)
 takes it directly:
 
@@ -137,7 +225,9 @@ buys <- data.frame(
 )
 
 flighted <- media_plan_from_flights(
-  buys, grain = c("channel", "partner"), name = "Q2 flighting"
+  buys, 
+  grain = c("channel", "partner"), 
+  name = "Q2 flighting"
 )
 
 flighted@data[, c("channel", "week", "planned_spend", "period_basis")]
@@ -151,14 +241,9 @@ flighted@data[, c("channel", "week", "planned_spend", "period_basis")]
 ```
 
 The flight is **expanded onto the weekly rows `@data` already holds**,
-so the grid,
-[`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md),
-[`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md)
-and
-[`compare_scenarios()`](https://roeh-marketing.github.io/mediaplanr/reference/compare_scenarios.md)
-all see the ordinary shape. Spend is spread across the buy’s days and
-gathered into those weeks, exactly to the cent — note the 33,333
-dividing cleanly, and the single-day Search buy sitting inside its week.
+so the Spend is spread across the buy’s days and gathered into those
+weeks, exactly to the cent — note the 33,333 dividing cleanly, and the
+single-day Search buy sitting inside its week.
 
 Going back the other way is exact:
 
@@ -166,9 +251,9 @@ Going back the other way is exact:
 
 flights(flighted)
 #>   channel  partner              flight_id flight_start flight_end period_basis
-#> 1     OOH JCDecaux fl_20260909171953_7766   2026-04-06 2026-05-03       flight
-#> 2      TV      NBC fl_20260909171953_c5c4   2026-04-06 2026-04-12         week
-#> 3  Search   Google fl_20260909171953_4a2f   2026-04-08 2026-04-08          day
+#> 1     OOH JCDecaux fl_20260916002730_7766   2026-04-06 2026-05-03       flight
+#> 2      TV      NBC fl_20260916002730_c5c4   2026-04-06 2026-04-12         week
+#> 3  Search   Google fl_20260916002730_4a2f   2026-04-08 2026-04-08          day
 #>   pacing planned_spend n_weeks
 #> 1   even        120000       4
 #> 2   even         33333       1
@@ -187,7 +272,7 @@ nrow(flights(base))
 #> [1] 0
 ```
 
-## Editing: three shapes, one door
+## Editing: A plan is built to always change
 
 [`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md)
 is the only way to change spend, and it always returns a **new** plan.
@@ -209,7 +294,7 @@ trim <- build_scenario(
 )
 
 sum(trim@data$planned_spend)
-#> [1] 588000
+#> [1] 5096000
 ```
 
 Operations apply in order, so a budget-neutral shift is two of them:
@@ -227,7 +312,7 @@ shift <- build_scenario(
 )
 
 sum(shift@data$planned_spend)
-#> [1] 664000
+#> [1] 1538000
 ```
 
 The five spend operations, and the distinction that catches people out:
@@ -371,7 +456,7 @@ approved plan is not itself approved:
 ``` r
 
 base@status
-#> [1] "approved"
+#> [1] ""
 trim@status
 #> [1] "in development"
 ```
@@ -391,10 +476,10 @@ set
 #> <ScenarioSet>  3 scenarios at channel + partner + week
 #>   advertiser  Acme Corp
 #> 
-#>     scenario   status            spend         vs base
-#>   * baseline   approved        672,000               -
-#>     TV -20%    in development  588,000  -84,000 (-12%)
-#>     TV→Social  in development  664,000    -8,000 (-1%)
+#>     scenario   status              spend            vs base
+#>   * baseline   -               5,824,000                  -
+#>     TV -20%    in development  5,096,000    -728,000 (-12%)
+#>     TV→Social  in development  1,538,000  -4,286,000 (-74%)
 #> 
 #>   * = baseline
 ```
@@ -405,23 +490,23 @@ Two levels of comparison:
 
 compare_scenarios(set, "summary")
 #>    scenario                    plan_id                  parent_id
-#> 1  baseline plan_20260909171953_cb283f                       <NA>
-#> 2   TV -20% plan_20260909171953_c45205 plan_20260909171953_cb283f
-#> 3 TV→Social plan_20260909171953_fe3218 plan_20260909171953_cb283f
+#> 1  baseline plan_20260916002730_cb283f                       <NA>
+#> 2   TV -20% plan_20260916002731_c45205 plan_20260916002730_cb283f
+#> 3 TV→Social plan_20260916002731_fe3218 plan_20260916002730_cb283f
 #>   total_planned_spend spend_vs_base spend_pct_vs_base
-#> 1              672000             0        0.00000000
-#> 2              588000        -84000       -0.12500000
-#> 3              664000         -8000       -0.01190476
+#> 1             5824000             0         0.0000000
+#> 2             5096000       -728000        -0.1250000
+#> 3             1538000      -4286000        -0.7359203
 ```
 
 ``` r
 
 head(compare_scenarios(set, "cell"), 4)
 #>   scenario channel partner       week planned_spend share_of_total
-#> 1 baseline      TV     NBC 2026-04-06         42000         0.0625
-#> 2 baseline      TV     NBC 2026-04-13         42000         0.0625
-#> 3 baseline      TV     NBC 2026-04-20         42000         0.0625
-#> 4 baseline      TV     NBC 2026-04-27         42000         0.0625
+#> 1 baseline      TV     NBC 2026-04-06         42000    0.007211538
+#> 2 baseline      TV     NBC 2026-04-13         42000    0.007211538
+#> 3 baseline      TV     NBC 2026-04-20         42000    0.007211538
+#> 4 baseline      TV     NBC 2026-04-27         42000    0.007211538
 #>   spend_vs_base
 #> 1             0
 #> 2             0
@@ -613,13 +698,46 @@ other’s axis:
 ``` r
 
 calendarize(roll_up(base, c("channel", "week")), "month")
-#>   channel      month planned_spend
-#> 1  Search 2026-04-01      67857.14
-#> 2  Social 2026-04-01      82142.86
-#> 3      TV 2026-04-01     250000.00
-#> 4  Search 2026-05-01      46142.86
-#> 5  Social 2026-05-01      55857.14
-#> 6      TV 2026-05-01     170000.00
+#>    channel      month planned_spend
+#> 1   Search 2026-04-01      67857.14
+#> 2   Social 2026-04-01      82142.86
+#> 3       TV 2026-04-01     250000.00
+#> 4   Search 2026-05-01      84142.86
+#> 5   Social 2026-05-01     101857.14
+#> 6       TV 2026-05-01     310000.00
+#> 7   Search 2026-06-01      81428.57
+#> 8   Social 2026-06-01      98571.43
+#> 9       TV 2026-06-01     300000.00
+#> 10  Search 2026-07-01      84142.86
+#> 11  Social 2026-07-01     101857.14
+#> 12      TV 2026-07-01     310000.00
+#> 13  Search 2026-08-01      84142.86
+#> 14  Social 2026-08-01     101857.14
+#> 15      TV 2026-08-01     310000.00
+#> 16  Search 2026-09-01      81428.57
+#> 17  Social 2026-09-01      98571.43
+#> 18      TV 2026-09-01     300000.00
+#> 19  Search 2026-10-01      84142.85
+#> 20  Social 2026-10-01     101857.15
+#> 21      TV 2026-10-01     310000.00
+#> 22  Search 2026-11-01      81428.58
+#> 23  Social 2026-11-01      98571.42
+#> 24      TV 2026-11-01     300000.00
+#> 25  Search 2026-12-01      84142.85
+#> 26  Social 2026-12-01     101857.15
+#> 27      TV 2026-12-01     310000.00
+#> 28  Search 2027-01-01      84142.86
+#> 29  Social 2027-01-01     101857.14
+#> 30      TV 2027-01-01     310000.00
+#> 31  Search 2027-02-01      76000.00
+#> 32  Social 2027-02-01      92000.00
+#> 33      TV 2027-02-01     280000.00
+#> 34  Search 2027-03-01      84142.86
+#> 35  Social 2027-03-01     101857.14
+#> 36      TV 2027-03-01     310000.00
+#> 37  Search 2027-04-01      10857.14
+#> 38  Social 2027-04-01      13142.86
+#> 39      TV 2027-04-01      40000.00
 ```
 
 [`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md)

@@ -414,18 +414,23 @@ work:
   no column name anywhere. `channel` is a dimension a user happened to
   key on, and plans keyed on `media_type` or `vehicle` are equally
   valid.
+
 - **Attribution, response curves, forecasting, optimization.** These
   live in the `mrmopt` engine. An earlier revision of this package
   included a `forecast()` and an optimizer; both were removed for
   reasons written down in
   [`vignette("plan_concepts")`](https://roeh-marketing.github.io/mediaplanr/articles/plan_concepts.md)
   and should not be rebuilt by accident.
+
 - **Anything derived from
   [`Sys.Date()`](https://rdrr.io/r/base/Sys.time.html)** —
   `weeks_remaining`, `is_active`, `pct_delivered`. The rule the package
   holds: *if a value can change without the plan changing, it does not
   belong on the plan.* This is what keeps the flight window legitimate
   and these out.
+
 - **Ids as an external join contract.** `@id`, `@parent_id` and
   `flight_id` are opaque, exist for identity and lineage, and are scoped
   to a derivation tree. Do not build an external join on them.
+
+  ## Tydification

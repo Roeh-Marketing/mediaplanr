@@ -83,6 +83,6 @@ subplan_map(attach_subplan(topline, tv))
 #> 1     0 <NA>      Q3 topline                    channel timeless          2
 #> 2     1   TV   TV  TV detail          channel + partner timeless          2
 #>   rows spend subplans revision status                         id
-#> 1    2   160        1        1        plan_20260909171951_c0d89c
-#> 2    2   120        0        1        plan_20260909171951_e03dc7
+#> 1    2   160        1        1        plan_20260916002728_c0d89c
+#> 2    2   120        0        1        plan_20260916002728_e03dc7
 ```

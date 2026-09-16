@@ -69,36 +69,22 @@
 <a class="anchor" aria-label="anchor" href="#mediaplanr-"></a>
 </h1>
 </div>
-<p>A thin R package that turns an uploaded media plan into a <strong>validated, typed object</strong> at a configurable grain, derives scenarios from it, and collects them into a comparable set.</p>
-<p>It does not fit models, forecast, or optimize — and depends on nothing but <a href="https://rconsortium.github.io/S7/" class="external-link">S7</a>.</p>
-<div class="section level2">
-<h2 id="scope">Scope<a class="anchor" aria-label="anchor" href="#scope"></a>
-</h2>
-<pre><code>             mediaplanr                         mrmopt
-   ┌──────────────────────────┐      ┌──────────────────────────┐
-   │ plan object, grain,      │      │ response curves, fitting,│
-   │ validation, lineage,     │      │ forecasting, budget      │
-   │ scenarios, comparison    │      │ optimization (opt_mix)   │
-   └──────────────────────────┘      └──────────────────────────┘
-                    ↘                      ↙
-                      a caller wires them together</code></pre>
-<p>Response modeling and optimization belong to the <code>mrmopt</code> engine. A caller runs those and joins the results back onto <code><a href="reference/compare_scenarios.html">compare_scenarios()</a></code> output by scenario and grain. Keeping that boundary means a change to the modeling API cannot break the plan object, and modeling decisions never leak into a container.</p>
-</div>
+<p>A thin R package that defines a structure capturing the anatomy of a media plan and media planning operations.</p>
 <div class="section level2">
 <h2 id="install">Install<a class="anchor" aria-label="anchor" href="#install"></a>
 </h2>
-<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("S7")</span></span>
 <span><span class="fu">devtools</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"Roeh-Marketing/mediaplanr"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="quick-start">Quick start<a class="anchor" aria-label="anchor" href="#quick-start"></a>
 </h2>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://roeh-marketing.github.io/mediaplanr/">mediaplanr</a></span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># 1. A validated plan. `name` is required; the week column is typed as a Date.</span></span>
-<span><span class="va">base</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
+<span><span class="co"># 1. Define a media plan </span></span>
+<span><span class="va">my_media_plan</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span></span>
 <span>  <span class="va">plan_df</span>,</span>
 <span>  grain      <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"partner"</span>, <span class="st">"week"</span><span class="op">)</span>,</span>
 <span>  week       <span class="op">=</span> <span class="st">"week"</span>,</span>
@@ -108,30 +94,37 @@
 <span>  status     <span class="op">=</span> <span class="st">"approved"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># 2. Fork a scenario. State the operation; R does the arithmetic.</span></span>
-<span><span class="co">#    `target` may name any subset of the grain.</span></span>
-<span><span class="va">trim</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/build_scenario.html">build_scenario</a></span><span class="op">(</span></span>
-<span>  <span class="va">base</span>,</span>
+<span><span class="co"># 2. Build a scenario by editing the plan via a set of operations; R does the arithmetic.</span></span>
+<span><span class="va">reduced_budget</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/build_scenario.html">build_scenario</a></span><span class="op">(</span></span>
+<span>  <span class="va">my_media_plan</span>,</span>
 <span>  edits    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"TV"</span><span class="op">)</span>, scale <span class="op">=</span> <span class="fl">0.8</span><span class="op">)</span>,</span>
 <span>  name     <span class="op">=</span> <span class="st">"Q2 2026 Brand Plan — TV trim"</span>,</span>
 <span>  nickname <span class="op">=</span> <span class="st">"TV -20%"</span></span>
 <span><span class="op">)</span></span>
 <span></span>
-<span><span class="co"># 3. Collect and compare.</span></span>
-<span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="fu"><a href="reference/scenario_set.html">scenario_set</a></span><span class="op">(</span><span class="va">base</span><span class="op">)</span>, <span class="va">trim</span><span class="op">)</span></span>
+<span><span class="co"># 3. Collect a set of scenario options for comparison and review.</span></span>
+<span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="fu"><a href="reference/scenario_set.html">scenario_set</a></span><span class="op">(</span><span class="va">my_media_plan</span><span class="op">)</span>, <span class="va">reduced_budget</span><span class="op">)</span></span>
 <span></span>
-<span><span class="fu"><a href="reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span>            <span class="co"># per scenario: total spend, delta vs base</span></span>
-<span><span class="fu"><a href="reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span>, <span class="st">"cell"</span><span class="op">)</span>    <span class="co"># per cell: spend, share, delta vs base</span></span>
-<span><span class="fu"><a href="reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span>, <span class="st">"flight"</span><span class="op">)</span>  <span class="co"># per buy: moved, resized, added, dropped</span></span></code></pre></div>
-<p><code>build_scenario(edits =)</code> also takes a data frame of absolute values (natural for optimizer output) or a named vector keyed by <code><a href="reference/line_item.html">line_item()</a></code> (natural for an editable table).</p>
-<p>Operations do more than change spend. A plan can gain and lose line items, and a buy can move:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<span><span class="fu"><a href="reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span></span></code></pre></div>
+<div class="section level3">
+<h3 id="what-you-can-change-in-a-scenario">What you can change in a scenario<a class="anchor" aria-label="anchor" href="#what-you-can-change-in-a-scenario"></a>
+</h3>
+<p>A comprehensive set of opperations are avalible to mutate the media plan. Every edit says <strong>what to change</strong> and <strong>how</strong>.</p>
+<p><strong>Pick what to change</strong> - <code>target</code> — any mix of channel, partner, week: “all TV”, “Google in March”, or leave it out for the whole plan - <code>during</code> — anything in market between two dates, including a buy that started earlier and is still running</p>
+<p><strong>Change the budget</strong> - <code>total</code> — make it add up to this - <code>delta</code> — add or take away this much overall ← <em>the everyday one</em> - <code>scale</code> — up or down by a percentage (1.2 = +20%) - <code>set</code> — this exact amount on every week you picked - <code>delta_each</code> — add this to every week you picked</p>
+<blockquote>
+<p><strong>Note.</strong> <code>delta -50,000</code> takes 50k out of TV. <code>delta_each -50,000</code> takes 50k out of <em>every TV week</em> — 1.3m on a 26-week plan.</p>
+</blockquote>
+<p><strong>Change what’s in the plan</strong> - <code>add</code> — a new line item, for a week or with in-market dates - <code>drop</code> — take it out altogether (not the same as setting it to zero) - <code>shift</code> — move a buy a number of days earlier or later - <code>restage</code> — move a buy to new dates</p>
+<p>Moving a buy keeps it recognisable as the <em>same</em> buy, so you can compare before and after.</p>
+<p><strong>Not edits.</strong> Pacing (even or hand-shaped) is read off the numbers, never set. Names, status and approvals change separately. Anything planned in a detail plan is locked — edit that plan instead.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"TV"</span><span class="op">)</span>, delta <span class="op">=</span> <span class="op">-</span><span class="fl">50000</span><span class="op">)</span>   <span class="co"># take 50k out of TV</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"OOH"</span><span class="op">)</span>, shift <span class="op">=</span> <span class="fl">7</span><span class="op">)</span>       <span class="co"># push the buy a week</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>add <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"Audio"</span>, week <span class="op">=</span> <span class="st">"2026-04-06"</span>, planned_spend <span class="op">=</span> <span class="fl">25000</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>target <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>channel <span class="op">=</span> <span class="st">"Search"</span><span class="op">)</span>, drop <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>during <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>from <span class="op">=</span> <span class="st">"2026-04-20"</span>, to <span class="op">=</span> <span class="st">"2026-05-31"</span><span class="op">)</span>, scale <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span></code></pre></div>
-<p>The distinction that catches people out runs both ways: <code>total</code> and <code>delta</code> act <strong>across</strong> the matched rows and hold their mix, <code>set</code> and <code>delta_each</code> act on <strong>each</strong> row. On a 26-week plan those differ by a factor of 26 — and because the two sides of a transfer usually cancel, getting it wrong still reconciles.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="core-model">Core model<a class="anchor" aria-label="anchor" href="#core-model"></a>
@@ -148,7 +141,7 @@
 <tbody>
 <tr>
 <td><code>MediaPlan</code></td>
-<td>One plan at a configurable grain. A flat <code>@data</code> table of grain columns + <code>planned_spend</code> (intent, on every row); any other columns ride along untouched. <code>@week_col</code> names the week column when the plan is weekly.</td>
+<td>One plan at a chosen level of granularity, and following a chosen nomenclature. A flat <code>@data</code> table of grain columns + <code>planned_spend</code>; any other columns ride along untouched</td>
 </tr>
 <tr>
 <td><code>ScenarioSet</code></td>
@@ -215,28 +208,6 @@
 </tr>
 </tbody>
 </table>
-<div class="section level3">
-<h3 id="two-doors-in">Two doors in<a class="anchor" aria-label="anchor" href="#two-doors-in"></a>
-</h3>
-<p>A plan can be authored the way it is written down. By week:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/media_plan_from_df.html">media_plan_from_df</a></span><span class="op">(</span><span class="va">df</span>, grain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"week"</span><span class="op">)</span>, week <span class="op">=</span> <span class="st">"week"</span>, name <span class="op">=</span> <span class="st">"Q2"</span><span class="op">)</span></span></code></pre></div>
-<p>…or as <strong>flights</strong> — in-market dates and a total — which expand onto the weekly rows <code>@data</code> holds, exactly to the cent:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="reference/media_plan_from_flights.html">media_plan_from_flights</a></span><span class="op">(</span><span class="va">buys</span>, grain <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"channel"</span>, <span class="st">"partner"</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Q2"</span><span class="op">)</span></span></code></pre></div>
-<p><code><a href="reference/flights.html">flights()</a></code> inverts that exactly, and reports nothing rather than guessing when a plan records no flight identity.</p>
-</div>
-<div class="section level3">
-<h3 id="what-it-runs-and-what-it-buys">What it runs, and what it buys<a class="anchor" aria-label="anchor" href="#what-it-runs-and-what-it-buys"></a>
-</h3>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">base</span><span class="op">@</span><span class="va">flight_start</span>               <span class="co"># first day in market</span></span>
-<span><span class="va">base</span><span class="op">@</span><span class="va">flight_end</span>                 <span class="co"># last day -- the final week's last day</span></span>
-<span><span class="fu"><a href="reference/grain_values.html">grain_values</a></span><span class="op">(</span><span class="va">base</span>, <span class="st">"channel"</span><span class="op">)</span>   <span class="co"># ready to use as an edit target</span></span>
-<span><span class="fu"><a href="reference/line_item_summary.html">line_item_summary</a></span><span class="op">(</span><span class="va">base</span><span class="op">)</span>         <span class="co"># per line item: spend, units, rate, own flight</span></span>
-<span><span class="fu"><a href="reference/calendarize.html">calendarize</a></span><span class="op">(</span><span class="va">base</span>, <span class="st">"month"</span><span class="op">)</span>      <span class="co"># re-cut onto any calendar</span></span></code></pre></div>
-<p>Everything here is derived from <code>@data</code> on every read, so none of it can go stale. That is the rule the package holds throughout: <strong>if a value can change without the plan changing, it does not belong on the plan.</strong> A plan’s flight window is its own extent; the through-date <code><a href="reference/check_coverage.html">check_coverage()</a></code> takes belongs to a plan-decomp pairing and moves every refresh.</p>
-</div>
 </div>
 <div class="section level2">
 <h2 id="learn-more">Learn more<a class="anchor" aria-label="anchor" href="#learn-more"></a>
@@ -254,16 +225,6 @@
 <li>
 <strong>A line item</strong> (channel / partner / tactic) is the time-free identity that models attach to. A row is a line item for one week.</li>
 </ul>
-</div>
-<div class="section level2">
-<h2 id="subplans">Subplans<a class="anchor" aria-label="anchor" href="#subplans"></a>
-</h2>
-<p>A channel team’s detailed plan — at its own grain, on its own calendar — can be attached beneath one cell of the topline with <code><a href="reference/attach_subplan.html">attach_subplan()</a></code>. The cell’s rows become the subplan’s rollup and are read-only until detached, so there is one number with one owner and re-attaching is the reconcile. See <code><a href="articles/plan_concepts.html">vignette("plan_concepts")</a></code>.</p>
-</div>
-<div class="section level2">
-<h2 id="growth-path">Growth path<a class="anchor" aria-label="anchor" href="#growth-path"></a>
-</h2>
-<p>See <a href="https://github.com/Roeh-Marketing/mediaplanr/blob/main/Roadmap.md" class="external-link">Roadmap.md</a> for what is next and for what is deliberately staying out — a channel-type registry, attribution, and anything derived from <code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date()</a></code>.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

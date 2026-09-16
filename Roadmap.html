@@ -144,14 +144,13 @@
 </ul><hr></div>
 <div class="section level2">
 <h2 id="deliberately-not-planned">Deliberately not planned<a class="anchor" aria-label="anchor" href="#deliberately-not-planned"></a></h2>
-<ul><li>
-<strong>A channel-type registry / media taxonomy.</strong> The package hard-codes no column name anywhere. <code>channel</code> is a dimension a user happened to key on, and plans keyed on <code>media_type</code> or <code>vehicle</code> are equally valid.</li>
+<ul><li><p><strong>A channel-type registry / media taxonomy.</strong> The package hard-codes no column name anywhere. <code>channel</code> is a dimension a user happened to key on, and plans keyed on <code>media_type</code> or <code>vehicle</code> are equally valid.</p></li>
+<li><p><strong>Attribution, response curves, forecasting, optimization.</strong> These live in the <code>mrmopt</code> engine. An earlier revision of this package included a <code>forecast()</code> and an optimizer; both were removed for reasons written down in <code><a href="articles/plan_concepts.html">vignette("plan_concepts")</a></code> and should not be rebuilt by accident.</p></li>
+<li><p><strong>Anything derived from <code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date()</a></code></strong> — <code>weeks_remaining</code>, <code>is_active</code>, <code>pct_delivered</code>. The rule the package holds: <em>if a value can change without the plan changing, it does not belong on the plan.</em> This is what keeps the flight window legitimate and these out.</p></li>
 <li>
-<strong>Attribution, response curves, forecasting, optimization.</strong> These live in the <code>mrmopt</code> engine. An earlier revision of this package included a <code>forecast()</code> and an optimizer; both were removed for reasons written down in <code><a href="articles/plan_concepts.html">vignette("plan_concepts")</a></code> and should not be rebuilt by accident.</li>
-<li>
-<strong>Anything derived from <code><a href="https://rdrr.io/r/base/Sys.time.html" class="external-link">Sys.Date()</a></code></strong> — <code>weeks_remaining</code>, <code>is_active</code>, <code>pct_delivered</code>. The rule the package holds: <em>if a value can change without the plan changing, it does not belong on the plan.</em> This is what keeps the flight window legitimate and these out.</li>
-<li>
-<strong>Ids as an external join contract.</strong> <code>@id</code>, <code>@parent_id</code> and <code>flight_id</code> are opaque, exist for identity and lineage, and are scoped to a derivation tree. Do not build an external join on them.</li>
+<p><strong>Ids as an external join contract.</strong> <code>@id</code>, <code>@parent_id</code> and <code>flight_id</code> are opaque, exist for identity and lineage, and are scoped to a derivation tree. Do not build an external join on them.</p>
+<h2 id="tydification">Tydification</h2>
+</li>
 </ul></div>
 </div>
 
