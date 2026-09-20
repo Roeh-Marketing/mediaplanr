@@ -11,9 +11,8 @@ line_item_summary(plan)
 }
 \value{
 A data frame: the \code{\link[=line_item_grain]{line_item_grain()}} columns, then \code{line_item} (the
-key), \code{planned_spend} (the item's total), \code{n_rows}, and — only when the
-plan has a time dimension — \code{flight_start} and \code{flight_end}. The date
-columns are absent rather than \code{NA} on a timeless plan.
+key), \code{planned_spend} (the item's total), \code{n_rows}, \code{flight_start} and
+\code{flight_end} — the item's own window, in the time column's type.
 }
 \description{
 One row per line item — the time-free identity of what is being bought — with
@@ -37,7 +36,7 @@ p <- media_plan_from_df(
              channel = c("TV", "Search", "TV"),
              partner = c("NBC", "Google", "NBC"),
              planned_spend = c(30, 20, 35)),
-  grain = c("channel", "partner", "week"), week = "week", name = "Q2 plan"
+  grain = c("channel", "partner"), time = "week", name = "Q2 plan"
 )
 
 line_item_summary(p)

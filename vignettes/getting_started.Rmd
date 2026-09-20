@@ -50,8 +50,8 @@ To create this object we can use the `media_plan_from_df`. We simply wrap around
 ```{r}
 media_plan <- media_plan_from_df(
   media_plan_df,
-  grain = c("channel", "week"),
-  week = "week",
+  grain = "channel",
+  time = "week",
   name  = "Q3 sketch"
 )
 ```
@@ -102,8 +102,8 @@ plan_df$planned_spend <- c(42000, 28000, 19000, 23000)[
 
 base <- media_plan_from_df(
   plan_df,
-  grain      = c("channel", "partner", "week"),
-  week       = "week",
+  grain      = c("channel", "partner"),
+  time       = "week",
   name       = "Q2 2026 Brand Plan",
   nickname   = "baseline",
   advertiser = "Acme Corp",
@@ -115,8 +115,14 @@ base
 
 Two things to notice in that call:
 
-- `grain` names the columns that identify a **line itme**. The order matters and needs to follow from least to most granular.  
-- `week` marks which grain column thet represents date. It is validated as a `Date` and gets special treatment compared to all other grains.
+- `grain` names the columns that identify a **line item**. The order matters and needs to follow from least to most granular.  
+- `time` marks the column the plan is dated by. It is **required** — every plan
+  says when it runs — and it is appended to the grain for you, which is why
+  `grain` above names only the line item columns. It holds `Date` values, or
+  `POSIXct` moments for buys placed at a specific time.
+- `time_basis` says what one of those values covers (`"day"`, `"week"`,
+  `"month"`, `"instant"`). It is inferred from the column here, and worth
+  declaring when the guess would be wrong.
 
 ```{r}
 head(base@data, 3)
@@ -407,12 +413,13 @@ have it. A budget and a negotiated rate:
 ```{r}
 social <- media_plan_from_df(
   data.frame(
+    week          = as.Date("2026-07-06"),
     channel       = "Social",
     unit_type     = "impression",
     planned_spend = 140000,
     planned_rate  = 5          # a $5 CPM
   ),
-  grain = "channel", name = "Social plan"
+  grain = "channel", time = "week", name = "Social plan"
 )
 
 social@data$planned_units
@@ -422,9 +429,10 @@ Or a delivery goal and a rate, which gives the budget instead:
 
 ```{r}
 media_plan_from_df(
-  data.frame(channel = "Social", unit_type = "impression",
+  data.frame(week = as.Date("2026-07-06"), channel = "Social",
+             unit_type = "impression",
              planned_units = 28000000, planned_rate = 5),
-  grain = "channel", name = "Goal-led"
+  grain = "channel", time = "week", name = "Goal-led"
 )@data$planned_spend
 ```
 
@@ -455,10 +463,11 @@ spend always survives, because that is the point of a common currency:
 
 ```{r}
 mixed <- media_plan_from_df(
-  data.frame(bucket = "all", channel = c("Social", "Search"),
+  data.frame(week = as.Date("2026-07-06"), bucket = "all",
+             channel = c("Social", "Search"),
              unit_type = c("impression", "click"),
              planned_spend = c(140000, 95000), planned_rate = c(5, 0.80)),
-  grain = c("bucket", "channel"), name = "Mixed"
+  grain = c("bucket", "channel"), time = "week", name = "Mixed"
 )
 
 roll_up(mixed, "bucket")@data

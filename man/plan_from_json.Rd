@@ -40,8 +40,9 @@ refused outright: a written tree is always finite, a parsed one need not be.
 }
 \examples{
 p <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
-  grain = "channel", name = "Q3"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
+  grain = "channel", time = "week", name = "Q3"
 )
 plan_from_json(plan_to_json(p))
 plan_from_json(plan_to_json(scenario_set(p)))

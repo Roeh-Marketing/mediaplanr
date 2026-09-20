@@ -10,7 +10,7 @@ test_that("a plan starts at revision 1 with no subplans", {
 
 test_that("revise changes what it names and nothing else", {
   p <- media_plan_from_df(
-    data.frame(channel = "TV", planned_spend = 10), grain = "channel",
+    data.frame(week = fix_week(), channel = "TV", planned_spend = 10), grain = "channel", time = "week",
     name = "Q2", advertiser = "Acme", status = "in development")
   q <- revise(p, status = "Approved", revision = 2, nickname = "final")
   expect_identical(q@id, p@id)
@@ -25,8 +25,8 @@ test_that("revise changes what it names and nothing else", {
 
 test_that("revise keeps subplans", {
   tv <- media_plan_from_df(
-    data.frame(channel = "TV", partner = c("A", "B"), planned_spend = c(1, 2)),
-    grain = c("channel", "partner"), name = "tv")
+    data.frame(week = fix_week(), channel = "TV", partner = c("A", "B"), planned_spend = c(1, 2)),
+    grain = c("channel", "partner"), time = "week", name = "tv")
   p <- attach_subplan(std_plan(), tv)
   q <- revise(p, revision = 3)
   expect_identical(names(q@subplans), "TV")
@@ -47,17 +47,17 @@ test_that("revise refuses non-metadata and bad values", {
 })
 
 test_that("media_plan_from_df takes a revision", {
-  p <- media_plan_from_df(data.frame(channel = "TV", planned_spend = 1),
-                          grain = "channel", name = "t", revision = 4)
+  p <- media_plan_from_df(data.frame(week = fix_week(), channel = "TV", planned_spend = 1),
+                          grain = "channel", time = "week", name = "t", revision = 4)
   expect_identical(p@revision, 4L)
-  expect_error(media_plan_from_df(data.frame(channel = "TV", planned_spend = 1),
-                                  grain = "channel", name = "t", revision = -1),
+  expect_error(media_plan_from_df(data.frame(week = fix_week(), channel = "TV", planned_spend = 1),
+                                  grain = "channel", time = "week", name = "t", revision = -1),
                "positive whole number")
 })
 
 test_that("a new id starts the revision count over", {
   p <- revise(std_plan(), revision = 3)
-  expect_identical(build_scenario(p, c(TV = 1), name = "s")@revision, 1L)
+  expect_identical(build_scenario(p, at_cell(TV = 1), name = "s")@revision, 1L)
   expect_identical(roll_up(fine_plan(), "channel")@revision, 1L)
   expect_identical(revise(fine_plan(), revision = 2)@revision, 2L)
 })

@@ -7,7 +7,9 @@
 media_plan_from_df(
   df,
   grain,
-  week = NULL,
+  time = NULL,
+  time_basis = NULL,
+  tz = NULL,
   planned_spend = "planned_spend",
   planned_units = NULL,
   planned_rate = NULL,
@@ -27,11 +29,29 @@ media_plan_from_df(
 \item{df}{A data frame holding the plan: grain columns plus a spend column.
 All other columns are preserved on \verb{@data} untouched.}
 
-\item{grain}{Character vector naming the columns that identify a row,
-including the week column when the plan is weekly.}
+\item{grain}{Character vector naming the \strong{line item} columns — channel,
+partner, tactic. The time column is appended to them automatically, so
+there is no need to name it here; naming it anyway is harmless, and it is
+moved to the end either way.}
 
-\item{week}{Optional name of the week column. Must be among \code{grain}. Values
-are coerced to \code{Date} (the week start).}
+\item{time}{Name of the plan's time column. A time column is \strong{required}:
+every plan says when it runs. Left \code{NULL}, it is taken from \code{df} when
+exactly one Date or POSIXct column is available to be it. Values may be
+\code{Date} (the first day of the period), \code{POSIXct} moments, or ISO-8601
+strings of either.}
+
+\item{time_basis}{What one value of the time column covers; one of
+\code{\link[=time_basis_levels]{time_basis_levels()}}. Inferred from the column when \code{NULL}: month starts
+read as \code{"month"}, dates that all fall on one weekday as \code{"week"},
+anything else as \code{"day"}, and a \code{POSIXct} column always as \code{"instant"}.
+Declare it when the guess would be wrong — a single month of a monthly
+plan cannot be told from a single week.}
+
+\item{tz}{The plan's timezone, as an Olson name (\code{"America/New_York"}).
+Times given as strings are read on it, and the time column is put on it,
+so the plan reads the same wherever the code runs. Taken from the column
+when \code{NULL} and it already carries one; \code{""} otherwise, which leaves the
+session's zone to decide.}
 
 \item{planned_spend}{Name of the planned-spend column in \code{df}. Renamed to
 \code{planned_spend}. Holds intent on every row, including past weeks. Default
@@ -72,8 +92,8 @@ A validated \link{MediaPlan}.
 }
 \description{
 The primary entry point for turning an uploaded plan into a \link{MediaPlan}.
-Normalises the spend column name to \code{planned_spend}, coerces the week column
-to \code{Date}, and runs the full validator on construction.
+Normalises the spend column name to \code{planned_spend}, reads the time column
+and appends it to the grain, and runs the full validator on construction.
 }
 \details{
 It knows nothing about decomps: a plan is constructed from the plan alone.
@@ -82,9 +102,20 @@ re-run whenever the decomp refreshes, without rebuilding the plan.
 }
 \examples{
 df <- data.frame(
+  week    = as.Date(c("2026-07-06", "2026-07-06", "2026-07-06")),
   channel = c("TV", "Search", "Social"),
   planned_spend = c(100, 80, 60)
 )
-media_plan_from_df(df, grain = "channel", name = "Q3 plan",
+media_plan_from_df(df, grain = "channel", time = "week", name = "Q3 plan",
                    advertiser = "Acme", status = "in development")
+
+# A buy placed at a specific moment: a POSIXct column, basis "instant".
+spots <- data.frame(
+  airs   = as.POSIXct(c("2026-07-06 20:30:00", "2026-07-06 21:00:00"),
+                      tz = "UTC"),
+  daypart = c("primetime", "primetime"),
+  planned_spend = c(45000, 52000)
+)
+media_plan_from_df(spots, grain = "daypart", time = "airs",
+                   name = "Launch spots")
 }

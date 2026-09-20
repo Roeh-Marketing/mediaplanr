@@ -13,9 +13,9 @@ check_coverage(plan, decomp, through = NULL)
 \code{\link[=line_item_grain]{line_item_grain()}} — a channel-only decomp checks channels and ignores
 partners.}
 
-\item{through}{Optional \code{Date}. Restricts the check to plan rows in market
-before that date; see \emph{What \code{through} compares against}. Without it, or on
-a plan with no time dimension, the whole plan is considered.}
+\item{through}{Optional \code{Date} (or \code{POSIXct}, on a plan keyed by moments).
+Restricts the check to plan rows in market before it; see \emph{What \code{through}
+compares against}. Without it the whole plan is considered.}
 }
 \value{
 Invisibly, a character vector of the decomp line items missing from
@@ -61,8 +61,9 @@ about \emph{how much} of a buy the decomp measured.
 
 \examples{
 p <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-  grain = "channel", name = "Q3 plan"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80, 40)),
+  grain = "channel", time = "week", name = "Q3 plan"
 )
 check_coverage(p, data.frame(channel = c("TV", "Search")))
 }

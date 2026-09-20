@@ -7,7 +7,9 @@
 MediaPlan(
   data = data.frame(),
   grain = character(0),
-  week_col = character(0),
+  time_col = character(0),
+  time_basis = "week",
+  tz = "",
   id = new_id("plan"),
   parent_id = character(0),
   name = "",
@@ -24,11 +26,25 @@ MediaPlan(
 \item{data}{A data frame with the grain columns + \code{planned_spend}. One row per grain
 cell.}
 
-\item{grain}{Character vector naming the columns that identify a row. When
-the plan is weekly this includes the week column.}
+\item{grain}{Character vector naming the columns that identify a row. It
+always ends with \verb{@time_col}, which the constructors append for you — a
+caller names the line item columns and the time column separately.}
 
-\item{week_col}{Optional name of the week column within \verb{@grain}. Must hold
-\code{Date} values (the week start). Empty means the plan has no time dimension.}
+\item{time_col}{Name of the plan's time column, part of \verb{@grain}.
+\strong{Required}: every plan is planned against a calendar. Holds \code{Date}
+values (the first day of the period) or \code{POSIXct} moments.}
+
+\item{time_basis}{What one value of \verb{@time_col} stands for; one of
+\code{\link[=time_basis_levels]{time_basis_levels()}}. \code{"day"}, \code{"week"} and \code{"month"} go with a \code{Date}
+column, \code{"instant"} with a \code{POSIXct} one.}
+
+\item{tz}{The plan's timezone: the clock its times are stated on, as an
+Olson name (\code{"America/New_York"}, \code{"UTC"}). It is the plan's own property
+rather than a detail of whichever column happens to hold a moment, so a
+time given to an edit is read on the plan's clock wherever the code runs.
+\code{""} means unstated, and then the session's zone decides — which is the
+ambiguity worth removing. Only moments have a clock, so this has no effect
+on a plan keyed by day, week or month.}
 
 \item{id}{Opaque synthetic id (identity/lineage only).}
 
@@ -71,6 +87,12 @@ the class adds a validator, a synthetic identity (\verb{@id}), and lineage
 A plan holds \strong{planned values only} — \code{planned_spend} is what was intended
 for a row, including for weeks that have already passed. It is never what
 actually happened; actualised spend and attributed KPI live in the decomp.
+
+Every plan is keyed by time. \verb{@time_col} is required and \verb{@time_basis} says
+what one of its values covers — a day, a week, a month, or a moment for a
+buy placed at a specific time. Those two are what a row's in-market period is
+derived from, so nothing in the package has to assume a week. See
+\code{\link[=time_basis_levels]{time_basis_levels()}}.
 
 A plan on its own is therefore \strong{blind to past and future}. "Historical",
 "future", under-delivery and over-delivery are not properties of a plan: they

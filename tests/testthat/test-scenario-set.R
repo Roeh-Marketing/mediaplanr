@@ -16,7 +16,7 @@ test_that("scenario_set falls back to the plan's @name", {
 test_that("add_scenario appends without mutating the original set", {
   p <- std_plan()
   set0 <- scenario_set(p, name = "base")
-  s <- build_scenario(p, edits = c("Search" = 100), name = "boost")
+  s <- build_scenario(p, edits = at_cell("Search" = 100), name = "boost")
   set1 <- add_scenario(set0, s)
 
   expect_equal(length(set0@scenarios), 1L)  # original untouched
@@ -27,12 +27,12 @@ test_that("add_scenario appends without mutating the original set", {
 test_that("add_scenario auto-names and de-duplicates names", {
   p <- std_plan()
   set <- scenario_set(p, name = "base")
-  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 100), name = "s"))
-  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 120), name = "s"))
+  set <- add_scenario(set, build_scenario(p, edits = at_cell("TV" = 100), name = "s"))
+  set <- add_scenario(set, build_scenario(p, edits = at_cell("TV" = 120), name = "s"))
   expect_equal(length(unique(names(set@scenarios))), 3L)
 
   # explicit duplicate name gets a suffix rather than clobbering
-  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 130), name = "s"), name = "base")
+  set <- add_scenario(set, build_scenario(p, edits = at_cell("TV" = 130), name = "s"), name = "base")
   expect_equal(length(set@scenarios), 4L)
   expect_true("base_2" %in% names(set@scenarios))
 })
@@ -45,7 +45,7 @@ test_that("add_scenario rejects a grain mismatch", {
 test_that("compare_scenarios summary reports planned_spend deltas vs base", {
   p <- std_plan()
   set <- scenario_set(p, name = "base")
-  set <- add_scenario(set, build_scenario(p, edits = c("Search" = 120),
+  set <- add_scenario(set, build_scenario(p, edits = at_cell("Search" = 120),
                                           name = "boost"))
 
   cmp <- compare_scenarios(set)
@@ -68,7 +68,7 @@ test_that("compare_scenarios summary reports planned_spend deltas vs base", {
 test_that("compare_scenarios cell reports share and per-cell delta", {
   p <- std_plan()
   set <- scenario_set(p, name = "base")
-  set <- add_scenario(set, build_scenario(p, edits = c("TV" = 40), name = "cut"))
+  set <- add_scenario(set, build_scenario(p, edits = at_cell("TV" = 40), name = "cut"))
 
   cell <- compare_scenarios(set, "cell")
   expect_equal(nrow(cell), 6L)  # 2 scenarios x 3 cells
@@ -90,7 +90,7 @@ test_that("compare_scenarios cell reports share and per-cell delta", {
 test_that("compare_scenarios works at a composite grain", {
   p <- fine_plan()
   set <- scenario_set(p, name = "base")
-  set <- add_scenario(set, build_scenario(p, edits = c("TV | A" = 70),
+  set <- add_scenario(set, build_scenario(p, edits = at_cell("TV | A" = 70),
                                           name = "shift"))
   cell <- compare_scenarios(set, "cell")
   expect_equal(nrow(cell), 8L)
@@ -101,12 +101,12 @@ test_that("compare_scenarios works at a composite grain", {
 
 test_that("scenario labels prefer nickname over the formal name", {
   base <- media_plan_from_df(
-    data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-    grain = "channel", name = "Q2 2026 Brand Plan", nickname = "baseline")
+    data.frame(week = fix_week(), channel = c("TV", "Search"), planned_spend = c(80, 40)),
+    grain = "channel", time = "week", name = "Q2 2026 Brand Plan", nickname = "baseline")
   set <- scenario_set(base)
   expect_identical(names(set@scenarios), "baseline")
 
-  s <- build_scenario(base, edits = c("TV" = 100),
+  s <- build_scenario(base, edits = at_cell("TV" = 100),
                       name = "Q2 2026 Brand Plan v2", nickname = "aggressive TV")
   set <- add_scenario(set, s)
   expect_true("aggressive TV" %in% names(set@scenarios))
@@ -123,7 +123,8 @@ test_that("labels fall back to the formal name when there is no nickname", {
 # table entirely -- so a cut read as money appearing from nowhere.
 
 indep <- function(nick, d) {
-  media_plan_from_df(d, grain = c("channel", "partner"),
+  d$week <- fix_week()
+  media_plan_from_df(d, grain = c("channel", "partner"), time = "week",
                      name = "Q2 Plan", nickname = nick)
 }
 

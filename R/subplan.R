@@ -58,28 +58,26 @@
 
 # The subplan summed to the parent's grain: the rows the parent holds for that
 # cell. Two axes. Dimensions collapse through .aggregate_to(), the same sum
-# roll_up() uses. Cadence is bridged first when the parent is weekly:
-# calendarize() re-cuts the subplan's days onto the parent's weeks, so a daily
-# or a Sunday-start subplan lands on a Monday-start topline correctly.
+# roll_up() uses. Cadence is bridged first: calendarize() re-cuts the subplan's
+# days onto the parent's own calendar, so a daily or a Sunday-start subplan
+# lands on a Monday-start weekly topline correctly, and a weekly subplan lands
+# on a monthly one.
 .subplan_rollup <- function(parent, sub) {
-  pw <- parent@week_col
-  if (!length(pw)) {
-    # A timeless parent: time collapses, as roll_up() would collapse it.
-    return(.aggregate_to(sub@data, parent@grain))
-  }
-  if (!length(sub@week_col)) {
-    stop("the parent is weekly, so a subplan needs a week column to place its ",
-         "spend on the parent's calendar; this one has no time dimension.",
-         call. = FALSE)
+  pw <- parent@time_col
+  pb <- parent@time_basis
+  if (identical(pb, "instant")) {
+    stop("the parent is keyed by moments, so there is no calendar to place a ",
+         "subplan's spend on. Re-key the parent by day, week or month, or ",
+         "plan the detail on the parent itself.", call. = FALSE)
   }
   ws <- week_start(parent)
-  if (is.na(ws)) {
+  if (identical(pb, "week") && is.na(ws)) {
     stop("cannot place the subplan on the parent's calendar: the parent's ",
          "weeks do not all start on one weekday (or it has no weeks yet).",
          call. = FALSE)
   }
-  r <- calendarize(sub, "week", week_start = ws)
-  names(r)[names(r) == "week"] <- pw
+  r <- calendarize(sub, pb, week_start = if (is.na(ws)) NULL else ws)
+  names(r)[names(r) == pb] <- pw
   .aggregate_to(r, parent@grain)
 }
 
@@ -194,10 +192,11 @@
 #' refinement.
 #'
 #' @section Cadence:
-#' A weekly parent needs a subplan with a week column; its spend is re-cut onto
-#' the parent's weeks with [calendarize()] before the rollup, so daily flights
-#' or a different week start land correctly. A parent with no time dimension
-#' accepts any subplan and collapses time as [roll_up()] would.
+#' The subplan's spend is re-cut onto the parent's own calendar with
+#' [calendarize()] before the rollup, so daily flights, a different week start,
+#' or a weekly subplan beneath a monthly topline all land correctly. The one
+#' parent that cannot host a subplan is one keyed by moments: a spot schedule
+#' is not a calendar to gather anything onto.
 #'
 #' @section What attaching changes:
 #' Only the parent. It keeps its `@id` and `@revision`; its rows at the cell
@@ -225,13 +224,15 @@
 #'   plan holds any subplan.
 #' @examples
 #' topline <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(100, 40)),
-#'   grain = "channel", name = "Q3 topline"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(100, 40)),
+#'   grain = "channel", time = "week", name = "Q3 topline"
 #' )
 #' tv <- media_plan_from_df(
-#'   data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = "TV", partner = c("NBC", "ESPN"),
 #'              planned_spend = c(70, 50)),
-#'   grain = c("channel", "partner"), name = "TV detail"
+#'   grain = c("channel", "partner"), time = "week", name = "TV detail"
 #' )
 #' p <- attach_subplan(topline, tv)
 #' p@data                      # TV is now 120, from the subplan

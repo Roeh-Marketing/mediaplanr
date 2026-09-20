@@ -65,27 +65,51 @@
     stop(where, "`during` must be a list with `from` and `to` dates.",
          call. = FALSE)
   }
-  from <- .as_op_date(during[["from"]], "during$from", where)
-  to   <- .as_op_date(during[["to"]],   "during$to",   where)
+  # A window given as dates against a plan of moments means whole days: from
+  # midnight of `from` through the last moment of `to`.
+  tv   <- d[[plan@time_col]]
+  from <- .as_op_time(during[["from"]], "during$from", tv, where)
+  to   <- .as_op_time(during[["to"]],   "during$to",   tv, where, end = TRUE)
   if (to < from) {
     stop(where, "`during` ends (", format(to), ") before it starts (",
          format(from), ").", call. = FALSE)
   }
-  span <- .span_of(d, plan@week_col)
-  if (is.null(span)) {
-    stop(where, "`during` needs a plan with a week column; this plan has no ",
-         "time dimension.", call. = FALSE)
-  }
+  span <- .span_of(d, plan@time_col, plan@time_basis)
   span$start <= to & span$end >= from
 }
 
-# A date supplied inside an op, which for an LLM caller arrives as a string.
+# A date or moment from an op, read in the PLAN's frame rather than the
+# session's.
+#
+# "2026-02-08 20:45" means a quarter to nine on the plan's clock, whoever's
+# machine the op is parsed on. Without this an op does not round-trip: a spot
+# added at 20:45 to a UTC schedule lands five hours out for a caller in New
+# York, silently, because base R reads a bare string in the session timezone.
+# A value that arrives already typed is left alone -- it names an instant, and
+# whoever built it meant it.
+#
+# `end = TRUE` reads a bare date as the END of that day, so "through Feb 8"
+# includes the 20:00 spot rather than stopping at midnight.
+.as_op_time <- function(x, what, like, where = "", end = FALSE) {
+  v <- .as_op_date(x, what, where)
+  if (is.character(x) && inherits(v, "POSIXct")) {
+    tz <- attr(like, "tzone")
+    if (!is.null(tz)) {
+      v <- as.POSIXct(format(v, "%Y-%m-%d %H:%M:%S"), tz = tz)
+    }
+  }
+  if (end) .align_time_end(v, like) else .align_time(v, like)
+}
+
+# A date -- or a moment -- supplied inside an op, which for an LLM caller
+# arrives as a string.
 .as_op_date <- function(x, what, where = "") {
-  if (inherits(x, "Date")) return(x[1])
-  d <- suppressWarnings(tryCatch(as.Date(as.character(x)[1]),
+  if (inherits(x, "Date") || inherits(x, "POSIXct")) return(x[1])
+  d <- suppressWarnings(tryCatch(.as_time_col(as.character(x)[1], what),
                                  error = function(e) NA))
-  if (is.na(d)) {
-    stop(where, "`", what, "` must be a Date or an ISO-8601 date string; got: ",
+  if (length(d) != 1 || is.na(d)) {
+    stop(where, "`", what, "` must be a Date, a moment, or an ISO-8601 string ",
+         "of either; got: ",
          paste(utils::head(as.character(x), 1), collapse = ""), ".",
          call. = FALSE)
   }
@@ -236,7 +260,7 @@
          call. = FALSE)
   }
 
-  wk <- plan@week_col
+  wk <- plan@time_col
   li <- setdiff(plan@grain, wk)
   miss <- setdiff(li, names(spec))
   if (length(miss)) {
@@ -245,26 +269,28 @@
   }
 
   has_flight <- all(c("flight_start", "flight_end") %in% names(spec))
-  if (length(wk) && !has_flight && !wk %in% names(spec)) {
-    stop(where, "`add` needs either `", wk, "` or flight_start/flight_end: the ",
-         "plan is weekly, so a new line item has to say when it runs.",
-         call. = FALSE)
+  if (!has_flight && !wk %in% names(spec)) {
+    stop(where, "`add` needs either `", wk, "` or flight_start/flight_end: a ",
+         "new line item has to say when it runs.", call. = FALSE)
   }
 
   if (has_flight) {
-    fs <- .as_op_date(spec[["flight_start"]], "add$flight_start", where)
-    fe <- .as_op_date(spec[["flight_end"]],   "add$flight_end",   where)
+    # Read in the plan's own type: a date given to a timed plan means that whole
+    # day, and a moment given to a weekly one means the day it falls on.
+    fs <- .as_op_time(spec[["flight_start"]], "add$flight_start", d[[wk]], where)
+    fe <- .as_op_time(spec[["flight_end"]], "add$flight_end", d[[wk]], where,
+                      end = TRUE)
     if (fe < fs) {
       stop(where, "the added flight ends (", format(fe), ") before it starts (",
            format(fs), ").", call. = FALSE)
     }
     ws <- .plan_week_start(plan)
-    sp <- .spread_flight(fs, fe, spend, ws)
-    # Adding a flight to a plan authored week-by-week introduces the flighting
-    # columns, NA on every row that is not part of a flight.
-    d   <- .ensure_flight_cols(d)
+    sp <- .spread_flight(fs, fe, spend, plan@time_basis, ws)
+    # Adding a flight to a plan authored period-by-period introduces the
+    # flighting columns, NA on every row that is not part of a flight.
+    d   <- .ensure_flight_cols(d, d[[wk]])
     new <- .blank_rows(d, nrow(sp))
-    if (length(wk)) new[[wk]] <- sp[["week"]]
+    new[[wk]] <- sp[["period"]]
     new[["planned_spend"]] <- sp[["planned_spend"]]
     new[["flight_id"]]    <- .flight_ids(1L)
     new[["flight_start"]] <- fs
@@ -273,9 +299,7 @@
     new[["pacing"]]       <- "even"
   } else {
     new <- .blank_rows(d, 1L)
-    if (length(wk)) {
-      new[[wk]] <- .as_op_date(spec[[wk]], paste0("add$", wk), where)
-    }
+    new[[wk]] <- .as_op_time(spec[[wk]], paste0("add$", wk), d[[wk]], where)
     new[["planned_spend"]] <- spend
   }
   for (nm in li) new[[nm]] <- spec[[nm]]
@@ -307,11 +331,15 @@
 }
 
 # Give `d` the flighting columns if it lacks them, NA throughout. A plan
-# authored week-by-week has none until a flight is added to it.
-.ensure_flight_cols <- function(d) {
+# authored period-by-period has none until a flight is added to it.
+#
+# `like` is the plan's time column: the flight dates are compared against it on
+# every span, so they are minted in its type -- moments on a timed plan, dates
+# otherwise -- rather than always as Dates.
+.ensure_flight_cols <- function(d, like = as.Date(NA)) {
   for (nm in setdiff(flight_cols(), names(d))) {
     d[[nm]] <- if (nm %in% c("flight_start", "flight_end")) {
-      as.Date(rep(NA_real_, nrow(d)))
+      .as_time_like(rep(NA_real_, nrow(d)), like)
     } else {
       NA_character_
     }
@@ -338,8 +366,11 @@
     stop(where, "`restage` must be a list with `from` and `to` dates.",
          call. = FALSE)
   }
-  from <- .as_op_date(spec[["from"]], "restage$from", where)
-  to   <- .as_op_date(spec[["to"]],   "restage$to",   where)
+  # Read in the plan's own frame, here rather than in .restage_one(), so the
+  # two are comparable before anything is moved.
+  tv   <- d[[plan@time_col]]
+  from <- .as_op_time(spec[["from"]], "restage$from", tv, where)
+  to   <- .as_op_time(spec[["to"]],   "restage$to",   tv, where, end = TRUE)
   if (to < from) {
     stop(where, "`restage` ends (", format(to), ") before it starts (",
          format(from), ").", call. = FALSE)
@@ -359,33 +390,36 @@
 # place and half in another is not a thing a planner can buy.
 .restage_rows <- function(d, plan, keep, by = NULL, from = NULL, to = NULL,
                           where = "") {
-  wk <- plan@week_col
-  if (!length(wk)) {
-    stop(where, "this plan has no time dimension, so there is nothing to move.",
-         call. = FALSE)
-  }
-  ws  <- .plan_week_start(plan)
+  wk    <- plan@time_col
+  basis <- plan@time_basis
+  ws    <- .plan_week_start(plan)
   ids <- if ("flight_id" %in% names(d)) unique(d[["flight_id"]][keep]) else NULL
   ids <- ids[!is.na(ids)]
 
-  # Rows with no flight: move the week itself. Only whole weeks, because a week
-  # column shifted by three days no longer holds week starts.
+  # Rows with no flight: move the period itself. The move has to land on the
+  # plan's own calendar -- a week column shifted by three days no longer holds
+  # week starts -- so what counts as a legal shift depends on the basis.
   plain <- keep & (if (length(ids)) !(d[["flight_id"]] %in% ids) else TRUE)
   plain[is.na(plain)] <- keep[is.na(plain)]
   if (any(plain)) {
     if (is.null(by)) {
       stop(where, "`restage` needs flights: row(s) matched here record no ",
            "flight, so they have no in-market dates to restage. Use `shift` to ",
-           "move their weeks, or `drop` and `add` to replace them.",
+           "move their periods, or `drop` and `add` to replace them.",
            call. = FALSE)
     }
-    if (by %% 7L != 0L) {
+    if (identical(basis, "week") && by %% 7L != 0L) {
       stop(where, "`shift` on rows that record no flight must be a whole ",
            "number of weeks (a multiple of 7); got ", by, ". Those rows are ",
            "keyed by week start, which a part-week shift would break.",
            call. = FALSE)
     }
-    d[[wk]][plain] <- .as_date(d[[wk]][plain] + by)
+    if (identical(basis, "month")) {
+      stop(where, "this plan is keyed by month, so shifting its rows by days ",
+           "would move them off month starts. Restage the flight, or `drop` ",
+           "and `add` the rows.", call. = FALSE)
+    }
+    d[[wk]][plain] <- .shift_time(d[[wk]][plain], by)
   }
 
   for (id in ids) {
@@ -398,39 +432,44 @@
     dups <- unique(k[duplicated(k)])
     stop(where, "moving it there would collide with what is already planned: ",
          paste(utils::head(dups, 3), collapse = "; "),
-         ". A plan holds one period per line item per week.", call. = FALSE)
+         ". A plan holds one row per line item per period.", call. = FALSE)
   }
   d
 }
 
 .restage_one <- function(d, plan, id, by, from, to, ws, where) {
-  wk <- plan@week_col
+  wk    <- plan@time_col
+  basis <- plan@time_basis
   i  <- which(d[["flight_id"]] == id)
   fs <- d[["flight_start"]][i][1]
   fe <- d[["flight_end"]][i][1]
 
-  new_fs <- if (is.null(by)) from else .as_date(fs + by)
-  new_fe <- if (is.null(by)) to   else .as_date(fe + by)
+  # `by` is whole days, in the flight column's own type; `from`/`to` are read
+  # in it, so a timed buy can be restaged to a date and a dated one to a moment.
+  # `by` is whole days, in the flight column's own type; `from` and `to` have
+  # already been read in the plan's frame by .op_restage().
+  new_fs <- if (is.null(by)) .align_time(from, fs)   else .shift_time(fs, by)
+  new_fe <- if (is.null(by)) .align_time_end(to, fe) else .shift_time(fe, by)
 
   total <- sum(d[["planned_spend"]][i])
-  sp    <- .spread_flight(new_fs, new_fe, total, ws)
+  sp    <- .spread_flight(new_fs, new_fe, total, basis, ws)
 
-  # A hand-shaped flight has per-week values with nowhere to land if the week
-  # structure changes. Carry the shape across when it maps 1:1, and refuse
-  # otherwise rather than silently discarding the planner's work.
+  # A hand-shaped flight has per-period values with nowhere to land if the
+  # period structure changes. Carry the shape across when it maps 1:1, and
+  # refuse otherwise rather than silently discarding the planner's work.
   if (identical(d[["pacing"]][i][1], "custom")) {
-    old_span <- .span_of(d, wk)[i, , drop = FALSE]
+    old_span <- .span_of(d, wk, basis)[i, , drop = FALSE]
     old_ord  <- order(old_span$start)
-    old_days <- as.integer(old_span$end - old_span$start)[old_ord] + 1L
-    new_days <- as.integer(sp[["week"]] +
-                             pmin(6L, as.integer(new_fe - sp[["week"]])) -
-                             pmax(sp[["week"]], new_fs)) + 1L
+    old_days <- as.integer(.to_date(old_span$end) -
+                             .to_date(old_span$start))[old_ord] + 1L
+    new_days <- as.integer(pmin(.period_end(sp[["period"]], basis), new_fe) -
+                             pmax(sp[["period"]], new_fs)) + 1L
     if (!identical(old_days, new_days)) {
       stop(where, "flight ", id, " is custom-paced, and moving it there ",
-           "changes its week structure (", paste(old_days, collapse = "+"),
+           "changes its period structure (", paste(old_days, collapse = "+"),
            " days becomes ", paste(new_days, collapse = "+"),
-           "), so its hand-set weekly figures have nowhere to land. Move it a ",
-           "whole number of weeks, or re-shape it after moving.",
+           "), so its hand-set figures have nowhere to land. Move it a whole ",
+           "number of periods, or re-shape it after moving.",
            call. = FALSE)
     }
     sp[["planned_spend"]] <- d[["planned_spend"]][i][old_ord]
@@ -441,7 +480,7 @@
                                  "flight_end"))) {
     new[[nm]] <- d[[nm]][i][1]
   }
-  new[[wk]]              <- sp[["week"]]
+  new[[wk]]              <- sp[["period"]]
   new[["planned_spend"]] <- sp[["planned_spend"]]
   new[["flight_start"]]  <- new_fs
   new[["flight_end"]]    <- new_fe
@@ -514,7 +553,7 @@
   # .repace() re-derives each flight's pacing; a flight is never broken by an
   # edit, only re-labelled "custom" when its shape no longer matches an even
   # spread.
-  .repace(.reunit(d), plan@week_col)
+  .repace(.reunit(d), plan@time_col, plan@time_basis)
 }
 
 #' Derive a new scenario plan from a base plan
@@ -643,9 +682,10 @@
 #' @return A new [MediaPlan] at the base plan's grain, with `@parent_id` set.
 #' @examples
 #' base <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search", "Social"),
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search", "Social"),
 #'              planned_spend = c(80, 40, 40)),
-#'   grain = "channel", name = "base"
+#'   grain = "channel", time = "week", name = "base"
 #' )
 #'
 #' # "Increase Search by 20%" — the caller states intent, R does the math
@@ -665,15 +705,18 @@
 #' # Absolute allocation (e.g. from mrmopt::opt_mix())
 #' build_scenario(
 #'   base,
-#'   edits = data.frame(channel = c("TV", "Search"), planned_spend = c(50, 70)),
+#'   edits = data.frame(week = as.Date("2026-07-06"),
+#'                      channel = c("TV", "Search"), planned_spend = c(50, 70)),
 #'   name = "Optimized"
 #' )
 #'
-#' # Terse single-cell override
-#' build_scenario(base, edits = c("Search" = 120), name = "Search boost")
+#' # Terse single-cell override, keyed by line_item() at the full grain
+#' build_scenario(base, edits = c("Search | 2026-07-06" = 120),
+#'                name = "Search boost")
 #'
 #' # A plan can gain and lose line items
 #' build_scenario(base, edits = list(add = list(channel = "Audio",
+#'                                              week = "2026-07-06",
 #'                                              planned_spend = 25)),
 #'                name = "add audio")
 #' build_scenario(base, edits = list(target = list(channel = "TV"), drop = TRUE),

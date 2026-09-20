@@ -20,8 +20,9 @@ Start a scenario set from a base plan
 }
 \examples{
 base <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-  grain = "channel", name = "Q3 base"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80, 40)),
+  grain = "channel", time = "week", name = "Q3 base"
 )
 scenario_set(base)
 }

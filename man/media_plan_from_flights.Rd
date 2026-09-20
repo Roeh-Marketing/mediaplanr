@@ -2,7 +2,7 @@
 % Please edit documentation in R/flighting.R
 \name{media_plan_from_flights}
 \alias{media_plan_from_flights}
-\title{Build a plan from flights rather than weeks}
+\title{Build a plan from flights rather than periods}
 \usage{
 media_plan_from_flights(
   df,
@@ -10,8 +10,10 @@ media_plan_from_flights(
   start = "flight_start",
   end = "flight_end",
   planned_spend = "planned_spend",
-  week = "week",
+  basis = c("week", "day", "month", "instant"),
+  time = NULL,
   week_start = "Monday",
+  tz = NULL,
   period_basis = NULL,
   name,
   ...
@@ -22,7 +24,7 @@ media_plan_from_flights(
 start date, an end date, and a spend.}
 
 \item{grain}{Character vector naming the \strong{line item} columns (channel,
-partner, tactic). The week column is created and appended, so do not
+partner, tactic). The time column is created and appended, so do not
 include it.}
 
 \item{start, end}{Names of the flight start and end date columns. \code{end} is
@@ -30,10 +32,24 @@ inclusive. Coerced to \code{Date}.}
 
 \item{planned_spend}{Name of the flight's total spend column.}
 
-\item{week}{Name for the week column to create. Default \code{"week"}.}
+\item{basis}{The calendar the flights are expanded onto, and the plan's
+\verb{@time_basis}: \code{"week"} (default), \code{"day"}, \code{"month"} or \code{"instant"}.
+\code{"instant"} is for buys bought by the slot rather than the period — a
+30-second spot at 20:00:00, a half-hour sponsorship from 20:00 to 20:30.
+Each one becomes a single row keyed at the moment it starts, carrying its
+whole total: there is nothing to spread, and the buy's length is read back
+off its flight dates.}
+
+\item{time}{Name for the time column to create. Defaults to \code{basis}, so a
+weekly plan gets a \code{week} column and a monthly one a \code{month} column; a
+timed plan gets \code{time}.}
 
 \item{week_start}{Weekday the plan's weeks begin on — a name or 1-7 with
-Monday as 1. Default \code{"Monday"}, the US broadcast convention.}
+Monday as 1. Default \code{"Monday"}, the US broadcast convention. Used when
+\code{basis = "week"}.}
+
+\item{tz}{The plan's timezone, as an Olson name. Timed flight dates given as
+strings are read on it. See \code{\link[=media_plan_from_df]{media_plan_from_df()}}.}
 
 \item{period_basis}{Optional column naming each flight's cadence, validated
 against \code{\link[=period_basis_levels]{period_basis_levels()}}. Inferred per flight when absent.}
@@ -44,21 +60,27 @@ against \code{\link[=period_basis_levels]{period_basis_levels()}}. Inferred per 
 \code{advertiser}, \code{planner}, \code{status}, \code{objective}, \code{id}, \code{parent_id}.}
 }
 \value{
-A validated \link{MediaPlan} at grain \code{c(grain, week)}, carrying the
+A validated \link{MediaPlan} at grain \code{c(grain, time)}, carrying the
 \code{\link[=flight_cols]{flight_cols()}}.
 }
 \description{
 The other door into a \link{MediaPlan}. Where \code{\link[=media_plan_from_df]{media_plan_from_df()}} takes the
-plan already laid out by week, this takes it as a planner states it — one row
-per \strong{flight}, with in-market dates and a total — and expands it onto the
-weekly rows \verb{@data} holds. Everything downstream (the grid, \code{roll_up()},
-\code{build_scenario()}, \code{compare_scenarios()}) sees the ordinary weekly shape.
+plan already laid out period by period, this takes it as a planner states
+it — one row per \strong{flight}, with in-market dates and a total — and expands
+it onto the rows \verb{@data} holds. Everything downstream (the grid,
+\code{roll_up()}, \code{build_scenario()}, \code{compare_scenarios()}) sees the ordinary
+shape.
 }
 \details{
 Spend is spread evenly across the flight's days and then gathered into the
-weeks those days fall in, so a flight that starts mid-week contributes a part
-week at each ragged end. The split is exact to the cent: the weekly figures
-always re-sum to the flight total.
+periods those days fall in, so a flight that starts mid-week contributes a
+part week at each ragged end. The split is exact to the cent: the period
+figures always re-sum to the flight total.
+
+A buy bought by the slot rather than the period — a 30-second spot, a
+half-hour sponsorship — is the degenerate case: with \code{basis = "instant"} each
+one becomes a single row at the moment it starts, carrying its whole total.
+Nothing is spread, and the buy's length is read back off its flight.
 
 Each input row is given a \code{flight_id}, which is what makes \code{\link[=flights]{flights()}} an
 exact inverse. Without it the expansion could not be undone — four equal

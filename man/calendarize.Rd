@@ -7,12 +7,15 @@
 calendarize(plan, basis = c("week", "day", "month"), week_start = NULL)
 }
 \arguments{
-\item{plan}{A \link{MediaPlan} with a time dimension.}
+\item{plan}{A \link{MediaPlan}.}
 
-\item{basis}{\code{"week"} (default), \code{"day"} or \code{"month"}.}
+\item{basis}{The calendar to cut onto: \code{"week"} (default), \code{"day"} or
+\code{"month"}. Not \code{"instant"} — re-cutting spreads a period's spend across
+days, and there is no such thing as spreading it across moments.}
 
 \item{week_start}{Weekday weeks begin on, when \code{basis = "week"}. Defaults to
-the plan's own, read off its data by \code{\link[=week_start]{week_start()}}.}
+the plan's own, read off its data by \code{\link[=week_start]{week_start()}}, and to Monday when
+the plan is not weekly.}
 }
 \value{
 A data frame: the line item columns, a date column named after
@@ -30,11 +33,14 @@ The two are deliberately separate verbs rather than one with a mode flag, so
 they compose: roll a plan up to channel, then cut it to months, in whichever
 order suits.
 
-Because each row's period is its week \strong{clipped to its flight}, a flight that
-starts mid-week contributes only its real days. Re-cutting to months
-therefore splits a week that straddles a month boundary, which is exactly the
-thing that is tedious and error-prone to do by hand. Spend is split in whole
-cents that re-sum to the row's original total.
+Because each row's period is the period its time value opens \strong{clipped to its
+flight}, a flight that starts mid-week contributes only its real days.
+Re-cutting to months therefore splits a week that straddles a month boundary,
+which is exactly the thing that is tedious and error-prone to do by hand.
+Spend is split in whole cents that re-sum to the row's original total.
+
+A plan keyed by moments cuts onto a calendar too: each spot lands on the day
+it airs, and from there into its week or month.
 }
 \section{Why a data frame, not a plan}{
 

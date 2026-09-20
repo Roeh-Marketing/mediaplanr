@@ -6,8 +6,10 @@
 # serialized exactly as a standalone plan is.
 
 # v1: the flat plan. v2 adds `revision` and a recursive `subplans` object; a v1
-# file has neither and reads exactly as it did.
-.plan_schema_version <- 2L
+# file has neither and reads exactly as it did. v3 renames `week_col` to
+# `time_col` and adds `time_basis`; a v1 or v2 file names a week column, which
+# reads as a weekly plan.
+.plan_schema_version <- 3L
 
 # A written tree came through attach_subplan() and is finite. A PARSED file is
 # untrusted and can nest arbitrarily, so the reader carries a defensive bound,
@@ -23,6 +25,7 @@
 # reader that ignores `subplans` still gets the right totals.
 .plan_payload <- function(plan) {
   p <- S7::props(plan)[.settable_props(MediaPlan)]
+  p$data <- .utc_iso(p$data)
   if (length(p$subplans)) {
     p$subplans <- lapply(p$subplans, .plan_payload)
   } else {
@@ -51,17 +54,27 @@
   }
   df    <- as.data.frame(x$data, stringsAsFactors = FALSE)
   grain <- as.character(x$grain)
-  wk    <- if (!is.null(x$week_col) && length(x$week_col) &&
-               nzchar(as.character(x$week_col)[1])) {
-    as.character(x$week_col)[1]
-  } else {
-    NULL
-  }
 
-  # JSON has no Date type, so reparse the week column and the two flight-date
-  # columns. Everything else is already the right type as a string or number.
-  for (dc in intersect(c(wk, "flight_start", "flight_end"), names(df))) {
-    df[[dc]] <- as.Date(df[[dc]])
+  scal1 <- function(v) {
+    if (is.null(v) || !length(v) || !nzchar(as.character(v)[1])) {
+      NULL
+    } else {
+      as.character(v)[1]
+    }
+  }
+  # `week_col` is what v1 and v2 files call it, and such a file is weekly by
+  # construction -- there was no other kind.
+  tc <- scal1(x$time_col) %||% scal1(x$week_col)
+  tb <- scal1(x$time_basis) %||% if (is.null(scal1(x$time_col))) "week" else NULL
+  # Moments are written in UTC, so the instants come back exact; the plan's own
+  # zone then puts them back on the clock they were stated on.
+  tz <- scal1(x$tz) %||% ""
+
+  # JSON has no date type, so reparse the time column and the two flight-date
+  # columns; which type they are is the basis's answer. Everything else is
+  # already right as a string or a number.
+  for (dc in intersect(c(tc, "flight_start", "flight_end"), names(df))) {
+    df[[dc]] <- .parse_json_time(df[[dc]], tb)
   }
 
   scal <- function(v) if (is.null(v) || !length(v)) "" else as.character(v)[1]
@@ -73,7 +86,7 @@
               !is.na(x$revision[1])) x$revision[1] else 1L
 
   plan <- media_plan_from_df(
-    df, grain = grain, week = wk,
+    df, grain = grain, time = tc, time_basis = tb, tz = tz,
     planned_units = if ("planned_units" %in% uc) "planned_units" else NULL,
     planned_rate  = if ("planned_rate"  %in% uc) "planned_rate"  else NULL,
     unit_type     = if ("unit_type"     %in% uc) "unit_type"     else NULL,
@@ -101,7 +114,8 @@
 #'
 #' Writes a [MediaPlan] or a [ScenarioSet] to JSON that [plan_from_json()] can
 #' rebuild faithfully. For a plan, only its *settable* slots are written —
-#' `@data`, `@grain`, `@week_col`, `@id`, `@parent_id`, and the metadata scalars
+#' `@data`, `@grain`, `@time_col`, `@time_basis`, `@tz`, `@id`, `@parent_id`,
+#' and the metadata scalars
 #' — plus an `object` tag and a `schema_version`. Derived facts
 #' (`flight_window()`, `pacing`, `week_start()`) are deliberately not stored;
 #' they are recomputed on rebuild, so the JSON stays small and cannot persist a
@@ -110,14 +124,18 @@
 #'
 #' Dates are written as ISO-8601 strings, since JSON has no date type, and
 #' missing flight cells (rows that are not part of an authored flight) are
-#' written as `null`.
+#' written as `null`. A plan keyed by moments writes them in UTC
+#' (`2026-04-06T20:30:00Z`) so the instant survives exactly, and `@tz` travels
+#' with the plan, so it reads back on the clock it was stated on.
 #'
 #' **Subplans recurse.** A topline's `@subplans` is written as a `subplans`
 #' object, each entry serialized exactly as a standalone plan is, one level
 #' down. The key is omitted when there are none, so a flat plan's JSON is
 #' unchanged. The parent's `@data` is still written in full, so a reader that
 #' ignores `subplans` still gets the right totals. Schema version 2 added
-#' `revision` and `subplans`.
+#' `revision` and `subplans`; version 3 renamed `week_col` to `time_col` and
+#' added `time_basis`, and still reads a v1 or v2 file as the weekly plan it
+#' was.
 #'
 #' @param x A [MediaPlan] or [ScenarioSet].
 #' @param path Optional file path. When supplied, the JSON is written there and
@@ -127,8 +145,9 @@
 #' @seealso [plan_from_json()]
 #' @examples
 #' p <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
-#'   grain = "channel", name = "Q3"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
+#'   grain = "channel", time = "week", name = "Q3"
 #' )
 #' js <- plan_to_json(p)
 #' identical(plan_from_json(js)@data, p@data)
@@ -155,8 +174,8 @@ plan_to_json <- function(x, path = NULL, pretty = TRUE) {
   }
 
   js <- jsonlite::toJSON(payload, dataframe = "rows", Date = "ISO8601",
-                         na = "null", null = "null", auto_unbox = TRUE,
-                         pretty = pretty)
+                         POSIXt = "ISO8601", na = "null", null = "null",
+                         auto_unbox = TRUE, pretty = pretty)
 
   if (!is.null(path)) {
     writeLines(js, path)
@@ -196,8 +215,9 @@ plan_to_json <- function(x, path = NULL, pretty = TRUE) {
 #' @seealso [plan_to_json()]
 #' @examples
 #' p <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
-#'   grain = "channel", name = "Q3"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
+#'   grain = "channel", time = "week", name = "Q3"
 #' )
 #' plan_from_json(plan_to_json(p))
 #' plan_from_json(plan_to_json(scenario_set(p)))
@@ -237,4 +257,28 @@ plan_from_json <- function(txt) {
   } else {
     .plan_from_payload(x)
   }
+}
+
+# Moments, written as UTC with a trailing Z.
+#
+# jsonlite's own ISO8601 for POSIXt writes the local wall clock with no offset,
+# which is lossy: read back anywhere else it is a different instant. A wall
+# clock plus @tz would be lossy too -- an hour that repeats at a DST fall-back
+# names two moments -- so what is written is the instant, and @tz travels
+# separately to put it back on the plan's clock.
+.utc_iso <- function(d) {
+  for (nm in names(d)) {
+    if (inherits(d[[nm]], "POSIXct")) {
+      d[[nm]] <- format(d[[nm]], "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+    }
+  }
+  d
+}
+
+# A serialized time column, back in its own type. Which type that is is the
+# basis's answer: moments on an "instant" plan, dates otherwise. Written in UTC
+# with a T and a trailing Z, which base R's parser does not take as it stands.
+.parse_json_time <- function(v, basis) {
+  if (!identical(basis, "instant")) return(as.Date(v))
+  as.POSIXct(sub("Z$", "", sub("T", " ", as.character(v))), tz = "UTC")
 }

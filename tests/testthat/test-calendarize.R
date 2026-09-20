@@ -50,7 +50,7 @@ test_that("rows of one line item landing in the same period are summed", {
   p <- media_plan_from_df(
     data.frame(week = as.Date(c("2026-04-06", "2026-04-13")),
                channel = "TV", planned_spend = c(10, 20)),
-    grain = c("channel", "week"), week = "week", name = "two weeks")
+    grain = "channel", time = "week", name = "two weeks")
   r <- calendarize(p, "month")
   expect_identical(nrow(r), 1L)
   expect_equal(r$planned_spend, 30)
@@ -113,20 +113,28 @@ test_that("the result is an ordinary data frame, and can become a plan", {
   r <- calendarize(straddler(), "month")
   expect_s3_class(r, "data.frame")
   expect_false(any(flight_cols() %in% names(r)))
-  p2 <- media_plan_from_df(r, grain = c("channel", "month"), week = "month",
+  p2 <- media_plan_from_df(r, grain = "channel", time = "month",
                            name = "monthly")
   expect_equal(sum(p2@data$planned_spend), 210000)
 })
 
-test_that("a plan with no time dimension cannot be calendarized", {
-  expect_error(calendarize(std_plan()), "no time dimension")
+test_that("a plan keyed by moments cuts onto the days its spots air", {
+  p <- media_plan_from_df(
+    data.frame(airs = as.POSIXct(c("2026-04-06 20:30:00", "2026-04-06 23:40:00",
+                                   "2026-04-07 21:00:00"), tz = "UTC"),
+               channel = "TV", planned_spend = c(10, 20, 40)),
+    grain = "channel", time = "airs", name = "spots")
+  d <- calendarize(p, "day")
+  expect_identical(d$day, as.Date(c("2026-04-06", "2026-04-07")))
+  expect_equal(d$planned_spend, c(30, 40))
+  expect_equal(sum(d$planned_spend), sum(p@data$planned_spend))
 })
 
 test_that("rows with no dates are refused rather than dropped", {
   p <- media_plan_from_df(
     data.frame(week = as.Date(c(NA, "2026-04-06")), channel = c("TV", "Search"),
                planned_spend = c(10, 20)),
-    grain = c("channel", "week"), week = "week", name = "partly dated")
+    grain = "channel", time = "week", name = "partly dated")
   expect_error(calendarize(p), "cannot be placed on a calendar")
 })
 

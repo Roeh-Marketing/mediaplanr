@@ -7,9 +7,9 @@
 # TV detail at channel + partner, refining std_plan()'s TV cell (80 -> 120).
 tv_sub <- function(spend = c(70, 50), name = "TV detail") {
   media_plan_from_df(
-    data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+    data.frame(week = fix_week(), channel = "TV", partner = c("NBC", "ESPN"),
                planned_spend = spend, stringsAsFactors = FALSE),
-    grain = c("channel", "partner"), name = name
+    grain = c("channel", "partner"), time = "week", name = name
   )
 }
 
@@ -33,17 +33,17 @@ test_that("attach replaces the cell with the rollup and leaves the rest alone", 
 })
 
 test_that("a same-grain subplan is allowed: ownership without refinement", {
-  own <- media_plan_from_df(data.frame(channel = "TV", planned_spend = 95),
-                            grain = "channel", name = "tv owner")
+  own <- media_plan_from_df(data.frame(week = fix_week(), channel = "TV", planned_spend = 95),
+                            grain = "channel", time = "week", name = "tv owner")
   p <- attach_subplan(std_plan(), own)
   expect_equal(p@data$planned_spend[p@data$channel == "TV"], 95)
 })
 
 test_that("attaching to a cell the parent lacks adds it", {
   audio <- media_plan_from_df(
-    data.frame(channel = "Audio", partner = c("Spotify", "Pandora"),
+    data.frame(week = fix_week(), channel = "Audio", partner = c("Spotify", "Pandora"),
                planned_spend = c(5, 7)),
-    grain = c("channel", "partner"), name = "audio")
+    grain = c("channel", "partner"), time = "week", name = "audio")
   p <- attach_subplan(std_plan(), audio)
   expect_equal(nrow(p@data), 4)
   expect_equal(p@data$planned_spend[p@data$channel == "Audio"], 12)
@@ -60,9 +60,9 @@ test_that("re-attaching replaces the held subplan and the rows", {
 
 test_that("two subplans on different cells coexist", {
   se <- media_plan_from_df(
-    data.frame(channel = "Search", engine = c("Google", "Bing"),
+    data.frame(week = fix_week(), channel = "Search", engine = c("Google", "Bing"),
                planned_spend = c(30, 5)),
-    grain = c("channel", "engine"), name = "search")
+    grain = c("channel", "engine"), time = "week", name = "search")
   p <- attach_subplan(attach_subplan(std_plan(), tv_sub()), se)
   expect_setequal(names(p@subplans), c("TV", "Search"))
   expect_equal(sum(p@data$planned_spend), 120 + 35 + 40)
@@ -75,9 +75,9 @@ test_that("a coarser or sideways subplan is refused", {
   expect_error(attach_subplan(fine_plan(), std_plan()),
                "must contain the parent's.*lacks: partner")
   # parent channel; subplan partner only -- sideways
-  side <- media_plan_from_df(data.frame(partner = c("A", "B"),
+  side <- media_plan_from_df(data.frame(week = fix_week(), partner = c("A", "B"),
                                         planned_spend = c(1, 2)),
-                             grain = "partner", name = "side")
+                             grain = "partner", time = "week", name = "side")
   expect_error(attach_subplan(std_plan(), side), "lacks: channel")
 })
 
@@ -88,20 +88,21 @@ test_that("a subplan spanning several parent cells is refused", {
 
 test_that("an empty subplan and a non-plan are refused", {
   empty <- media_plan_from_df(
-    data.frame(channel = character(0), planned_spend = numeric(0)),
-    grain = "channel", name = "empty")
+    data.frame(week = as.Date(character(0)), channel = character(0),
+               planned_spend = numeric(0)),
+    grain = "channel", time = "week", name = "empty")
   expect_error(attach_subplan(std_plan(), empty), "no rows")
   expect_error(attach_subplan(std_plan(), data.frame()), "must be a MediaPlan")
   expect_error(attach_subplan(data.frame(), tv_sub()), "must be a MediaPlan")
 })
 
 test_that("a plan cannot be attached beneath itself, directly or nested", {
-  only_tv <- media_plan_from_df(data.frame(channel = "TV", planned_spend = 1),
-                                grain = "channel", name = "only tv")
+  only_tv <- media_plan_from_df(data.frame(week = fix_week(), channel = "TV", planned_spend = 1),
+                                grain = "channel", time = "week", name = "only tv")
   expect_error(attach_subplan(only_tv, only_tv), "its own descendant")
 
-  x <- media_plan_from_df(data.frame(channel = "TV", planned_spend = 2),
-                          grain = "channel", name = "x")
+  x <- media_plan_from_df(data.frame(week = fix_week(), channel = "TV", planned_spend = 2),
+                          grain = "channel", time = "week", name = "x")
   y <- attach_subplan(only_tv, x)      # y holds x
   expect_error(attach_subplan(x, y), "its own descendant")
 })
@@ -115,7 +116,7 @@ test_that("a weekly parent takes a weekly subplan and its weeks replace the cell
                channel = "TV", partner = "NBC",
                daypart = c("prime", "day", "prime"),
                planned_spend = c(10, 5, 12)),
-    grain = c("channel", "partner", "daypart", "week"), week = "week",
+    grain = c("channel", "partner", "daypart"), time = "week",
     name = "NBC detail")
   p <- attach_subplan(parent, sub)
   d <- p@data[p@data$channel == "TV" & p@data$partner == "NBC", ]
@@ -130,7 +131,7 @@ test_that("a flighted subplan is re-cut onto the parent's weeks", {
   parent <- media_plan_from_df(
     data.frame(week = as.Date("2026-04-06"), channel = c("TV", "Search"),
                planned_spend = c(10, 20)),
-    grain = c("channel", "week"), week = "week", name = "wk")
+    grain = "channel", time = "week", name = "wk")
   fl <- media_plan_from_flights(
     data.frame(channel = "TV", partner = "NBC",
                flight_start = as.Date("2026-04-08"),
@@ -149,56 +150,64 @@ test_that("a flighted subplan is re-cut onto the parent's weeks", {
 test_that("a Sunday-start subplan lands on a Monday-start parent by days", {
   parent <- media_plan_from_df(
     data.frame(week = as.Date("2026-04-06"), channel = "TV", planned_spend = 1),
-    grain = c("channel", "week"), week = "week", name = "mon")
+    grain = "channel", time = "week", name = "mon")
   sun <- media_plan_from_df(
     data.frame(week = as.Date("2026-04-05"), channel = "TV", partner = "NBC",
                planned_spend = 700),
-    grain = c("channel", "partner", "week"), week = "week", name = "sun")
+    grain = c("channel", "partner"), time = "week", name = "sun")
   p <- attach_subplan(parent, sun)
   d <- p@data[order(p@data$week), ]
   expect_equal(d$week, as.Date(c("2026-03-30", "2026-04-06")))
   expect_equal(d$planned_spend, c(100, 600))
 })
 
-test_that("a weekly parent refuses a timeless subplan", {
-  expect_error(attach_subplan(weekly_plan(),
-                              media_plan_from_df(
-                                data.frame(channel = "TV", partner = "NBC",
-                                           planned_spend = 1),
-                                grain = c("channel", "partner"), name = "t")),
-               "no time dimension")
+test_that("a parent keyed by moments has no calendar to place a subplan on", {
+  spots <- media_plan_from_df(
+    data.frame(airs = as.POSIXct("2026-04-06 20:30:00", tz = "UTC"),
+               channel = "TV", planned_spend = 10),
+    grain = "channel", time = "airs", name = "spots")
+  sub <- media_plan_from_df(
+    data.frame(week = as.Date("2026-04-06"), channel = "TV", partner = "NBC",
+               planned_spend = 10),
+    grain = c("channel", "partner"), time = "week", name = "s")
+  expect_error(attach_subplan(spots, sub), "keyed by moments")
 })
 
 test_that("a parent whose weeks do not share a weekday refuses", {
   mixed <- media_plan_from_df(
     data.frame(week = as.Date(c("2026-04-06", "2026-04-12")),
                channel = c("TV", "Search"), planned_spend = c(1, 2)),
-    grain = c("channel", "week"), week = "week", name = "mixed")
+    grain = "channel", time = "week", time_basis = "week", name = "mixed")
   sub <- media_plan_from_df(
     data.frame(week = as.Date("2026-04-06"), channel = "TV", partner = "NBC",
                planned_spend = 5),
-    grain = c("channel", "partner", "week"), week = "week", name = "s")
+    grain = c("channel", "partner"), time = "week", name = "s")
   expect_error(attach_subplan(mixed, sub), "one weekday")
 })
 
-test_that("a timeless parent collapses a weekly subplan's time", {
+test_that("a monthly parent gathers a weekly subplan onto its months", {
+  parent <- media_plan_from_df(
+    data.frame(month = as.Date("2026-04-01"),
+               channel = c("TV", "Search"), planned_spend = c(10, 20)),
+    grain = "channel", time = "month", time_basis = "month", name = "monthly")
   sub <- media_plan_from_df(
     data.frame(week = as.Date(c("2026-04-06", "2026-04-13")), channel = "TV",
                planned_spend = c(30, 45)),
-    grain = c("channel", "week"), week = "week", name = "tv weeks")
-  p <- attach_subplan(std_plan(), sub)
+    grain = "channel", time = "week", name = "tv weeks")
+  p <- attach_subplan(parent, sub)
   expect_equal(p@data$planned_spend[p@data$channel == "TV"], 75)
-  expect_equal(nrow(p@data), 3)
+  expect_equal(nrow(p@data), 2)
+  expect_identical(p@time_col, "month")
 })
 
 # ---- units -----------------------------------------------------------------------
 
 test_that("units roll up with the spend and the parent gains the unit columns", {
   sub <- media_plan_from_df(
-    data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+    data.frame(week = fix_week(), channel = "TV", partner = c("NBC", "ESPN"),
                planned_spend = c(70, 50), impressions = c(7000, 5000),
                unit = "impression"),
-    grain = c("channel", "partner"), planned_units = "impressions",
+    grain = c("channel", "partner"), time = "week", planned_units = "impressions",
     unit_type = "unit", name = "tv units")
   p  <- attach_subplan(std_plan(), sub)
   tv <- p@data[p@data$channel == "TV", ]
@@ -285,6 +294,7 @@ test_that("drop, add, shift and restage refuse a backed cell", {
   expect_error(build_scenario(p, list(target = list(channel = "TV"), drop = TRUE),
                               name = "x"), backed_msg)
   expect_error(build_scenario(p, list(add = list(channel = "TV",
+                                                 week = format(fix_week()),
                                                  planned_spend = 1)),
                               name = "x"), backed_msg)
 
@@ -292,11 +302,11 @@ test_that("drop, add, shift and restage refuse a backed cell", {
     media_plan_from_df(
       data.frame(week = as.Date("2026-04-06"), channel = c("TV", "Search"),
                  planned_spend = c(10, 20)),
-      grain = c("channel", "week"), week = "week", name = "wk"),
+      grain = "channel", time = "week", name = "wk"),
     media_plan_from_df(
       data.frame(week = as.Date("2026-04-06"), channel = "TV", partner = "NBC",
                  planned_spend = 30),
-      grain = c("channel", "partner", "week"), week = "week", name = "s"))
+      grain = c("channel", "partner"), time = "week", name = "s"))
   expect_error(build_scenario(wk, list(target = list(channel = "TV"), shift = 7),
                               name = "x"), backed_msg)
   expect_error(build_scenario(wk, list(target = list(channel = "TV"),
@@ -312,9 +322,10 @@ test_that("drop, add, shift and restage refuse a backed cell", {
 
 test_that("the data frame and named-vector forms refuse a backed cell", {
   p <- attach_subplan(std_plan(), tv_sub())
-  expect_error(build_scenario(p, data.frame(channel = "TV", planned_spend = 1),
+  expect_error(build_scenario(p, data.frame(week = fix_week(), channel = "TV",
+                                            planned_spend = 1),
                               name = "x"), backed_msg)
-  expect_error(build_scenario(p, c(TV = 1), name = "x"), backed_msg)
+  expect_error(build_scenario(p, at_cell(TV = 1), name = "x"), backed_msg)
 })
 
 test_that("edits that avoid backed rows work and the scenario carries the subplans", {
@@ -327,10 +338,11 @@ test_that("edits that avoid backed rows work and the scenario carries the subpla
   expect_true(is_topline(s))
   expect_identical(s@parent_id, p@id)
 
-  s2 <- build_scenario(p, data.frame(channel = "Social", planned_spend = 1),
+  s2 <- build_scenario(p, data.frame(week = fix_week(), channel = "Social",
+                                     planned_spend = 1),
                        name = "df form")
   expect_equal(s2@data$planned_spend[s2@data$channel == "Social"], 1)
-  s3 <- build_scenario(p, c(Social = 2), name = "vector form")
+  s3 <- build_scenario(p, at_cell(Social = 2), name = "vector form")
   expect_equal(s3@data$planned_spend[s3@data$channel == "Social"], 2)
 })
 
@@ -338,22 +350,22 @@ test_that("edits that avoid backed rows work and the scenario carries the subpla
 
 test_that("roll_up drops subplans; build_scenario carries them", {
   p <- attach_subplan(fine_plan(), media_plan_from_df(
-    data.frame(channel = "TV", partner = "A", tactic = c("brand", "promo"),
+    data.frame(week = fix_week(), channel = "TV", partner = "A", tactic = c("brand", "promo"),
                planned_spend = c(20, 25)),
-    grain = c("channel", "partner", "tactic"), name = "tv a"))
+    grain = c("channel", "partner", "tactic"), time = "week", name = "tv a"))
   expect_identical(names(p@subplans), "TV | A")
   r <- roll_up(p, "channel")
   expect_identical(r@subplans, list())
   expect_equal(r@data$planned_spend[r@data$channel == "TV"], 45 + 30)
-  s <- build_scenario(p, c("Search | X" = 1), name = "s")
+  s <- build_scenario(p, at_cell("Search | X" = 1), name = "s")
   expect_identical(names(s@subplans), "TV | A")
 })
 
 test_that("a subplan can itself hold a subplan", {
   nbc <- media_plan_from_df(
-    data.frame(channel = "TV", partner = "NBC", daypart = c("prime", "day"),
+    data.frame(week = fix_week(), channel = "TV", partner = "NBC", daypart = c("prime", "day"),
                planned_spend = c(60, 15)),
-    grain = c("channel", "partner", "daypart"), name = "nbc")
+    grain = c("channel", "partner", "daypart"), time = "week", name = "nbc")
   tv  <- attach_subplan(tv_sub(), nbc)             # TV|NBC 70 -> 75
   p   <- attach_subplan(std_plan(), tv)             # TV 80 -> 125
   expect_equal(p@data$planned_spend[p@data$channel == "TV"], 125)

@@ -21,8 +21,8 @@ actually have rather than remembering whether anyone touched them. Two
 consequences worth knowing:
 \itemize{
 \item Scaling a whole flight, or setting its total, leaves it \code{"even"} — every
-week moves in proportion, so only the amount changed, not the shape.
-\item Editing one week, or adding a flat amount to weeks of unequal length,
+period moves in proportion, so only the amount changed, not the shape.
+\item Editing one period, or adding a flat amount to periods of unequal length,
 makes it \code{"custom"}.
 }
 

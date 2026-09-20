@@ -17,7 +17,7 @@ weekly_two <- function() {
   media_plan_from_df(
     data.frame(week = as.Date(c("2026-04-06", "2026-04-13")), channel = "TV",
                planned_spend = c(10, 20)),
-    grain = c("channel", "week"), week = "week", name = "weekly two")
+    grain = "channel", time = "week", name = "weekly two")
 }
 
 # ---- add ---------------------------------------------------------------------

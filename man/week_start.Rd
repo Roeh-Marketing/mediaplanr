@@ -10,19 +10,23 @@ week_start(plan)
 \item{plan}{A \link{MediaPlan}.}
 }
 \value{
-The weekday name, or \code{NA_character_} when the plan has no time
-dimension, no rows, or weeks that do not all fall on the same weekday.
+The weekday name, or \code{NA_character_} when the plan is not weekly,
+has no rows, or has weeks that do not all fall on the same weekday.
 }
 \description{
-Derived from the week column rather than stored, so it cannot disagree with
+Derived from the time column rather than stored, so it cannot disagree with
 the data. US broadcast weeks begin on a Monday; some advertisers plan
 Sunday-start, and a plan read from a workbook may be either.
+}
+\details{
+Only a weekly plan has one: on a plan whose \verb{@time_basis} is \code{"day"},
+\code{"month"} or \code{"instant"} there is no such weekday and this is \code{NA}.
 }
 \examples{
 p <- media_plan_from_df(
   data.frame(week = as.Date(c("2026-04-06", "2026-04-13")),
              channel = c("TV", "TV"), planned_spend = c(1, 2)),
-  grain = c("channel", "week"), week = "week", name = "Q2 plan"
+  grain = "channel", time = "week", name = "Q2 plan"
 )
 week_start(p)
 }

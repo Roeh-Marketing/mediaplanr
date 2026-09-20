@@ -88,7 +88,8 @@ Cadence is the second axis. A weekly parent needs a subplan with a week
 column; `calendarize(subplan, "week", week_start = week_start(parent))` re-cuts
 its days onto the parent's weeks before the rollup, so daily flights and a
 different week start land correctly. A parent whose weeks do not share a
-weekday cannot host one. A timeless parent collapses time as `roll_up()` does.
+weekday cannot host one. A parent keyed by moments has no calendar to gather a
+subplan onto, and refuses.
 
 **Depth is legal; one level is built and tested.** A subplan is a `MediaPlan`,
 so it carries `@subplans` too, and master → TV → NBC costs nothing to permit.
@@ -219,7 +220,7 @@ and everything else is derived.
 ```r
 ps       <- attr(MediaPlan, "properties")
 settable <- names(ps)[vapply(ps, function(p) is.null(p$getter), logical(1))]
-# @data, @grain, @week_col, @id, @parent_id, and the metadata scalars
+# @data, @grain, @time_col, @time_basis, @id, @parent_id, and the metadata scalars
 ```
 
 `flight_window()`, `pacing`, `week_start()` are **not** written. They are

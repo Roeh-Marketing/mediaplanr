@@ -20,7 +20,8 @@ A JSON string (class \code{json}), or \code{path} invisibly when writing a file.
 \description{
 Writes a \link{MediaPlan} or a \link{ScenarioSet} to JSON that \code{\link[=plan_from_json]{plan_from_json()}} can
 rebuild faithfully. For a plan, only its \emph{settable} slots are written —
-\verb{@data}, \verb{@grain}, \verb{@week_col}, \verb{@id}, \verb{@parent_id}, and the metadata scalars
+\verb{@data}, \verb{@grain}, \verb{@time_col}, \verb{@time_basis}, \verb{@tz}, \verb{@id}, \verb{@parent_id},
+and the metadata scalars
 — plus an \code{object} tag and a \code{schema_version}. Derived facts
 (\code{flight_window()}, \code{pacing}, \code{week_start()}) are deliberately not stored;
 they are recomputed on rebuild, so the JSON stays small and cannot persist a
@@ -30,19 +31,24 @@ stale value. A \link{ScenarioSet} writes its own scalars (\verb{@grain}, \verb{@
 \details{
 Dates are written as ISO-8601 strings, since JSON has no date type, and
 missing flight cells (rows that are not part of an authored flight) are
-written as \code{null}.
+written as \code{null}. A plan keyed by moments writes them in UTC
+(\verb{2026-04-06T20:30:00Z}) so the instant survives exactly, and \verb{@tz} travels
+with the plan, so it reads back on the clock it was stated on.
 
 \strong{Subplans recurse.} A topline's \verb{@subplans} is written as a \code{subplans}
 object, each entry serialized exactly as a standalone plan is, one level
 down. The key is omitted when there are none, so a flat plan's JSON is
 unchanged. The parent's \verb{@data} is still written in full, so a reader that
 ignores \code{subplans} still gets the right totals. Schema version 2 added
-\code{revision} and \code{subplans}.
+\code{revision} and \code{subplans}; version 3 renamed \code{week_col} to \code{time_col} and
+added \code{time_basis}, and still reads a v1 or v2 file as the weekly plan it
+was.
 }
 \examples{
 p <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
-  grain = "channel", name = "Q3"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
+  grain = "channel", time = "week", name = "Q3"
 )
 js <- plan_to_json(p)
 identical(plan_from_json(js)@data, p@data)

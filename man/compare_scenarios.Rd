@@ -62,12 +62,14 @@ no rows, the same way \code{\link[=flights]{flights()}} does.
 
 \examples{
 base <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-  grain = "channel", name = "base"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80, 40)),
+  grain = "channel", time = "week", name = "base"
 )
 set <- scenario_set(base)
-set <- add_scenario(set, build_scenario(base, edits = c("Search" = 120),
-                                        name = "Search boost"))
+set <- add_scenario(set, build_scenario(
+  base, edits = list(target = list(channel = "Search"), total = 120),
+  name = "Search boost"))
 compare_scenarios(set)
 compare_scenarios(set, "cell")
 }

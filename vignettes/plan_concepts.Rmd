@@ -42,7 +42,7 @@ p <- media_plan_from_df(
     channel       = c("TV", "Search"),
     planned_spend = c(50000, 20000)
   ),
-  grain = c("channel", "week"), week = "week",
+  grain = "channel", time = "week",
   name  = "A plan whose weeks are long past"
 )
 
@@ -78,7 +78,7 @@ plan <- media_plan_from_df(
     partner       = c("NBC", "Google", "NBC", "Google"),
     planned_spend = c(30000, 20000, 35000, 25000)
   ),
-  grain = c("channel", "partner", "week"), week = "week",
+  grain = c("channel", "partner"), time = "week",
   name  = "Q2 plan"
 )
 
@@ -157,15 +157,117 @@ week begins on a Monday runs through the Sunday after it.
 
 That last point about warnings is the one exception to the package's general
 strictness.
-Structural problems — negative spend, duplicate rows, a week column that is not
-a `Date` — are hard errors, so an invalid plan cannot exist:
+Structural problems — negative spend, duplicate rows, a time column that is
+neither a `Date` nor a moment — are hard errors, so an invalid plan cannot
+exist:
 
 ```{r, error = TRUE}
 media_plan_from_df(
-  data.frame(channel = c("TV", "TV"), planned_spend = c(1, 2)),
-  grain = "channel", name = "duplicated"
+  data.frame(week = as.Date("2026-07-06"), channel = c("TV", "TV"), planned_spend = c(1, 2)),
+  grain = "channel", time = "week", name = "duplicated"
 )
 ```
+
+## Time is not optional
+
+Every plan is planned against a calendar, so `@time_col` is **required**. Two
+properties carry the whole time axis:
+
+* `@time_col` names the column a row is dated by.
+* `@time_basis` says what one of its values covers — `"day"`, `"week"`,
+  `"month"`, or `"instant"` for a buy placed at a specific moment.
+
+Everything temporal is derived from those two plus the flight a row belongs to:
+the flight window, `check_coverage()`'s scope, `calendarize()`, pacing. Nothing
+stores a period, so nothing can disagree about one.
+
+The basis is inferred from the column when you do not declare it — month starts
+read as monthly, dates that all fall on one weekday as weekly, anything else as
+daily, and a `POSIXct` column always as moments. Declare it when the guess would
+be wrong: a single month of a monthly plan looks exactly like a single week.
+
+```{r}
+weeks <- media_plan_from_df(
+  data.frame(week = as.Date(c("2026-04-06", "2026-04-13")),
+             channel = "TV", planned_spend = c(30, 30)),
+  grain = "channel", time = "week", name = "Weekly"
+)
+days <- media_plan_from_df(
+  data.frame(day = as.Date(c("2026-04-06", "2026-04-07")),
+             channel = "TV", planned_spend = c(30, 30)),
+  grain = "channel", time = "day", name = "Daily"
+)
+
+c(weekly = weeks@flight_days, daily = days@flight_days)
+```
+
+Two rows each, the same money, and different extents — because a weekly row is
+seven days of spend and a daily row is one.
+
+A **moment** is the case for buys bought by the slot rather than for a period:
+a 30-second spot, an 8pm takeover, a half-hour sponsorship. The moment keys the
+row; the buy's own **flight** says how long it runs. Author those the way a
+buyer states them — one row per slot, with a start and an end:
+
+```{r}
+spots <- media_plan_from_flights(
+  data.frame(
+    channel   = "TV",
+    programme = c("Grand Final", "Sunday Sponsorship"),
+    flight_start = as.POSIXct(c("2026-04-06 20:00:00", "2026-04-12 20:00:00"),
+                              tz = "UTC"),
+    flight_end   = as.POSIXct(c("2026-04-06 20:00:30", "2026-04-12 20:30:00"),
+                              tz = "UTC"),
+    planned_spend = c(450000, 250000)
+  ),
+  grain = c("channel", "programme"), basis = "instant", name = "Launch spots"
+)
+
+spots@time_basis
+flights(spots)[, c("programme", "flight_start", "flight_end", "n_periods")]
+```
+
+One row per buy, because there is nothing to spread a slot across. Each row's
+extent is its own: half a minute for the spot, half an hour for the
+sponsorship, and a bare moment with no flight is a point in time.
+
+```{r}
+flight_window(spots)
+calendarize(spots, "day")   # onto a calendar by the day each spot airs
+```
+
+A moment is only a moment on some clock, so the clock is the **plan's**:
+`@tz`. Declare it and a time given as a string means that time on the plan's
+clock, wherever the code runs — 8pm in New York is not 8pm in London, and
+without a stated zone the machine parsing the edit would quietly decide which
+one you meant.
+
+```{r}
+ny <- media_plan_from_df(
+  data.frame(airs = "2026-02-08 20:00:00", channel = "TV", planned_spend = 1),
+  grain = "channel", time = "airs", tz = "America/New_York", name = "NY spot"
+)
+
+ny@tz
+format(ny@data$airs, usetz = TRUE)
+```
+
+It travels with the plan: JSON writes the instant in UTC so it cannot be read
+as a different moment, and `@tz` puts it back on the plan's clock on the way
+in. A plan keyed by day, week or month has no clock to state, so `@tz` has no
+effect on one.
+
+The time column is part of `@grain`, but you do not name it there: the
+constructors append it, and it always sits last.
+
+```{r}
+spots@grain
+line_item_grain(spots)
+```
+
+That also means `roll_up()` never drops it. Rolling up aggregates over
+*dimensions*; aggregating over *time* is `calendarize()`'s job, and the two
+compose in either order.
 
 ## Line item, grain, row
 
@@ -175,12 +277,13 @@ A **line item** is a channel / partner / tactic combination: the *time-free*
 identity of something you are buying. It is what a decomp constrains and what
 response models attach to.
 
-The **grain** is the set of columns identifying a **row**. At a weekly grain a
-row is a line item *for one week*.
+The **grain** is the set of columns identifying a **row**. Every plan is keyed
+by time, so a row is a line item *for one period* — a week here, a day, a month
+or a moment elsewhere.
 
 ```{r}
 plan@grain              # what identifies a row
-line_item_grain(plan)   # what identifies a line item — the grain minus the week
+line_item_grain(plan)   # what identifies a line item — the grain minus time
 
 unique(line_item(plan@data, line_item_grain(plan)))
 ```
@@ -232,9 +335,9 @@ to be trusted, and reconciliation is the rollup the package already does.
 
 ```{r}
 tv <- media_plan_from_df(
-  data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+  data.frame(week = as.Date("2026-07-06"), channel = "TV", partner = c("NBC", "ESPN"),
              planned_spend = c(70000, 50000)),
-  grain = c("channel", "partner"), name = "TV detail"
+  grain = c("channel", "partner"), time = "week", name = "TV detail"
 )
 topline <- attach_subplan(roll_up(plan, "channel"), tv)
 topline@data
@@ -265,7 +368,7 @@ goes back the other way — and it is **exact, never inferred**:
 weekly <- media_plan_from_df(
   data.frame(week = seq(as.Date("2026-04-06"), by = "week", length.out = 4),
              channel = "TV", planned_spend = rep(30000, 4)),
-  grain = c("channel", "week"), week = "week", name = "Four equal weeks"
+  grain = "channel", time = "week", name = "Four equal weeks"
 )
 
 nrow(flights(weekly))
@@ -380,9 +483,9 @@ cut. So the rate holds and the units follow:
 
 ```{r}
 social <- media_plan_from_df(
-  data.frame(channel = "Social", unit_type = "impression",
+  data.frame(week = as.Date("2026-07-06"), channel = "Social", unit_type = "impression",
              planned_spend = 140000, planned_rate = 5),
-  grain = "channel", name = "Social"
+  grain = "channel", time = "week", name = "Social"
 )
 
 cut <- build_scenario(social, edits = list(delta = -40000), name = "trimmed")
@@ -437,8 +540,8 @@ that forward would manufacture an approval nobody gave, so it resets:
 
 ```{r}
 approved <- media_plan_from_df(
-  data.frame(channel = "TV", planned_spend = 100000),
-  grain = "channel", name = "Signed off", status = "approved"
+  data.frame(week = as.Date("2026-07-06"), channel = "TV", planned_spend = 100000),
+  grain = "channel", time = "week", name = "Signed off", status = "approved"
 )
 
 child <- build_scenario(approved, edits = list(scale = 1.5), name = "variant")
@@ -460,12 +563,12 @@ sets need not match:
 
 ```{r}
 a <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
-  grain = "channel", name = "Plan", nickname = "baseline"
+  data.frame(week = as.Date("2026-07-06"), channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
+  grain = "channel", time = "week", name = "Plan", nickname = "baseline"
 )
 b <- media_plan_from_df(
-  data.frame(channel = "TV", planned_spend = 120000),   # Search dropped entirely
-  grain = "channel", name = "Plan", nickname = "no search"
+  data.frame(week = as.Date("2026-07-06"), channel = "TV", planned_spend = 120000),   # Search dropped entirely
+  grain = "channel", time = "week", name = "Plan", nickname = "no search"
 )
 
 compare_scenarios(add_scenario(scenario_set(a), b), "cell")

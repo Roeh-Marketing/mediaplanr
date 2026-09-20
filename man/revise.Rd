@@ -34,8 +34,9 @@ mean it, so it is set here explicitly. It prints in the header once above 1.
 }
 \examples{
 p <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-  grain = "channel", name = "Q3 plan"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80, 40)),
+  grain = "channel", time = "week", name = "Q3 plan"
 )
 q <- revise(p, status = "approved", revision = 2)
 identical(q@id, p@id)

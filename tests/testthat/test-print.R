@@ -19,7 +19,7 @@ test_that("a minimal plan prints the essentials and nothing optional", {
 
 test_that("metadata appears when set, including the status badge", {
   p <- media_plan_from_df(
-    data.frame(channel = "TV", planned_spend = 10), grain = "channel",
+    data.frame(week = fix_week(), channel = "TV", planned_spend = 10), grain = "channel", time = "week",
     name = "Q2 Plan", nickname = "baseline", advertiser = "Acme",
     planner = "R. Roe", status = "approved", objective = "hold the mix")
   out <- grab(p)
@@ -44,12 +44,20 @@ test_that("the inventory lists each dimension under the user's own column name",
   expect_match(out, "    partner   Google, Hulu, NBC")
 })
 
-test_that("a timeless plan shows its inventory but no flight or line item count", {
+test_that("a single-week plan shows its inventory, its window and its items", {
   out <- grab(std_plan())
   expect_match(out, "    channel   Search, Social, TV")
-  expect_false(grepl("flight", out))
-  # rows and line items are the same number without a time dimension
-  expect_false(grepl("line items", out))
+  expect_match(out, "flight      2026-07-06 to 2026-07-12  \\(1 week\\)")
+  expect_match(out, "line items  3")
+})
+
+test_that("a plan keyed by moments counts moments, not weeks", {
+  out <- grab(media_plan_from_df(
+    data.frame(airs = as.POSIXct(c("2026-04-06 20:30:00", "2026-04-06 21:00:00"),
+                                 tz = "UTC"),
+               channel = c("TV", "Radio"), planned_spend = c(1, 2)),
+    grain = "channel", time = "airs", name = "spots"))
+  expect_match(out, "\\(2 moments\\)")
 })
 
 test_that("a flighted plan reports its flights by cadence", {
@@ -72,15 +80,15 @@ test_that("a plan without flights shows no flights line", {
 
 test_that("a long dimension is truncated with a count of the remainder", {
   p <- media_plan_from_df(
-    data.frame(partner = paste0("P", sprintf("%02d", 1:9)),
+    data.frame(week = fix_week(), partner = paste0("P", sprintf("%02d", 1:9)),
                planned_spend = rep(10, 9)),
-    grain = "partner", name = "Many partners")
+    grain = "partner", time = "week", name = "Many partners")
   expect_match(grab(p), "\\(\\+3 more\\)")
 })
 
 test_that("a derived plan shows its lineage", {
   p <- std_plan(name = "Base")
-  s <- build_scenario(p, edits = c("TV" = 90), name = "Variant")
+  s <- build_scenario(p, edits = at_cell("TV" = 90), name = "Variant")
   out <- grab(s)
   expect_match(out, "derived from")
   expect_match(out, short_id(p@id))
@@ -96,8 +104,8 @@ test_that("the revision shows in the header only once above 1", {
 test_that("a topline lists its subplans; a flat plan has no such line", {
   expect_false(grepl("subplans", grab(std_plan())))
   tv <- media_plan_from_df(
-    data.frame(channel = "TV", partner = c("A", "B"), planned_spend = c(1, 2)),
-    grain = c("channel", "partner"), name = "tv")
+    data.frame(week = fix_week(), channel = "TV", partner = c("A", "B"), planned_spend = c(1, 2)),
+    grain = c("channel", "partner"), time = "week", name = "tv")
   out <- grab(attach_subplan(std_plan(), tv))
   expect_match(out, "subplans    1  \\(TV\\)")
 })
@@ -109,15 +117,15 @@ test_that("the data preview is truncated with a count of the remainder", {
 
 test_that("a one-row remainder is not pluralised", {
   p <- media_plan_from_df(
-    data.frame(channel = c("a", "b", "c", "d"), planned_spend = c(1, 2, 3, 4)),
-    grain = "channel", name = "Four")
+    data.frame(week = fix_week(), channel = c("a", "b", "c", "d"), planned_spend = c(1, 2, 3, 4)),
+    grain = "channel", time = "week", name = "Four")
   expect_match(grab(p), "\\.\\.\\. 1 more row\\b")
 })
 
 test_that("a scenario set prints one row per scenario with status and delta", {
   base <- media_plan_from_df(
-    data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-    grain = "channel", name = "Base", nickname = "baseline",
+    data.frame(week = fix_week(), channel = c("TV", "Search"), planned_spend = c(80, 40)),
+    grain = "channel", time = "week", name = "Base", nickname = "baseline",
     advertiser = "Acme", status = "approved")
   set <- add_scenario(scenario_set(base),
                       build_scenario(base, edits = list(total = 240),
@@ -134,10 +142,10 @@ test_that("a scenario set prints one row per scenario with status and delta", {
 })
 
 test_that("the set-level advertiser is hidden when scenarios disagree", {
-  a <- media_plan_from_df(data.frame(channel = "TV", planned_spend = 10),
-                          grain = "channel", name = "A", advertiser = "Acme")
-  b <- media_plan_from_df(data.frame(channel = "TV", planned_spend = 20),
-                          grain = "channel", name = "B", advertiser = "Other Co")
+  a <- media_plan_from_df(data.frame(week = fix_week(), channel = "TV", planned_spend = 10),
+                          grain = "channel", time = "week", name = "A", advertiser = "Acme")
+  b <- media_plan_from_df(data.frame(week = fix_week(), channel = "TV", planned_spend = 20),
+                          grain = "channel", time = "week", name = "B", advertiser = "Other Co")
   out <- grab(add_scenario(scenario_set(a), b))
   expect_false(grepl("advertiser", out))
 })

@@ -10,14 +10,14 @@ flights(plan)
 \item{plan}{A \link{MediaPlan}.}
 }
 \value{
-A data frame: the \code{\link[=line_item_grain]{line_item_grain()}} columns (excluding the week),
-\code{flight_id}, \code{flight_start}, \code{flight_end}, \code{period_basis}, \code{pacing},
-\code{planned_spend} (the flight total) and \code{n_weeks}. Zero rows when the plan
-records no flights.
+A data frame: the \code{\link[=line_item_grain]{line_item_grain()}} columns, \code{flight_id},
+\code{flight_start}, \code{flight_end}, \code{period_basis}, \code{pacing}, \code{planned_spend}
+(the flight total) and \code{n_periods} — how many plan rows the flight
+occupies. Zero rows when the plan records no flights.
 }
 \description{
 The inverse of \code{\link[=media_plan_from_flights]{media_plan_from_flights()}}: one row per flight, recovered by
-grouping the weekly rows on \code{flight_id}.
+grouping the plan's rows on \code{flight_id}.
 }
 \details{
 This is \strong{exact, never inferred}. A plan built by \code{\link[=media_plan_from_df]{media_plan_from_df()}}

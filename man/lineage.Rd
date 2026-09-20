@@ -36,11 +36,14 @@ and this is the one that reads as a tree.
 }
 \examples{
 base <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-  grain = "channel", name = "base"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80, 40)),
+  grain = "channel", time = "week", name = "base"
 )
-s1  <- build_scenario(base, c(Search = 60), name = "Search up")
-s2  <- build_scenario(s1, c(TV = 70), name = "and TV down")
+s1  <- build_scenario(base, list(target = list(channel = "Search"),
+                                 total = 60), name = "Search up")
+s2  <- build_scenario(s1, list(target = list(channel = "TV"), total = 70),
+                      name = "and TV down")
 set <- add_scenario(add_scenario(scenario_set(base), s1), s2)
 lineage(set)
 }

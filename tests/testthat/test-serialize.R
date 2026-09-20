@@ -20,7 +20,7 @@ test_that("a weekly plan round-trips faithfully, keeping id and lineage", {
   q <- rt(p)
   expect_equal(norm(q@data), norm(p@data))
   expect_identical(q@grain, p@grain)
-  expect_identical(q@week_col, p@week_col)
+  expect_identical(q@time_col, p@time_col)
   expect_identical(q@id, p@id)
   expect_identical(q@parent_id, p@parent_id)
 })
@@ -34,11 +34,11 @@ test_that("a length-1 grain survives auto_unbox", {
 
 test_that("a geo plan (extra grain column) round-trips", {
   p <- media_plan_from_df(
-    data.frame(region = c("NE", "NE", "W", "W"),
+    data.frame(week = fix_week(), region = c("NE", "NE", "W", "W"),
                channel = c("TV", "Search", "TV", "Search"),
                planned_spend = c(1000, 2000, 3000, 4000),
                stringsAsFactors = FALSE),
-    grain = c("region", "channel"), name = "Geo"
+    grain = c("region", "channel"), time = "week", name = "Geo"
   )
   q <- rt(p)
   expect_identical(q@grain, p@grain)
@@ -47,10 +47,10 @@ test_that("a geo plan (extra grain column) round-trips", {
 
 test_that("a units plan re-solves the identity on the way in", {
   p <- media_plan_from_df(
-    data.frame(channel = "Social", unit_type = "impression",
+    data.frame(week = fix_week(), channel = "Social", unit_type = "impression",
                planned_spend = 140000, planned_rate = 5,
                stringsAsFactors = FALSE),
-    grain = "channel", name = "Social"
+    grain = "channel", time = "week", name = "Social"
   )
   q <- rt(p)
   expect_equal(norm(q@data), norm(p@data))
@@ -95,20 +95,24 @@ test_that("a mixed plan (some rows flighted, some not) round-trips", {
 
 test_that("schema_version is written and a newer one warns", {
   js <- plan_to_json(std_plan(), pretty = FALSE)
-  expect_match(js, "\"schema_version\":2")
+  expect_match(js, "\"schema_version\":3")
 
-  newer <- sub("\"schema_version\":2", "\"schema_version\":999", js, fixed = TRUE)
+  newer <- sub("\"schema_version\":3", "\"schema_version\":999", js, fixed = TRUE)
   expect_warning(plan_from_json(newer), "schema_version")
 })
 
 test_that("a v1 file, with neither revision nor subplans, still reads", {
+  # v1 and v2 called it week_col, and such a file is weekly by construction
   v1 <- '{"object":"MediaPlan","schema_version":1,
-          "data":[{"channel":"TV","planned_spend":80},
-                  {"channel":"Search","planned_spend":40}],
-          "grain":"channel","week_col":[],"id":"plan_1_abc","parent_id":[],
+          "data":[{"week":"2026-03-02","channel":"TV","planned_spend":80},
+                  {"week":"2026-03-02","channel":"Search","planned_spend":40}],
+          "grain":["channel","week"],"time_col":"week",
+          "id":"plan_1_abc","parent_id":[],
           "name":"old","nickname":"","advertiser":"","planner":"",
           "status":"","objective":""}'
   p <- plan_from_json(v1)
+  expect_identical(p@time_col, "week")
+  expect_identical(p@time_basis, "week")
   expect_identical(p@revision, 1L)
   expect_identical(p@subplans, list())
   expect_identical(p@id, "plan_1_abc")
@@ -133,9 +137,9 @@ test_that("non-plan JSON and non-plan input error clearly", {
 
 sub_tv <- function() {
   media_plan_from_df(
-    data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+    data.frame(week = fix_week(), channel = "TV", partner = c("NBC", "ESPN"),
                planned_spend = c(70, 50), stringsAsFactors = FALSE),
-    grain = c("channel", "partner"), name = "TV detail")
+    grain = c("channel", "partner"), time = "week", name = "TV detail")
 }
 
 test_that("revision survives the trip", {
@@ -162,9 +166,9 @@ test_that("a topline round-trips with its subplans attached and its rows reconci
 
 test_that("a key with the separator in it survives", {
   p <- attach_subplan(fine_plan(), media_plan_from_df(
-    data.frame(channel = "TV", partner = "A", tactic = c("brand", "promo"),
+    data.frame(week = fix_week(), channel = "TV", partner = "A", tactic = c("brand", "promo"),
                planned_spend = c(20, 25)),
-    grain = c("channel", "partner", "tactic"), name = "tv a"))
+    grain = c("channel", "partner", "tactic"), time = "week", name = "tv a"))
   q <- rt(p)
   expect_identical(names(q@subplans), "TV | A")
 })
@@ -190,10 +194,10 @@ test_that("a file describing an illegal tree is refused", {
 })
 
 test_that("a file nested too deep is refused", {
-  leaf <- '{"data":[{"channel":"TV","planned_spend":1}],"grain":"channel","name":"l"}'
-  js <- leaf
+  row  <- '"data":[{"week":"2026-07-06","channel":"TV","planned_spend":1}],'
+  js <- paste0('{', row, '"grain":["channel","week"],"time_col":"week","name":"l"}')
   for (i in seq_len(33)) {
-    js <- paste0('{"data":[{"channel":"TV","planned_spend":1}],"grain":"channel",',
+    js <- paste0('{', row, '"grain":["channel","week"],"time_col":"week",',
                  '"name":"n', i, '","subplans":{"TV":', js, '}}')
   }
   expect_error(plan_from_json(js), "more than 32 levels deep")
@@ -201,9 +205,9 @@ test_that("a file nested too deep is refused", {
 
 test_that("a nested subplan (two levels) round-trips", {
   nbc <- media_plan_from_df(
-    data.frame(channel = "TV", partner = "NBC", daypart = c("prime", "day"),
+    data.frame(week = fix_week(), channel = "TV", partner = "NBC", daypart = c("prime", "day"),
                planned_spend = c(60, 15)),
-    grain = c("channel", "partner", "daypart"), name = "nbc")
+    grain = c("channel", "partner", "daypart"), time = "week", name = "nbc")
   p <- attach_subplan(std_plan(), attach_subplan(sub_tv(), nbc))
   q <- rt(p)
   expect_identical(names(q@subplans$TV@subplans), "TV | NBC")
@@ -212,7 +216,7 @@ test_that("a nested subplan (two levels) round-trips", {
 
 test_that("a set containing a topline keeps its subplans", {
   p   <- attach_subplan(std_plan(), sub_tv())
-  set <- add_scenario(scenario_set(p), build_scenario(p, c(Search = 1), name = "s"))
+  set <- add_scenario(scenario_set(p), build_scenario(p, at_cell(Search = 1), name = "s"))
   q   <- plan_from_json(plan_to_json(set))
   expect_true(all(vapply(q@scenarios, is_topline, logical(1))))
 })

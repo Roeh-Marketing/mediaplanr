@@ -17,8 +17,8 @@ library(mediaplanr)
 # 1. Define a media plan 
 my_media_plan <- media_plan_from_df(
   plan_df,
-  grain      = c("channel", "partner", "week"),
-  week       = "week",
+  grain      = c("channel", "partner"),   # the time column is appended for you
+  time       = "week",
   name       = "Q2 2026 Brand Plan",
   nickname   = "baseline",
   advertiser = "Acme Corp",

@@ -1,9 +1,10 @@
-# Flighting: how a buy is authored, and how it maps onto the weekly plan.
+# Flighting: how a buy is authored, and how it maps onto the plan's calendar.
 #
 # A planner states a buy as a FLIGHT -- "OOH, Apr 6 to May 3, 120k". The plan
-# holds WEEKS. These two are different things and the package keeps them
-# separate: @data stays long, one row per line item per week, and a flight is an
-# authoring format plus an exact view back over those rows.
+# holds PERIODS: weeks, usually, but days or months just as well. These two are
+# different things and the package keeps them separate: @data stays long, one
+# row per line item per period, and a flight is an authoring format plus an
+# exact view back over those rows.
 #
 # "Exact" is only possible because flight identity is stored. Weekly rows alone
 # cannot be inverted -- four 30k weeks are equally consistent with one 28-day
@@ -50,8 +51,8 @@ period_basis_levels <- function() {
 #' consequences worth knowing:
 #'
 #' * Scaling a whole flight, or setting its total, leaves it `"even"` — every
-#'   week moves in proportion, so only the amount changed, not the shape.
-#' * Editing one week, or adding a flat amount to weeks of unequal length,
+#'   period moves in proportion, so only the amount changed, not the shape.
+#' * Editing one period, or adding a flat amount to periods of unequal length,
 #'   makes it `"custom"`.
 #'
 #' Either way the flight survives: its `flight_id` is never dropped, so a
@@ -98,28 +99,34 @@ pacing_levels <- function() {
   .as_date(d - ((dow - week_start) %% 7L))
 }
 
-# Roll each date back to the start of the period it falls in.
+# Roll each date back to the start of the period it falls in. A moment lands on
+# the calendar by the day it falls on, so a plan keyed by moments can still be
+# cut onto days, weeks or months.
 .period_floor <- function(d, basis, week_start = 1L) {
+  d <- .to_date(d)
   switch(basis,
-    day   = .as_date(d),
+    day   = d,
     week  = .week_floor(d, week_start),
     month = .as_date(as.Date(format(d, "%Y-%m-01"))))
 }
 
 #' The weekday a plan's weeks begin on
 #'
-#' Derived from the week column rather than stored, so it cannot disagree with
+#' Derived from the time column rather than stored, so it cannot disagree with
 #' the data. US broadcast weeks begin on a Monday; some advertisers plan
 #' Sunday-start, and a plan read from a workbook may be either.
 #'
+#' Only a weekly plan has one: on a plan whose `@time_basis` is `"day"`,
+#' `"month"` or `"instant"` there is no such weekday and this is `NA`.
+#'
 #' @param plan A [MediaPlan].
-#' @return The weekday name, or `NA_character_` when the plan has no time
-#'   dimension, no rows, or weeks that do not all fall on the same weekday.
+#' @return The weekday name, or `NA_character_` when the plan is not weekly,
+#'   has no rows, or has weeks that do not all fall on the same weekday.
 #' @examples
 #' p <- media_plan_from_df(
 #'   data.frame(week = as.Date(c("2026-04-06", "2026-04-13")),
 #'              channel = c("TV", "TV"), planned_spend = c(1, 2)),
-#'   grain = c("channel", "week"), week = "week", name = "Q2 plan"
+#'   grain = "channel", time = "week", name = "Q2 plan"
 #' )
 #' week_start(p)
 #' @export
@@ -127,8 +134,10 @@ week_start <- function(plan) {
   if (!S7::S7_inherits(plan, MediaPlan)) {
     stop("`plan` must be a MediaPlan.", call. = FALSE)
   }
-  if (!length(plan@week_col) || !nrow(plan@data)) return(NA_character_)
-  w <- plan@data[[plan@week_col]]
+  if (!identical(plan@time_basis, "week") || !nrow(plan@data)) {
+    return(NA_character_)
+  }
+  w <- plan@data[[plan@time_col]]
   w <- w[!is.na(w)]
   if (!length(w)) return(NA_character_)
 
@@ -159,15 +168,23 @@ week_start <- function(plan) {
   base / 10^digits
 }
 
-# One flight -> the weekly rows it occupies, with its spend spread evenly across
-# its days and then gathered into those weeks.
-.spread_flight <- function(start, end, spend, week_start = 1L) {
-  days  <- seq(start, end, by = "day")
-  wk    <- .week_floor(days, week_start)
-  weeks <- sort(unique(wk))
-  n_day <- as.integer(table(factor(as.character(wk),
-                                   levels = as.character(weeks))))
-  data.frame(week = weeks, planned_spend = .allocate_minor(spend, n_day))
+# One flight -> the plan rows it occupies, with its spend spread evenly across
+# its days and then gathered into the periods those days fall in.
+#
+# A timed buy is the exception, and it is not a special case so much as the
+# degenerate one: a spot bought for 20:00 to 20:30 occupies exactly one row, so
+# there is nothing to spread. The whole total sits on the moment the buy starts
+# and .span_of() reads its length back off the flight.
+.spread_flight <- function(start, end, spend, basis = "week", week_start = 1L) {
+  if (identical(basis, "instant")) {
+    return(data.frame(period = start, planned_spend = spend))
+  }
+  days    <- seq(.to_date(start), .to_date(end), by = "day")
+  per     <- .period_floor(days, basis, week_start)
+  periods <- sort(unique(per))
+  n_day   <- as.integer(table(factor(as.character(per),
+                                     levels = as.character(periods))))
+  data.frame(period = periods, planned_spend = .allocate_minor(spend, n_day))
 }
 
 # What kind of period is this, when the caller did not say?
@@ -178,18 +195,24 @@ week_start <- function(plan) {
   "flight"
 }
 
-#' Build a plan from flights rather than weeks
+#' Build a plan from flights rather than periods
 #'
 #' The other door into a [MediaPlan]. Where [media_plan_from_df()] takes the
-#' plan already laid out by week, this takes it as a planner states it — one row
-#' per **flight**, with in-market dates and a total — and expands it onto the
-#' weekly rows `@data` holds. Everything downstream (the grid, `roll_up()`,
-#' `build_scenario()`, `compare_scenarios()`) sees the ordinary weekly shape.
+#' plan already laid out period by period, this takes it as a planner states
+#' it — one row per **flight**, with in-market dates and a total — and expands
+#' it onto the rows `@data` holds. Everything downstream (the grid,
+#' `roll_up()`, `build_scenario()`, `compare_scenarios()`) sees the ordinary
+#' shape.
 #'
 #' Spend is spread evenly across the flight's days and then gathered into the
-#' weeks those days fall in, so a flight that starts mid-week contributes a part
-#' week at each ragged end. The split is exact to the cent: the weekly figures
-#' always re-sum to the flight total.
+#' periods those days fall in, so a flight that starts mid-week contributes a
+#' part week at each ragged end. The split is exact to the cent: the period
+#' figures always re-sum to the flight total.
+#'
+#' A buy bought by the slot rather than the period — a 30-second spot, a
+#' half-hour sponsorship — is the degenerate case: with `basis = "instant"` each
+#' one becomes a single row at the moment it starts, carrying its whole total.
+#' Nothing is spread, and the buy's length is read back off its flight.
 #'
 #' Each input row is given a `flight_id`, which is what makes [flights()] an
 #' exact inverse. Without it the expansion could not be undone — four equal
@@ -198,20 +221,32 @@ week_start <- function(plan) {
 #' @param df A data frame with one row per flight: the line item columns, a
 #'   start date, an end date, and a spend.
 #' @param grain Character vector naming the **line item** columns (channel,
-#'   partner, tactic). The week column is created and appended, so do not
+#'   partner, tactic). The time column is created and appended, so do not
 #'   include it.
 #' @param start,end Names of the flight start and end date columns. `end` is
 #'   inclusive. Coerced to `Date`.
 #' @param planned_spend Name of the flight's total spend column.
-#' @param week Name for the week column to create. Default `"week"`.
+#' @param basis The calendar the flights are expanded onto, and the plan's
+#'   `@time_basis`: `"week"` (default), `"day"`, `"month"` or `"instant"`.
+#'   `"instant"` is for buys bought by the slot rather than the period — a
+#'   30-second spot at 20:00:00, a half-hour sponsorship from 20:00 to 20:30.
+#'   Each one becomes a single row keyed at the moment it starts, carrying its
+#'   whole total: there is nothing to spread, and the buy's length is read back
+#'   off its flight dates.
+#' @param time Name for the time column to create. Defaults to `basis`, so a
+#'   weekly plan gets a `week` column and a monthly one a `month` column; a
+#'   timed plan gets `time`.
 #' @param week_start Weekday the plan's weeks begin on — a name or 1-7 with
-#'   Monday as 1. Default `"Monday"`, the US broadcast convention.
+#'   Monday as 1. Default `"Monday"`, the US broadcast convention. Used when
+#'   `basis = "week"`.
+#' @param tz The plan's timezone, as an Olson name. Timed flight dates given as
+#'   strings are read on it. See [media_plan_from_df()].
 #' @param period_basis Optional column naming each flight's cadence, validated
 #'   against [period_basis_levels()]. Inferred per flight when absent.
 #' @param name Formal plan name. **Required**.
 #' @param ... Further arguments passed to [media_plan_from_df()] — `nickname`,
 #'   `advertiser`, `planner`, `status`, `objective`, `id`, `parent_id`.
-#' @return A validated [MediaPlan] at grain `c(grain, week)`, carrying the
+#' @return A validated [MediaPlan] at grain `c(grain, time)`, carrying the
 #'   [flight_cols()].
 #' @examples
 #' buys <- data.frame(
@@ -231,10 +266,21 @@ media_plan_from_flights <- function(df, grain,
                                     start = "flight_start",
                                     end = "flight_end",
                                     planned_spend = "planned_spend",
-                                    week = "week",
+                                    basis = c("week", "day", "month",
+                                              "instant"),
+                                    time = NULL,
                                     week_start = "Monday",
+                                    tz = NULL,
                                     period_basis = NULL,
                                     name, ...) {
+  basis <- match.arg(basis)
+  time  <- if (!is.null(time)) {
+    as.character(time)[1]
+  } else if (identical(basis, "instant")) {
+    "time"
+  } else {
+    basis
+  }
   df <- as.data.frame(df, stringsAsFactors = FALSE)
   ws <- .weekday_num(week_start)
 
@@ -244,15 +290,15 @@ media_plan_from_flights <- function(df, grain,
     stop("column(s) not found in `df`: ", paste(miss, collapse = ", "),
          call. = FALSE)
   }
-  if (week %in% names(df)) {
-    stop("`week` ('", week, "') already exists in `df`. This constructor ",
-         "creates the week column from the flight dates; use ",
-         "media_plan_from_df() for a plan that is already laid out by week.",
+  if (time %in% names(df)) {
+    stop("`time` ('", time, "') already exists in `df`. This constructor ",
+         "creates the time column from the flight dates; use ",
+         "media_plan_from_df() for a plan that is already laid out by period.",
          call. = FALSE)
   }
 
-  fs <- .as_flight_date(df[[start]], start)
-  fe <- .as_flight_date(df[[end]], end)
+  fs <- .as_flight_time(df[[start]], start, basis, tz)
+  fe <- .as_flight_time(df[[end]], end, basis, tz)
   if (anyNA(fs) || anyNA(fe)) {
     stop("flight dates must not be missing: every flight needs a start and an ",
          "end.", call. = FALSE)
@@ -269,7 +315,13 @@ media_plan_from_flights <- function(df, grain,
          call. = FALSE)
   }
 
-  basis <- if (is.null(period_basis)) {
+  # Each flight's own cadence, which is a different question from the plan's
+  # `basis`: what kind of buy this is, not what one plan row covers.
+  fb <- if (is.null(period_basis) && identical(basis, "instant")) {
+    # A slot is a continuous in-market period that is neither a dated
+    # insertion nor a standard week, which is what "flight" names.
+    rep("flight", nrow(df))
+  } else if (is.null(period_basis)) {
     vapply(seq_len(nrow(df)), function(i) .infer_basis(fs[i], fe[i], ws),
            character(1))
   } else {
@@ -281,10 +333,11 @@ media_plan_from_flights <- function(df, grain,
                   "period_basis")
   }
 
-  # Expand each flight onto its weeks, remembering which flight each row is
-  # part of so the operation can be undone exactly.
+  # Expand each flight onto its periods, remembering which flight each row is
+  # part of so the operation can be undone exactly. A timed buy expands onto
+  # exactly one row: the slot it occupies.
   pieces <- lapply(seq_len(nrow(df)), function(i) {
-    sp <- .spread_flight(fs[i], fe[i], spend[i], ws)
+    sp <- .spread_flight(fs[i], fe[i], spend[i], basis, ws)
     sp[[".src"]] <- i
     sp
   })
@@ -292,12 +345,12 @@ media_plan_from_flights <- function(df, grain,
 
   carry <- setdiff(names(df), c(start, end, planned_spend, period_basis))
   out <- df[alloc[[".src"]], carry, drop = FALSE]
-  out[[week]]            <- alloc[["week"]]
+  out[[time]]            <- alloc[["period"]]
   out[["planned_spend"]] <- alloc[["planned_spend"]]
   out[["flight_id"]]     <- .flight_ids(nrow(df))[alloc[[".src"]]]
   out[["flight_start"]]  <- fs[alloc[[".src"]]]
   out[["flight_end"]]    <- fe[alloc[[".src"]]]
-  out[["period_basis"]]  <- basis[alloc[[".src"]]]
+  out[["period_basis"]]  <- fb[alloc[[".src"]]]
   out[["pacing"]]        <- rep("even", nrow(alloc))
   rownames(out) <- NULL
 
@@ -306,10 +359,23 @@ media_plan_from_flights <- function(df, grain,
   # at the held rate.
   out <- .reunit(out)
 
-  .stop_on_flight_collision(out, grain, week)
+  .stop_on_flight_collision(out, grain, time)
 
-  media_plan_from_df(out, grain = c(grain, week), week = week,
-                     planned_spend = "planned_spend", name = name, ...)
+  media_plan_from_df(out, grain = grain, time = time, time_basis = basis,
+                     tz = tz, planned_spend = "planned_spend", name = name,
+                     ...)
+}
+
+# Flight dates, in the type the plan's time column holds: moments on a timed
+# plan, dates otherwise. A timed buy given whole dates starts at midnight.
+.as_flight_time <- function(x, what, basis, tz = NULL) {
+  if (!identical(basis, "instant")) return(.as_flight_date(x, what))
+  zone <- if (!is.null(tz) && !is.na(tz[1])) tz[1] else ""
+  v <- .as_time_col(x, what, zone)
+  if (inherits(v, "Date")) {
+    v <- as.POSIXct(paste0(format(v), " 00:00:00"), tz = zone)
+  }
+  .stamp_tz(v, zone)
 }
 
 # as.Date() errors on unparseable strings instead of returning NA, so the same
@@ -342,16 +408,17 @@ media_plan_from_flights <- function(df, grain,
   sprintf("fl_%s_%s", stamp, sprintf("%04x", sample.int(65535L, n)))
 }
 
-# Two flights of the same line item that overlap the same week would produce two
-# rows at one grain cell. Rather than silently summing them -- which would merge
-# two distinct buys and make flights() ambiguous -- say so, and name the fix.
-.stop_on_flight_collision <- function(d, grain, week) {
-  k <- line_item(d, c(grain, week))
+# Two flights of the same line item that overlap the same period would produce
+# two rows at one grain cell. Rather than silently summing them -- which would
+# merge two distinct buys and make flights() ambiguous -- say so, and name the
+# fix.
+.stop_on_flight_collision <- function(d, grain, time) {
+  k <- line_item(d, c(grain, time))
   if (!anyDuplicated(k)) return(invisible(NULL))
   dups <- unique(k[duplicated(k)])
-  stop("two flights of the same line item overlap the same week: ",
+  stop("two flights of the same line item overlap the same period: ",
        paste(utils::head(dups, 3), collapse = "; "),
-       ". A plan holds one period per line item per week, so add a column that ",
+       ". A plan holds one row per line item per period, so add a column that ",
        "tells the buys apart (campaign, daypart, placement) and include it in ",
        "`grain`.", call. = FALSE)
 }
@@ -371,12 +438,12 @@ media_plan_from_flights <- function(df, grain,
 # hand-shaped buy is still one buy and flights() still reports it whole. Pacing
 # records the shape, not whether anyone touched it, so the answer is derived
 # fresh every time and cannot go stale in either direction.
-.repace <- function(d, week_col, tol = 1e-6) {
+.repace <- function(d, time_col, basis, tol = 1e-6) {
   if (!all(c("flight_id", "pacing") %in% names(d)) || !nrow(d)) return(d)
-  span <- .span_of(d, week_col)
+  span <- .span_of(d, time_col, basis)
   if (is.null(span)) return(d)
 
-  ndays <- as.integer(span$end - span$start) + 1L
+  ndays <- as.integer(.to_date(span$end) - .to_date(span$start)) + 1L
   k  <- d[["flight_id"]]
   sp  <- d[["planned_spend"]]
 
@@ -416,19 +483,26 @@ media_plan_from_flights <- function(df, grain,
 # claiming to be one buy, so they must agree on that buy's dates and cadence.
 # Without it flights() could report a flight whose dates depend on which row
 # happened to come first.
-.validate_flight_cols <- function(d) {
+.validate_flight_cols <- function(d, type = "date") {
   errs <- character(0)
   present <- intersect(flight_cols(), names(d))
   if (!length(present) || !nrow(d)) return(errs)
 
+  # Flight dates are compared against the time column on every span, so they
+  # are held to its type: Dates on a dated plan, moments on a timed one.
+  if (is.na(type)) type <- "date"
+  want <- if (identical(type, "datetime")) "POSIXct" else "Date"
   for (nm in intersect(c("flight_start", "flight_end"), present)) {
-    if (!inherits(d[[nm]], "Date")) {
-      errs <- c(errs, paste0("'", nm, "' must hold Date values."))
+    if (!inherits(d[[nm]], want)) {
+      errs <- c(errs, paste0("'", nm, "' must hold ", want, " values",
+                             if (identical(want, "POSIXct")) {
+                               ", to match a time column of moments"
+                             } else "", "."))
     }
   }
   if (all(c("flight_start", "flight_end") %in% present) &&
-      inherits(d[["flight_start"]], "Date") &&
-      inherits(d[["flight_end"]], "Date")) {
+      inherits(d[["flight_start"]], want) &&
+      inherits(d[["flight_end"]], want)) {
     bad <- which(!is.na(d[["flight_start"]]) & !is.na(d[["flight_end"]]) &
                    d[["flight_end"]] < d[["flight_start"]])
     if (length(bad)) {
@@ -486,11 +560,14 @@ media_plan_from_flights <- function(df, grain,
 #' they compose: roll a plan up to channel, then cut it to months, in whichever
 #' order suits.
 #'
-#' Because each row's period is its week **clipped to its flight**, a flight that
-#' starts mid-week contributes only its real days. Re-cutting to months
-#' therefore splits a week that straddles a month boundary, which is exactly the
-#' thing that is tedious and error-prone to do by hand. Spend is split in whole
-#' cents that re-sum to the row's original total.
+#' Because each row's period is the period its time value opens **clipped to its
+#' flight**, a flight that starts mid-week contributes only its real days.
+#' Re-cutting to months therefore splits a week that straddles a month boundary,
+#' which is exactly the thing that is tedious and error-prone to do by hand.
+#' Spend is split in whole cents that re-sum to the row's original total.
+#'
+#' A plan keyed by moments cuts onto a calendar too: each spot lands on the day
+#' it airs, and from there into its week or month.
 #'
 #' @section Why a data frame, not a plan:
 #' This returns a **projection**, like [compare_scenarios()] — something to
@@ -502,10 +579,13 @@ media_plan_from_flights <- function(df, grain,
 #' are. If you do want a plan at the new grain, pass the result to
 #' [media_plan_from_df()].
 #'
-#' @param plan A [MediaPlan] with a time dimension.
-#' @param basis `"week"` (default), `"day"` or `"month"`.
+#' @param plan A [MediaPlan].
+#' @param basis The calendar to cut onto: `"week"` (default), `"day"` or
+#'   `"month"`. Not `"instant"` — re-cutting spreads a period's spend across
+#'   days, and there is no such thing as spreading it across moments.
 #' @param week_start Weekday weeks begin on, when `basis = "week"`. Defaults to
-#'   the plan's own, read off its data by [week_start()].
+#'   the plan's own, read off its data by [week_start()], and to Monday when
+#'   the plan is not weekly.
 #' @return A data frame: the line item columns, a date column named after
 #'   `basis` holding each period's start, and `planned_spend`. One row per line
 #'   item per period, ordered by period.
@@ -528,17 +608,13 @@ calendarize <- function(plan, basis = c("week", "day", "month"),
     stop("`plan` must be a MediaPlan.", call. = FALSE)
   }
   span <- .row_span(plan)
-  if (is.null(span)) {
-    stop("`plan` has no time dimension, so there is no calendar to cut it ",
-         "onto.", call. = FALSE)
-  }
   ws <- if (is.null(week_start)) .plan_week_start(plan) else .weekday_num(week_start)
 
   d  <- plan@data
   lg <- setdiff(line_item_grain(plan), flight_cols())
   if (!length(lg)) {
-    stop("the plan's grain is only its time column, so there are no line items ",
-         "to re-cut.", call. = FALSE)
+    stop("the plan's grain is only its time column and flight bookkeeping, so ",
+         "there are no line items to re-cut.", call. = FALSE)
   }
 
   if (!nrow(d)) {
@@ -556,7 +632,7 @@ calendarize <- function(plan, basis = c("week", "day", "month"),
   }
 
   pieces <- lapply(seq_len(nrow(d)), function(i) {
-    days    <- seq(span$start[i], span$end[i], by = "day")
+    days    <- seq(.to_date(span$start[i]), .to_date(span$end[i]), by = "day")
     per     <- .period_floor(days, basis, ws)
     periods <- sort(unique(per))
     n_day   <- as.integer(table(factor(as.character(per),
@@ -579,7 +655,8 @@ calendarize <- function(plan, basis = c("week", "day", "month"),
   }
 
   # Re-cutting can land two of a line item's rows in one period -- two weeks in
-  # a month, or two flights of the same buy -- so periods are summed. This is
+  # a month, two spots in a day, or two flights of the same buy -- so periods
+  # are summed. This is
   # aggregation, unlike the import path, where a collision means two distinct
   # buys and is an error.
   res <- .aggregate_to(out, c(lg, basis))
@@ -592,7 +669,7 @@ calendarize <- function(plan, basis = c("week", "day", "month"),
 #' The flights a plan was authored from
 #'
 #' The inverse of [media_plan_from_flights()]: one row per flight, recovered by
-#' grouping the weekly rows on `flight_id`.
+#' grouping the plan's rows on `flight_id`.
 #'
 #' This is **exact, never inferred**. A plan built by [media_plan_from_df()]
 #' has no flight identity recorded, and this returns no rows rather than
@@ -601,10 +678,10 @@ calendarize <- function(plan, basis = c("week", "day", "month"),
 #' distinguishes them.
 #'
 #' @param plan A [MediaPlan].
-#' @return A data frame: the [line_item_grain()] columns (excluding the week),
-#'   `flight_id`, `flight_start`, `flight_end`, `period_basis`, `pacing`,
-#'   `planned_spend` (the flight total) and `n_weeks`. Zero rows when the plan
-#'   records no flights.
+#' @return A data frame: the [line_item_grain()] columns, `flight_id`,
+#'   `flight_start`, `flight_end`, `period_basis`, `pacing`, `planned_spend`
+#'   (the flight total) and `n_periods` — how many plan rows the flight
+#'   occupies. Zero rows when the plan records no flights.
 #' @examples
 #' buys <- data.frame(
 #'   channel = "OOH",
@@ -629,7 +706,7 @@ flights <- function(plan) {
   if (!"flight_id" %in% names(d) || !nrow(d)) {
     out <- d[0, intersect(keep, names(d)), drop = FALSE]
     out[["planned_spend"]] <- numeric(0)
-    out[["n_weeks"]] <- integer(0)
+    out[["n_periods"]] <- integer(0)
     rownames(out) <- NULL
     return(out)
   }
@@ -638,7 +715,7 @@ flights <- function(plan) {
   if (!nrow(d)) {
     out <- d[0, intersect(keep, names(d)), drop = FALSE]
     out[["planned_spend"]] <- numeric(0)
-    out[["n_weeks"]] <- integer(0)
+    out[["n_periods"]] <- integer(0)
     rownames(out) <- NULL
     return(out)
   }
@@ -649,7 +726,7 @@ flights <- function(plan) {
   out   <- d[first, intersect(keep, names(d)), drop = FALSE]
 
   out[["planned_spend"]] <- as.numeric(tapply(d[["planned_spend"]], k, sum)[ids])
-  out[["n_weeks"]]       <- as.integer(table(k)[ids])
+  out[["n_periods"]]     <- as.integer(table(k)[ids])
 
   out <- out[order(out[["flight_start"]], out[["flight_id"]]), , drop = FALSE]
   rownames(out) <- NULL

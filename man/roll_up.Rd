@@ -9,7 +9,8 @@ roll_up(plan, grain, name = NULL)
 \arguments{
 \item{plan}{A \link{MediaPlan}.}
 
-\item{grain}{Character vector; a subset of \code{plan@grain} to aggregate to.}
+\item{grain}{Character vector; the line item columns to aggregate to, a
+subset of \code{\link[=line_item_grain]{line_item_grain()}}. The time column is kept automatically.}
 
 \item{name}{Optional name for the resulting plan; defaults to the source
 plan's name, since a rollup is the same plan viewed at a coarser grain.}
@@ -26,15 +27,20 @@ a response model exists: a new partner with no model of its own rolls up to
 its channel, which has one.
 }
 \details{
-Treat \verb{@grain} as an ordered nesting (channel, then partner, then tactic), so
-"the next coarsest level" means dropping the rightmost column.
+Treat the line item columns as an ordered nesting (channel, then partner,
+then tactic), so "the next coarsest level" means dropping the rightmost one.
+
+Time is \strong{never} rolled up here: \verb{@time_col} is kept whatever is asked for,
+because a plan without a calendar is not a plan. To aggregate over time — to
+see a weekly plan by month — use \code{\link[=calendarize]{calendarize()}}, the other half of the pair.
 }
 \examples{
 p <- media_plan_from_df(
-  data.frame(channel = c("TV", "TV", "Search"),
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "TV", "Search"),
              partner = c("NBC", "ESPN", "Google"),
              planned_spend = c(30, 20, 50)),
-  grain = c("channel", "partner"), name = "Q3 plan"
+  grain = c("channel", "partner"), time = "week", name = "Q3 plan"
 )
 roll_up(p, "channel")@data
 }

@@ -100,24 +100,28 @@ S7::method(print, MediaPlan) <- function(x, ...) {
   # --- shape ---
   .field("grain", paste(x@grain, collapse = " + "))
 
-  # The flight window is the plan's own extent, so its end is the last week's
-  # last day -- six days after the week start stored in @data. The week count
+  # The flight window is the plan's own extent, so its end is the last period's
+  # last day -- how far that reaches is @time_basis's answer. The period count
   # rides along on the same line, because a window alone cannot distinguish a
   # continuous plan from one with a hiatus in the middle.
   fw <- flight_window(x)
   if (length(fw) && nrow(d)) {
-    n_wk <- length(unique(d[[x@week_col]]))
+    n_per <- length(unique(d[[x@time_col]]))
+    word  <- switch(x@time_basis, day = "day", week = "week", month = "month",
+                    instant = "moment")
+    # The zone is part of reading a timed window: 20:00 in New York and 20:00
+    # in London are different buys.
+    zone <- if (identical(x@time_basis, "instant") && nzchar(x@tz)) {
+      paste0(" ", x@tz)
+    } else ""
     .field("flight", paste0(format(fw[["start"]]), " to ", format(fw[["end"]]),
-                            "  (", n_wk, if (n_wk == 1) " week)" else " weeks)"))
+                            zone, "  (", n_per, " ", word,
+                            if (n_per == 1) ")" else "s)"))
   }
 
   li_grain <- setdiff(line_item_grain(x), flight_cols())
   if (nrow(d) && length(li_grain)) {
-    # Rows and line items only differ once there is a time dimension; showing
-    # both on a timeless plan would print the same number twice.
-    if (length(fw)) {
-      .field("line items", length(unique(line_item(d, li_grain))))
-    }
+    .field("line items", length(unique(line_item(d, li_grain))))
     .print_inventory(x, li_grain)
   }
 

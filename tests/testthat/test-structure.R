@@ -5,16 +5,16 @@
 
 tv_detail <- function() {
   media_plan_from_df(
-    data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+    data.frame(week = fix_week(), channel = "TV", partner = c("NBC", "ESPN"),
                planned_spend = c(70, 50), stringsAsFactors = FALSE),
-    grain = c("channel", "partner"), name = "TV detail", nickname = "tv")
+    grain = c("channel", "partner"), time = "week", name = "TV detail", nickname = "tv")
 }
 
 nbc_detail <- function() {
   media_plan_from_df(
-    data.frame(channel = "TV", partner = "NBC", daypart = c("prime", "day"),
+    data.frame(week = fix_week(), channel = "TV", partner = "NBC", daypart = c("prime", "day"),
                planned_spend = c(60, 15)),
-    grain = c("channel", "partner", "daypart"), name = "NBC upfront")
+    grain = c("channel", "partner", "daypart"), time = "week", name = "NBC upfront")
 }
 
 two_level <- function() {
@@ -34,9 +34,9 @@ test_that("subplan_map lists the tree in pre-order with depth, key and path", {
   expect_equal(m$spend, c(125 + 40 + 40, 125, 75))   # TV 80 -> 125
   expect_equal(m$subplans, c(1L, 1L, 0L))
   expect_equal(m$line_items, c(3L, 2L, 2L))
-  expect_equal(m$grain, c("channel", "channel + partner",
-                          "channel + partner + daypart"))
-  expect_equal(m$cadence, rep("timeless", 3))
+  expect_equal(m$grain, c("channel + week", "channel + partner + week",
+                          "channel + partner + daypart + week"))
+  expect_equal(m$cadence, rep("weekly", 3))
   expect_equal(m$nickname[2], "tv")
 })
 
@@ -69,8 +69,8 @@ test_that("plan_tree draws the tree and an editable line under each topline", {
   expect_identical(out, lines)
   expect_equal(length(out), 5)
   expect_match(out[1], "^Q3 topline +205$")
-  expect_match(out[2], "^├─ TV +TV detail +timeless +2 line items +125$")
-  expect_match(out[3], "^│  ├─ TV \\| NBC +NBC upfront +timeless +2 line items +75$")
+  expect_match(out[2], "^├─ TV +TV detail +weekly +2 line items +125$")
+  expect_match(out[3], "^│  ├─ TV \\| NBC +NBC upfront +weekly +2 line items +75$")
   expect_match(out[4], "^│  └─ \\(editable\\) +1 line item +50$")
   expect_match(out[5], "^└─ \\(editable\\) +2 line items +80$")
 })
@@ -89,12 +89,13 @@ test_that("ownership_map labels each cell with the subplan that owns it", {
   p <- attach_subplan(std_plan(), tv_detail())
   o <- ownership_map(p)
   expect_equal(nrow(o), 3)
-  expect_equal(o$key, c("Search", "Social", "TV"))          # timeless: by key
+  expect_equal(o$key, c("Search", "Social", "TV"))          # one week: by key
   expect_equal(o$owner, c(NA, NA, "TV"))
   expect_equal(o$owner_name, c(NA, NA, "TV detail"))
   expect_equal(o$locked, c(FALSE, FALSE, TRUE))
   expect_equal(o$planned_spend, c(40, 40, 120))
-  expect_named(o, c("channel", "key", "owner", "owner_name", "locked", "planned_spend"))
+  expect_named(o, c("channel", "week", "key", "owner", "owner_name", "locked",
+                    "planned_spend"))
 })
 
 test_that("ownership_map on a weekly plan is one row per cell-week, by week", {
@@ -102,7 +103,7 @@ test_that("ownership_map on a weekly plan is one row per cell-week, by week", {
   sub <- media_plan_from_df(
     data.frame(week = as.Date(c("2026-03-02", "2026-03-09")), channel = "TV",
                partner = "NBC", daypart = "prime", planned_spend = c(10, 12)),
-    grain = c("channel", "partner", "daypart", "week"), week = "week",
+    grain = c("channel", "partner", "daypart"), time = "week",
     name = "NBC detail")
   o <- ownership_map(attach_subplan(parent, sub))
   expect_true("week" %in% names(o))
@@ -123,8 +124,8 @@ test_that("ownership_map on a flat plan locks nothing", {
 
 test_that("lineage points each scenario at the parent it came from", {
   base <- std_plan(name = "base")
-  s1   <- build_scenario(base, c(Search = 60), name = "s1")
-  s2   <- build_scenario(s1, c(TV = 70), name = "s2", status = "to review")
+  s1   <- build_scenario(base, at_cell(Search = 60), name = "s1")
+  s2   <- build_scenario(s1, at_cell(TV = 70), name = "s2", status = "to review")
   set  <- add_scenario(add_scenario(scenario_set(base), s1), s2)
   l    <- lineage(set)
   expect_equal(l$scenario, c("base", "s1", "s2"))
@@ -139,7 +140,7 @@ test_that("lineage points each scenario at the parent it came from", {
 
 test_that("a scenario whose parent is not in the set is a root", {
   base <- std_plan(name = "base")
-  s1   <- build_scenario(base, c(Search = 60), name = "s1")
+  s1   <- build_scenario(base, at_cell(Search = 60), name = "s1")
   set  <- add_scenario(scenario_set(s1), std_plan(name = "other"))
   l    <- lineage(set)
   expect_true(all(is.na(l$parent)))
@@ -154,7 +155,7 @@ test_that("a scenario whose parent is not in the set is a root", {
 test_that("plan_mermaid draws the subplan tree with keys on the edges", {
   s <- plan_mermaid(two_level())
   expect_match(s, "^graph TD\n")
-  expect_match(s, 'n1\\["Q3 topline<br/>205 · timeless"\\]')
+  expect_match(s, 'n1\\["Q3 topline<br/>205 · weekly"\\]')
   expect_match(s, "n1 -->\\|TV\\| n2")
   # a pipe in a key would end the edge label, so it is entity-encoded
   expect_match(s, "n2 -->\\|TV #124; NBC\\| n3", fixed = FALSE)
@@ -164,7 +165,7 @@ test_that("plan_mermaid draws the subplan tree with keys on the edges", {
 
 test_that("plan_mermaid draws lineage with deltas and marks the baseline", {
   base <- std_plan(name = "base")
-  s1   <- build_scenario(base, c(Search = 60), name = "s1")
+  s1   <- build_scenario(base, at_cell(Search = 60), name = "s1")
   set  <- add_scenario(scenario_set(base), s1)
   s    <- plan_mermaid(set)
   expect_match(s, 'n1\\["base<br/>160"\\]:::base')

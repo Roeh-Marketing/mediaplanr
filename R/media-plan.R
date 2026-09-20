@@ -6,9 +6,9 @@
 #' package identifies what a row is buying. This is what the decomp constrains
 #' and what response models attach to.
 #'
-#' At a weekly grain a row is a line item *for a given week*, so pass
-#' [line_item_grain()] to identify the line item independent of time, or the
-#' full `@grain` to identify the row.
+#' Every plan is keyed by time, so a row is a line item *for one period* —
+#' a week, a day, a month, a moment. Pass [line_item_grain()] to identify the
+#' line item independent of time, or the full `@grain` to identify the row.
 #'
 #' @param df A data frame containing the columns.
 #' @param cols Character vector of column names to combine.
@@ -31,18 +31,18 @@ line_item <- function(df, cols, sep = " | ") {
   do.call(paste, c(parts, list(sep = sep)))
 }
 
-#' The grain columns that identify a line item, excluding the week
+#' The grain columns that identify a line item, excluding time
 #'
-#' A plan's `@grain` describes a row. When the plan has a week column, a row is
-#' a line item *per week*; this drops the week so what remains identifies the
-#' line item itself — the level the decomp constrains and response models are
-#' fitted at.
+#' A plan's `@grain` describes a row, and every plan is keyed by time, so a row
+#' is a line item *for one period*. This drops `@time_col`, leaving the columns
+#' that identify the line item itself — the level the decomp constrains and
+#' response models are fitted at.
 #'
 #' @param plan A [MediaPlan].
-#' @return Character vector of grain columns excluding `@week_col`.
+#' @return Character vector of grain columns excluding `@time_col`.
 #' @export
 line_item_grain <- function(plan) {
-  setdiff(plan@grain, plan@week_col)
+  setdiff(plan@grain, plan@time_col)
 }
 
 #' The allowed plan workflow states
@@ -83,6 +83,12 @@ status_levels <- function() {
 #' for a row, including for weeks that have already passed. It is never what
 #' actually happened; actualised spend and attributed KPI live in the decomp.
 #'
+#' Every plan is keyed by time. `@time_col` is required and `@time_basis` says
+#' what one of its values covers — a day, a week, a month, or a moment for a
+#' buy placed at a specific time. Those two are what a row's in-market period is
+#' derived from, so nothing in the package has to assume a week. See
+#' [time_basis_levels()].
+#'
 #' A plan on its own is therefore **blind to past and future**. "Historical",
 #' "future", under-delivery and over-delivery are not properties of a plan: they
 #' only exist for a *pairing* of a plan with a decomp that reports actuals
@@ -98,10 +104,22 @@ status_levels <- function() {
 #'
 #' @param data A data frame with the grain columns + `planned_spend`. One row per grain
 #'   cell.
-#' @param grain Character vector naming the columns that identify a row. When
-#'   the plan is weekly this includes the week column.
-#' @param week_col Optional name of the week column within `@grain`. Must hold
-#'   `Date` values (the week start). Empty means the plan has no time dimension.
+#' @param grain Character vector naming the columns that identify a row. It
+#'   always ends with `@time_col`, which the constructors append for you — a
+#'   caller names the line item columns and the time column separately.
+#' @param time_col Name of the plan's time column, part of `@grain`.
+#'   **Required**: every plan is planned against a calendar. Holds `Date`
+#'   values (the first day of the period) or `POSIXct` moments.
+#' @param time_basis What one value of `@time_col` stands for; one of
+#'   [time_basis_levels()]. `"day"`, `"week"` and `"month"` go with a `Date`
+#'   column, `"instant"` with a `POSIXct` one.
+#' @param tz The plan's timezone: the clock its times are stated on, as an
+#'   Olson name (`"America/New_York"`, `"UTC"`). It is the plan's own property
+#'   rather than a detail of whichever column happens to hold a moment, so a
+#'   time given to an edit is read on the plan's clock wherever the code runs.
+#'   `""` means unstated, and then the session's zone decides — which is the
+#'   ambiguity worth removing. Only moments have a clock, so this has no effect
+#'   on a plan keyed by day, week or month.
 #' @param id Opaque synthetic id (identity/lineage only).
 #' @param parent_id Id of the plan this one was derived from; empty for a root
 #'   plan.
@@ -134,7 +152,9 @@ MediaPlan <- S7::new_class(
   properties = list(
     data      = S7::new_property(S7::class_data.frame, default = quote(data.frame())),
     grain     = S7::new_property(S7::class_character, default = character(0)),
-    week_col  = S7::new_property(S7::class_character, default = character(0)),
+    time_col  = S7::new_property(S7::class_character, default = character(0)),
+    time_basis = S7::new_property(S7::class_character, default = "week"),
+    tz        = S7::new_property(S7::class_character, default = ""),
     id        = S7::new_property(S7::class_character, default = quote(new_id("plan"))),
     parent_id = S7::new_property(S7::class_character, default = character(0)),
     name       = S7::new_property(S7::class_character, default = ""),
@@ -156,16 +176,17 @@ MediaPlan <- S7::new_class(
     subplans   = S7::new_property(S7::class_list, default = quote(list())),
 
     # Derived, never stored: getter properties are read-only, so these cannot
-    # drift from @data. S7 does not enforce the declared class on a getter's
-    # return value, so each one is responsible for its own type -- hence the
-    # explicit length-0 Date / integer for "the plan has no time dimension".
-    flight_start = S7::new_property(S7::class_Date, getter = function(self) {
+    # drift from @data. Their type is the time column's -- Dates on most plans,
+    # moments on a plan of spots -- so they are declared class_any and each one
+    # is responsible for returning the right thing, including for the empty
+    # case, where the type still has to be right for a caller that stores it.
+    flight_start = S7::new_property(S7::class_any, getter = function(self) {
       w <- flight_window(self)
-      if (length(w)) unname(w[["start"]]) else as.Date(character(0))
+      if (length(w)) unname(w[["start"]]) else w
     }),
-    flight_end = S7::new_property(S7::class_Date, getter = function(self) {
+    flight_end = S7::new_property(S7::class_any, getter = function(self) {
       w <- flight_window(self)
-      if (length(w)) unname(w[["end"]]) else as.Date(character(0))
+      if (length(w)) unname(w[["end"]]) else w
     }),
     flight_days = S7::new_property(S7::class_integer, getter = function(self) {
       .flight_days(self)
@@ -198,21 +219,68 @@ MediaPlan <- S7::new_class(
       }
     }
 
-    if (length(self@week_col)) {
-      if (length(self@week_col) != 1) {
-        errs <- c(errs, "@week_col must name a single column.")
-      } else if (!self@week_col %in% g) {
-        errs <- c(errs, paste0("@week_col '", self@week_col,
-                               "' must be one of the @grain columns."))
-      } else if (self@week_col %in% names(d) && !inherits(d[[self@week_col]], "Date")) {
-        errs <- c(errs, paste0("week column '", self@week_col,
-                               "' must hold Date values (the week start)."))
+    # Time is not optional. A plan that does not say when it runs cannot be
+    # paced, put on a calendar, or checked against a decomp, and every verb in
+    # the package would need a second code path to pretend otherwise.
+    tc   <- self@time_col
+    type <- NA_character_
+    if (length(tc) != 1 || is.na(tc) || !nzchar(tc)) {
+      errs <- c(errs, paste0(
+        "@time_col is required: every plan names the column it is planned ",
+        "against."))
+    } else if (!tc %in% g) {
+      errs <- c(errs, paste0("@time_col '", tc,
+                             "' must be one of the @grain columns."))
+    } else if (tc %in% names(d)) {
+      type <- .time_type(d[[tc]])
+      if (is.na(type)) {
+        errs <- c(errs, paste0(
+          "time column '", tc, "' must hold Date values (the first day of the ",
+          "period) or POSIXct moments."))
       }
     }
 
+    if (length(tc) == 1 && !is.na(tc) && nzchar(tc) &&
+        !length(setdiff(g, tc))) {
+      errs <- c(errs, paste0(
+        "@grain is only the time column: name at least one line item column ",
+        "(channel, partner, tactic) as well."))
+    }
+
+    # The zone is the plan's, and the column is displayed on it: keeping the
+    # two equal is what lets every other function read the clock off either.
+    z <- self@tz
+    if (length(z) != 1 || is.na(z)) {
+      errs <- c(errs, "@tz must be a single string (\"\" when unstated).")
+    } else if (!.valid_tz(z)) {
+      errs <- c(errs, paste0("@tz '", z, "' is not a timezone this platform ",
+                             "knows; see OlsonNames()."))
+    } else if (identical(type, "datetime") && !identical(.tz_of(d[[tc]]), z)) {
+      errs <- c(errs, paste0(
+        "time column '", tc, "' is displayed in '", .tz_of(d[[tc]]),
+        "' but @tz is '", z, "'. Build the plan through media_plan_from_df(), ",
+        "which puts the column on the plan's clock."))
+    }
+
+    tb <- self@time_basis
+    if (length(tb) != 1 || is.na(tb) || !tb %in% time_basis_levels()) {
+      errs <- c(errs, paste0("@time_basis must be one of: ",
+                             paste(time_basis_levels(), collapse = ", "), "."))
+    } else if (!is.na(type) && !tb %in% .bases_for_type(type)) {
+      errs <- c(errs, if (identical(type, "datetime")) {
+        paste0("'", tc, "' holds POSIXct moments, so @time_basis must be ",
+               "\"instant\"; got \"", tb, "\".")
+      } else {
+        paste0("@time_basis \"instant\" needs a POSIXct time column; '", tc,
+               "' holds Dates. Use one of: ",
+               paste(.bases_for_type("date"), collapse = ", "), ".")
+      })
+    }
+
     # Flighting and unit columns ride along: checked, never part of the key. A
-    # plan that records neither skips all of this.
-    errs <- c(errs, .validate_flight_cols(d))
+    # plan that records neither skips all of this. Flight dates are compared
+    # against the time column, so they are held to its type.
+    errs <- c(errs, .validate_flight_cols(d, type))
     if (!length(errs)) errs <- c(errs, .validate_unit_cols(d))
 
     # One row per grain cell.
@@ -307,16 +375,17 @@ MediaPlan <- S7::new_class(
 #' @param decomp A data frame of the decomp's line items. May name any subset of
 #'   [line_item_grain()] — a channel-only decomp checks channels and ignores
 #'   partners.
-#' @param through Optional `Date`. Restricts the check to plan rows in market
-#'   before that date; see *What `through` compares against*. Without it, or on
-#'   a plan with no time dimension, the whole plan is considered.
+#' @param through Optional `Date` (or `POSIXct`, on a plan keyed by moments).
+#'   Restricts the check to plan rows in market before it; see *What `through`
+#'   compares against*. Without it the whole plan is considered.
 #' @return Invisibly, a character vector of the decomp line items missing from
 #'   the plan — empty when coverage is complete. Returned so a UI can render
 #'   them; the warning is for interactive use.
 #' @examples
 #' p <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-#'   grain = "channel", name = "Q3 plan"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(80, 40)),
+#'   grain = "channel", time = "week", name = "Q3 plan"
 #' )
 #' check_coverage(p, data.frame(channel = c("TV", "Search")))
 #' @export
@@ -339,8 +408,11 @@ check_coverage <- function(plan, decomp, through = NULL) {
 
   d <- plan@data
   if (!is.null(through)) {
-    through <- as.Date(through)
-    if (is.na(through)) stop("`through` must be a Date.", call. = FALSE)
+    through <- .align_time(.as_time_col(through, "through"), d[[plan@time_col]])
+    if (!length(through) || is.na(through[1])) {
+      stop("`through` must be a Date or a moment.", call. = FALSE)
+    }
+    through <- through[1]
 
     # Scope by OVERLAP, through the same .row_span() every other date question
     # uses: a row is in scope when any part of its in-market period falls before
@@ -349,16 +421,11 @@ check_coverage <- function(plan, decomp, through = NULL) {
     # plan. Comparing against the week start alone happened to give this answer
     # for weekly rows, but not for a flight that starts mid-week.
     span <- .row_span(plan)
-    if (is.null(span)) {
-      warning("`through` was supplied but the plan has no time dimension; ",
-              "checking the whole plan.", call. = FALSE)
-    } else {
-      d <- d[!is.na(span$start) & span$start < through, , drop = FALSE]
-      if (!nrow(d)) {
-        warning("no plan rows are in market before ", format(through),
-                "; not checked.", call. = FALSE)
-        return(invisible(character(0)))
-      }
+    d <- d[!is.na(span$start) & span$start < through, , drop = FALSE]
+    if (!nrow(d)) {
+      warning("no plan rows are in market before ", format(through),
+              "; not checked.", call. = FALSE)
+      return(invisible(character(0)))
     }
   }
 
@@ -376,8 +443,8 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' Build a validated media plan from a data frame
 #'
 #' The primary entry point for turning an uploaded plan into a [MediaPlan].
-#' Normalises the spend column name to `planned_spend`, coerces the week column
-#' to `Date`, and runs the full validator on construction.
+#' Normalises the spend column name to `planned_spend`, reads the time column
+#' and appends it to the grain, and runs the full validator on construction.
 #'
 #' It knows nothing about decomps: a plan is constructed from the plan alone.
 #' To check a plan against a decomp, call [check_coverage()] — which can then be
@@ -385,10 +452,26 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #'
 #' @param df A data frame holding the plan: grain columns plus a spend column.
 #'   All other columns are preserved on `@data` untouched.
-#' @param grain Character vector naming the columns that identify a row,
-#'   including the week column when the plan is weekly.
-#' @param week Optional name of the week column. Must be among `grain`. Values
-#'   are coerced to `Date` (the week start).
+#' @param grain Character vector naming the **line item** columns — channel,
+#'   partner, tactic. The time column is appended to them automatically, so
+#'   there is no need to name it here; naming it anyway is harmless, and it is
+#'   moved to the end either way.
+#' @param time Name of the plan's time column. A time column is **required**:
+#'   every plan says when it runs. Left `NULL`, it is taken from `df` when
+#'   exactly one Date or POSIXct column is available to be it. Values may be
+#'   `Date` (the first day of the period), `POSIXct` moments, or ISO-8601
+#'   strings of either.
+#' @param time_basis What one value of the time column covers; one of
+#'   [time_basis_levels()]. Inferred from the column when `NULL`: month starts
+#'   read as `"month"`, dates that all fall on one weekday as `"week"`,
+#'   anything else as `"day"`, and a `POSIXct` column always as `"instant"`.
+#'   Declare it when the guess would be wrong — a single month of a monthly
+#'   plan cannot be told from a single week.
+#' @param tz The plan's timezone, as an Olson name (`"America/New_York"`).
+#'   Times given as strings are read on it, and the time column is put on it,
+#'   so the plan reads the same wherever the code runs. Taken from the column
+#'   when `NULL` and it already carries one; `""` otherwise, which leaves the
+#'   session's zone to decide.
 #' @param planned_spend Name of the planned-spend column in `df`. Renamed to
 #'   `planned_spend`. Holds intent on every row, including past weeks. Default
 #'   `"planned_spend"`.
@@ -415,13 +498,25 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' @return A validated [MediaPlan].
 #' @examples
 #' df <- data.frame(
+#'   week    = as.Date(c("2026-07-06", "2026-07-06", "2026-07-06")),
 #'   channel = c("TV", "Search", "Social"),
 #'   planned_spend = c(100, 80, 60)
 #' )
-#' media_plan_from_df(df, grain = "channel", name = "Q3 plan",
+#' media_plan_from_df(df, grain = "channel", time = "week", name = "Q3 plan",
 #'                    advertiser = "Acme", status = "in development")
+#'
+#' # A buy placed at a specific moment: a POSIXct column, basis "instant".
+#' spots <- data.frame(
+#'   airs   = as.POSIXct(c("2026-07-06 20:30:00", "2026-07-06 21:00:00"),
+#'                       tz = "UTC"),
+#'   daypart = c("primetime", "primetime"),
+#'   planned_spend = c(45000, 52000)
+#' )
+#' media_plan_from_df(spots, grain = "daypart", time = "airs",
+#'                    name = "Launch spots")
 #' @export
-media_plan_from_df <- function(df, grain, week = NULL,
+media_plan_from_df <- function(df, grain, time = NULL, time_basis = NULL,
+                               tz = NULL,
                                planned_spend = "planned_spend",
                                planned_units = NULL, planned_rate = NULL,
                                unit_type = NULL,
@@ -453,37 +548,58 @@ media_plan_from_df <- function(df, grain, week = NULL,
   }
   df <- .complete_trio(df)
 
+  time <- if (is.null(time)) .infer_time_col(df) else as.character(time)
+  if (length(time) != 1 || is.na(time) || !nzchar(time)) {
+    stop("`time` must name a single column.", call. = FALSE)
+  }
+  if (!time %in% names(df)) {
+    stop("time column '", time, "' not found in `df`. Every plan is planned ",
+         "against a calendar, so `df` carries the week, day, month or moment ",
+         "each row is planned for.", call. = FALSE)
+  }
+  # The plan's clock is settled BEFORE the column is read, so a string like
+  # "2026-02-08 20:00" means that time on the plan's clock rather than on
+  # whichever machine happens to be parsing it.
+  # Unstated, either way round, means "whatever the data already says".
+  tz <- if (is.null(tz)) "" else as.character(tz)[1]
+  if (is.na(tz) || !nzchar(tz)) tz <- .tz_of(df[[time]])
+  if (!.valid_tz(tz)) {
+    stop("`tz` '", tz, "' is not a timezone this platform knows; see ",
+         "OlsonNames().", call. = FALSE)
+  }
+  df[[time]] <- .stamp_tz(.as_time_col(df[[time]], time, tz), tz)
+  for (nm in intersect(c("flight_start", "flight_end"), names(df))) {
+    df[[nm]] <- .stamp_tz(df[[nm]], tz)
+  }
+
   miss <- setdiff(grain, names(df))
   if (length(miss)) {
     stop("grain column(s) not found in `df`: ", paste(miss, collapse = ", "),
          call. = FALSE)
   }
 
-  week_col <- character(0)
-  if (!is.null(week)) {
-    if (length(week) != 1 || !week %in% grain) {
-      stop("`week` must name a single column that is part of `grain` (",
-           paste(grain, collapse = ", "), ").", call. = FALSE)
-    }
-    if (!inherits(df[[week]], "Date")) {
-      # as.Date() *errors* on unparseable strings rather than returning NA.
-      converted <- suppressWarnings(
-        tryCatch(as.Date(df[[week]]),
-                 error = function(e) rep(NA, nrow(df)))
-      )
-      if (anyNA(converted)) {
-        stop("week column '", week, "' could not be coerced to Date. Supply ",
-             "Date values or ISO-8601 strings (the week start).", call. = FALSE)
-      }
-      df[[week]] <- converted
-    }
-    week_col <- week
+  # The time column belongs to the grain and goes last, whether or not the
+  # caller named it: a row is a line item for one period, and the columns are
+  # ordered coarsest-first so roll_up() can drop the rightmost.
+  grain <- c(setdiff(grain, time), time)
+  if (length(grain) < 2L) {
+    stop("`grain` must name at least one line item column (channel, partner, ",
+         "tactic); the time column is added to them automatically.",
+         call. = FALSE)
+  }
+
+  basis <- if (is.null(time_basis)) {
+    .infer_time_basis(df[[time]])
+  } else {
+    trimws(tolower(as.character(time_basis)[1]))
   }
 
   MediaPlan(
     data       = df,
     grain      = grain,
-    week_col   = week_col,
+    time_col   = time,
+    time_basis = basis,
+    tz         = tz,
     id         = id %||% new_id("plan"),
     parent_id  = parent_id,
     name       = name,
@@ -512,11 +628,16 @@ media_plan_from_df <- function(df, grain, week = NULL,
 #' a response model exists: a new partner with no model of its own rolls up to
 #' its channel, which has one.
 #'
-#' Treat `@grain` as an ordered nesting (channel, then partner, then tactic), so
-#' "the next coarsest level" means dropping the rightmost column.
+#' Treat the line item columns as an ordered nesting (channel, then partner,
+#' then tactic), so "the next coarsest level" means dropping the rightmost one.
+#'
+#' Time is **never** rolled up here: `@time_col` is kept whatever is asked for,
+#' because a plan without a calendar is not a plan. To aggregate over time — to
+#' see a weekly plan by month — use [calendarize()], the other half of the pair.
 #'
 #' @param plan A [MediaPlan].
-#' @param grain Character vector; a subset of `plan@grain` to aggregate to.
+#' @param grain Character vector; the line item columns to aggregate to, a
+#'   subset of [line_item_grain()]. The time column is kept automatically.
 #' @param name Optional name for the resulting plan; defaults to the source
 #'   plan's name, since a rollup is the same plan viewed at a coarser grain.
 #' @return A new [MediaPlan] at the coarser grain. Any subplans are dropped:
@@ -524,10 +645,11 @@ media_plan_from_df <- function(df, grain, week = NULL,
 #'   exist at the new grain.
 #' @examples
 #' p <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "TV", "Search"),
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "TV", "Search"),
 #'              partner = c("NBC", "ESPN", "Google"),
 #'              planned_spend = c(30, 20, 50)),
-#'   grain = c("channel", "partner"), name = "Q3 plan"
+#'   grain = c("channel", "partner"), time = "week", name = "Q3 plan"
 #' )
 #' roll_up(p, "channel")@data
 #' @export
@@ -541,8 +663,12 @@ roll_up <- function(plan, grain, name = NULL) {
          paste(plan@grain, collapse = ", "), "); not in it: ",
          paste(extra, collapse = ", "), call. = FALSE)
   }
-  if (!length(grain)) {
-    stop("`grain` must name at least one column.", call. = FALSE)
+  grain <- c(setdiff(grain, plan@time_col), plan@time_col)
+  if (length(grain) < 2L) {
+    stop("`grain` must name at least one line item column to roll up to (",
+         paste(line_item_grain(plan), collapse = ", "), "); the time column ",
+         "is kept automatically. To aggregate over time, use calendarize().",
+         call. = FALSE)
   }
 
   out <- .aggregate_to(plan@data, grain)
@@ -554,7 +680,6 @@ roll_up <- function(plan, grain, name = NULL) {
     plan,
     data      = out,
     grain     = grain,
-    week_col  = intersect(plan@week_col, grain),
     id        = new_id("plan"),
     parent_id = plan@id,
     name      = name %||% plan@name,
@@ -586,8 +711,9 @@ roll_up <- function(plan, grain, name = NULL) {
 #' @return The same plan (same `@id`) with the named fields changed.
 #' @examples
 #' p <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-#'   grain = "channel", name = "Q3 plan"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(80, 40)),
+#'   grain = "channel", time = "week", name = "Q3 plan"
 #' )
 #' q <- revise(p, status = "approved", revision = 2)
 #' identical(q@id, p@id)

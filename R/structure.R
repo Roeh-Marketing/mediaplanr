@@ -15,10 +15,10 @@
 .box <- list(tee = "\u251c\u2500 ", end = "\u2514\u2500 ", bar = "\u2502  ",
              dot = " \u00b7 ")
 
-# A plan's cadence in one word, for structure views. Flights report their
-# basis; weekly rows with no flight identity are simply weekly.
+# A plan's cadence in one word, for structure views. Flights report their own
+# basis, which can be finer than the plan's rows; rows with no flight identity
+# simply report the plan's @time_basis.
 .cadence <- function(plan) {
-  if (!length(plan@week_col)) return("timeless")
   fl <- flights(plan)
   if (nrow(fl)) {
     b <- unique(fl[["period_basis"]])
@@ -28,7 +28,7 @@
     }
     return("flighted")
   }
-  "weekly"
+  .basis_word(plan@time_basis)
 }
 
 # Distinct line items, ignoring time and flight bookkeeping.
@@ -58,20 +58,22 @@
 #'     \item{`path`}{Keys from the root joined with `" > "`; `""` for the root.}
 #'     \item{`name`, `nickname`, `status`, `revision`, `id`}{The plan's own.}
 #'     \item{`grain`}{Its grain columns joined with `" + "`.}
-#'     \item{`cadence`}{`"timeless"`, `"weekly"`, `"daily"`, `"monthly"` or
+#'     \item{`cadence`}{`"weekly"`, `"daily"`, `"monthly"`, `"timed"` or
 #'       `"flighted"`, read off the data.}
 #'     \item{`line_items`, `rows`, `spend`}{Its size.}
 #'     \item{`subplans`}{How many it holds directly.}
 #'   }
 #' @examples
 #' topline <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(100, 40)),
-#'   grain = "channel", name = "Q3 topline"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(100, 40)),
+#'   grain = "channel", time = "week", name = "Q3 topline"
 #' )
 #' tv <- media_plan_from_df(
-#'   data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = "TV", partner = c("NBC", "ESPN"),
 #'              planned_spend = c(70, 50)),
-#'   grain = c("channel", "partner"), name = "TV detail"
+#'   grain = c("channel", "partner"), time = "week", name = "TV detail"
 #' )
 #' subplan_map(attach_subplan(topline, tv))
 #' @seealso [plan_tree()], [plan_mermaid()], [attach_subplan()]
@@ -124,13 +126,15 @@ subplan_map <- function(plan) {
 #' @return The printed lines, invisibly, as a character vector.
 #' @examples
 #' topline <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(100, 40)),
-#'   grain = "channel", name = "Q3 topline"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(100, 40)),
+#'   grain = "channel", time = "week", name = "Q3 topline"
 #' )
 #' tv <- media_plan_from_df(
-#'   data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = "TV", partner = c("NBC", "ESPN"),
 #'              planned_spend = c(70, 50)),
-#'   grain = c("channel", "partner"), name = "TV detail"
+#'   grain = c("channel", "partner"), time = "week", name = "TV detail"
 #' )
 #' plan_tree(attach_subplan(topline, tv))
 #' @seealso [subplan_map()], [plan_mermaid()]
@@ -221,8 +225,8 @@ plan_tree <- function(plan) {
 #' its own map.
 #'
 #' @param plan A [MediaPlan].
-#' @return A data frame with the plan's line item columns, its week column
-#'   when it has one, and:
+#' @return A data frame with the plan's line item columns, its time column,
+#'   and:
 #'   \describe{
 #'     \item{`key`}{The line item, as [line_item()] names it.}
 #'     \item{`owner`}{The subplan key that owns the cell; `NA` when the plan
@@ -234,13 +238,15 @@ plan_tree <- function(plan) {
 #'   Ordered by period, then line item.
 #' @examples
 #' topline <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(100, 40)),
-#'   grain = "channel", name = "Q3 topline"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(100, 40)),
+#'   grain = "channel", time = "week", name = "Q3 topline"
 #' )
 #' tv <- media_plan_from_df(
-#'   data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = "TV", partner = c("NBC", "ESPN"),
 #'              planned_spend = c(70, 50)),
-#'   grain = c("channel", "partner"), name = "TV detail"
+#'   grain = c("channel", "partner"), time = "week", name = "TV detail"
 #' )
 #' ownership_map(attach_subplan(topline, tv))
 #' @seealso [subplan_map()], [attach_subplan()]
@@ -251,7 +257,7 @@ ownership_map <- function(plan) {
   }
   d  <- plan@data
   li <- setdiff(line_item_grain(plan), flight_cols())
-  wk <- plan@week_col
+  wk <- plan@time_col
   if (!length(li)) {
     stop("the plan's grain is only its time column, so there are no line ",
          "items to own.", call. = FALSE)
@@ -269,7 +275,7 @@ ownership_map <- function(plan) {
   out[["locked"]]        <- !is.na(owner)
   out[["planned_spend"]] <- d[["planned_spend"]]
 
-  ord <- if (length(wk)) order(out[[wk]], key) else order(key)
+  ord <- order(out[[wk]], key)
   out <- out[ord, , drop = FALSE]
   rownames(out) <- NULL
   out
@@ -303,11 +309,14 @@ ownership_map <- function(plan) {
 #'   }
 #' @examples
 #' base <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-#'   grain = "channel", name = "base"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(80, 40)),
+#'   grain = "channel", time = "week", name = "base"
 #' )
-#' s1  <- build_scenario(base, c(Search = 60), name = "Search up")
-#' s2  <- build_scenario(s1, c(TV = 70), name = "and TV down")
+#' s1  <- build_scenario(base, list(target = list(channel = "Search"),
+#'                                  total = 60), name = "Search up")
+#' s2  <- build_scenario(s1, list(target = list(channel = "TV"), total = 70),
+#'                       name = "and TV down")
 #' set <- add_scenario(add_scenario(scenario_set(base), s1), s2)
 #' lineage(set)
 #' @seealso [plan_mermaid()], [compare_scenarios()]
@@ -371,10 +380,12 @@ lineage <- function(set) {
 #' @return A single string. `cat()` it, or pass it to a Mermaid renderer.
 #' @examples
 #' base <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-#'   grain = "channel", name = "base"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(80, 40)),
+#'   grain = "channel", time = "week", name = "base"
 #' )
-#' s1  <- build_scenario(base, c(Search = 60), name = "Search up")
+#' s1  <- build_scenario(base, list(target = list(channel = "Search"),
+#'                                  total = 60), name = "Search up")
 #' cat(plan_mermaid(add_scenario(scenario_set(base), s1)))
 #' @seealso [subplan_map()], [lineage()]
 #' @export

@@ -24,10 +24,12 @@ does — a GitHub README, Quarto, Shiny, a notebook.
 }
 \examples{
 base <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-  grain = "channel", name = "base"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80, 40)),
+  grain = "channel", time = "week", name = "base"
 )
-s1  <- build_scenario(base, c(Search = 60), name = "Search up")
+s1  <- build_scenario(base, list(target = list(channel = "Search"),
+                                 total = 60), name = "Search up")
 cat(plan_mermaid(add_scenario(scenario_set(base), s1)))
 }
 \seealso{

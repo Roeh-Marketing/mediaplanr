@@ -5,19 +5,19 @@
 
 social <- function(...) {
   media_plan_from_df(
-    data.frame(channel = "Social", unit_type = "impression", ...,
+    data.frame(week = fix_week(), channel = "Social", unit_type = "impression", ...,
                stringsAsFactors = FALSE),
-    grain = "channel", name = "social")
+    grain = "channel", time = "week", name = "social")
 }
 
 two_channel <- function() {
   media_plan_from_df(
-    data.frame(channel = c("Social", "Search"),
+    data.frame(week = fix_week(), channel = c("Social", "Search"),
                unit_type = c("impression", "click"),
                planned_spend = c(140000, 95000),
                planned_rate  = c(5, 0.80),
                stringsAsFactors = FALSE),
-    grain = "channel", name = "two")
+    grain = "channel", time = "week", name = "two")
 }
 
 # ---- authoring ---------------------------------------------------------------
@@ -38,43 +38,43 @@ test_that("impressions are priced per thousand and everything else per unit", {
   imp <- social(planned_spend = 140000, planned_units = 28000000)
   expect_equal(imp@data$planned_rate, 5)              # a CPM
   clk <- media_plan_from_df(
-    data.frame(channel = "Search", unit_type = "click",
+    data.frame(week = fix_week(), channel = "Search", unit_type = "click",
                planned_spend = 95000, planned_units = 118750),
-    grain = "channel", name = "clicks")
+    grain = "channel", time = "week", name = "clicks")
   expect_equal(clk@data$planned_rate, 0.80)           # a CPC, per single click
 })
 
 test_that("an unknown unit type is accepted and priced per single unit", {
   p <- media_plan_from_df(
-    data.frame(channel = "New", unit_type = "attention_second",
+    data.frame(week = fix_week(), channel = "New", unit_type = "attention_second",
                planned_spend = 1000, planned_units = 500),
-    grain = "channel", name = "novel")
+    grain = "channel", time = "week", name = "novel")
   expect_equal(p@data$planned_rate, 2)
   expect_false("attention_second" %in% unit_type_levels())
 })
 
 test_that("spend may be omitted when units and a rate can produce it", {
   p <- media_plan_from_df(
-    data.frame(channel = "Social", unit_type = "impression",
+    data.frame(week = fix_week(), channel = "Social", unit_type = "impression",
                planned_units = 28000000, planned_rate = 5),
-    grain = "channel", name = "no spend column")
+    grain = "channel", time = "week", name = "no spend column")
   expect_equal(p@data$planned_spend, 140000)
 })
 
 test_that("only one of the three may be missing", {
   expect_error(
     media_plan_from_df(
-      data.frame(channel = "Social", unit_type = "impression",
+      data.frame(week = fix_week(), channel = "Social", unit_type = "impression",
                  planned_units = 28000000),
-      grain = "channel", name = "one only"),
+      grain = "channel", time = "week", name = "one only"),
     "not found in `df`")
 })
 
 test_that("the columns can be named anything and are renamed", {
   p <- media_plan_from_df(
-    data.frame(channel = "Social", medium = "impression",
+    data.frame(week = fix_week(), channel = "Social", medium = "impression",
                budget = 140000, cpm = 5),
-    grain = "channel", planned_spend = "budget",
+    grain = "channel", time = "week", planned_spend = "budget",
     planned_rate = "cpm", unit_type = "medium", name = "renamed")
   expect_equal(p@data$planned_units, 28000000)
   expect_true(all(c("unit_type", "planned_rate") %in% names(p@data)))
@@ -92,16 +92,18 @@ test_that("an inconsistent trio is rejected", {
   p <- two_channel()
   d <- p@data
   d$planned_units[1] <- 999
-  expect_error(MediaPlan(data = d, grain = p@grain, name = "bad"),
+  expect_error(MediaPlan(data = d, grain = p@grain, time_col = p@time_col,
+                         name = "bad"),
                "does not equal planned_spend")
 })
 
 test_that("negative units or rates are rejected", {
   expect_error(social(planned_spend = 100, planned_rate = -5), "not be negative")
   expect_error(
-    MediaPlan(data = data.frame(channel = "TV", planned_spend = 100,
+    MediaPlan(data = data.frame(week = fix_week(), channel = "TV",
+                                planned_spend = 100,
                                 planned_units = -5, planned_rate = 20),
-              grain = "channel", name = "bad"),
+              grain = c("channel", "week"), time_col = "week", name = "bad"),
     "not be negative")
 })
 
@@ -135,9 +137,9 @@ test_that("units stay consistent with spend through any edit", {
 
 test_that("a row with no rate keeps its units rather than being guessed at", {
   p <- media_plan_from_df(
-    data.frame(channel = c("TV", "Bonus"), unit_type = c("grp", "impression"),
+    data.frame(week = fix_week(), channel = c("TV", "Bonus"), unit_type = c("grp", "impression"),
                planned_spend = c(100, 0), planned_units = c(50, 1000000)),
-    grain = "channel", name = "with bonus")
+    grain = "channel", time = "week", name = "with bonus")
   expect_equal(p@data$planned_units[p@data$channel == "Bonus"], 1000000)
   s <- build_scenario(p, edits = list(target = list(channel = "TV"),
                                       scale = 2), name = "x")
@@ -148,10 +150,10 @@ test_that("a row with no rate keeps its units rather than being guessed at", {
 
 test_that("roll_up sums units within a type and blends the rate", {
   p <- media_plan_from_df(
-    data.frame(channel = "Social", partner = c("Meta", "TikTok"),
+    data.frame(week = fix_week(), channel = "Social", partner = c("Meta", "TikTok"),
                unit_type = "impression", planned_spend = c(140000, 60000),
                planned_rate = c(5, 4)),
-    grain = c("channel", "partner"), name = "two partners")
+    grain = c("channel", "partner"), time = "week", name = "two partners")
   r <- roll_up(p, "channel")@data
   expect_equal(r$planned_units, 43000000)
   expect_equal(r$planned_rate, 200000 / 43000000 * 1000)
@@ -160,10 +162,10 @@ test_that("roll_up sums units within a type and blends the rate", {
 
 test_that("rolling across mixed unit types keeps spend and drops units", {
   p <- media_plan_from_df(
-    data.frame(bucket = "all", channel = c("Social", "Search"),
+    data.frame(week = fix_week(), bucket = "all", channel = c("Social", "Search"),
                unit_type = c("impression", "click"),
                planned_spend = c(140000, 95000), planned_rate = c(5, 0.8)),
-    grain = c("bucket", "channel"), name = "mixed")
+    grain = c("bucket", "channel"), time = "week", name = "mixed")
   r <- roll_up(p, "bucket")@data
   expect_equal(r$planned_spend, 235000)             # the common currency stays
   expect_true(is.na(r$planned_units))               # GRPs plus clicks mean nothing

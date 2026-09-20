@@ -158,9 +158,10 @@ revision history; see \code{\link[=revise]{revise()}}.
 
 \examples{
 base <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search", "Social"),
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search", "Social"),
              planned_spend = c(80, 40, 40)),
-  grain = "channel", name = "base"
+  grain = "channel", time = "week", name = "base"
 )
 
 # "Increase Search by 20\%" — the caller states intent, R does the math
@@ -180,15 +181,18 @@ build_scenario(base, edits = list(
 # Absolute allocation (e.g. from mrmopt::opt_mix())
 build_scenario(
   base,
-  edits = data.frame(channel = c("TV", "Search"), planned_spend = c(50, 70)),
+  edits = data.frame(week = as.Date("2026-07-06"),
+                     channel = c("TV", "Search"), planned_spend = c(50, 70)),
   name = "Optimized"
 )
 
-# Terse single-cell override
-build_scenario(base, edits = c("Search" = 120), name = "Search boost")
+# Terse single-cell override, keyed by line_item() at the full grain
+build_scenario(base, edits = c("Search | 2026-07-06" = 120),
+               name = "Search boost")
 
 # A plan can gain and lose line items
 build_scenario(base, edits = list(add = list(channel = "Audio",
+                                             week = "2026-07-06",
                                              planned_spend = 25)),
                name = "add audio")
 build_scenario(base, edits = list(target = list(channel = "TV"), drop = TRUE),

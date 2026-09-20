@@ -108,7 +108,7 @@ test_that("a set whose plans record no flights returns no rows", {
   w <- media_plan_from_df(
     data.frame(week = as.Date(c("2026-04-06", "2026-04-13")), channel = "TV",
                planned_spend = c(10, 20)),
-    grain = c("channel", "week"), week = "week", name = "w", nickname = "w")
+    grain = "channel", time = "week", name = "w", nickname = "w")
   set <- add_scenario(scenario_set(w),
                       build_scenario(w, edits = list(scale = 2), name = "x"))
   r <- compare_scenarios(set, "flight")

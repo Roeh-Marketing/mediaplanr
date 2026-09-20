@@ -3,8 +3,8 @@
 # ids are minted and no MediaPlan is returned, because neither of these is a
 # plan.
 
-# Sorted distinct values, keeping the column's own type so a week column comes
-# back as Dates. A factor yields the labels actually present, which is what a
+# Sorted distinct values, keeping the column's own type so a time column comes
+# back as Dates or moments. A factor yields the labels actually present, which is what a
 # caller can target with; the unused levels are not in the plan.
 .distinct <- function(x) {
   if (is.factor(x)) x <- as.character(x)
@@ -24,15 +24,16 @@
 #'
 #' @param plan A [MediaPlan].
 #' @param col Name of a single grain column. `NULL` (the default) returns a
-#'   named list covering every grain column, including the week.
+#'   named list covering every grain column, including the time column.
 #' @return Sorted unique values for `col`, in the column's own type; or a named
 #'   list of those vectors when `col` is `NULL`.
 #' @examples
 #' p <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "TV", "Search"),
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "TV", "Search"),
 #'              partner = c("NBC", "ESPN", "Google"),
 #'              planned_spend = c(30, 20, 50)),
-#'   grain = c("channel", "partner"), name = "Q3 plan"
+#'   grain = c("channel", "partner"), time = "week", name = "Q3 plan"
 #' )
 #'
 #' grain_values(p, "channel")
@@ -54,15 +55,21 @@ grain_values <- function(plan, col = NULL) {
   .distinct(plan@data[[col]])
 }
 
-# Aggregate a Date column by line item key, dropping NA within each item.
-# tapply()/split() work in numeric, so the result is converted back.
+# Aggregate a time column by line item key, dropping NA within each item.
+# tapply()/split() work in numeric, so the result is converted back into
+# whichever of the two time types it came from.
 .span_by_item <- function(dates, key, keys, f) {
   parts <- split(as.numeric(dates), key)[keys]
-  vals <- vapply(parts, function(v) {
+  vals <- unname(vapply(parts, function(v) {
     v <- v[!is.na(v)]
     if (!length(v)) NA_real_ else f(v)
-  }, numeric(1))
-  as.Date(unname(vals), origin = "1970-01-01")
+  }, numeric(1)))
+  if (inherits(dates, "POSIXct")) {
+    tz <- attr(dates, "tzone")
+    return(structure(vals, class = c("POSIXct", "POSIXt"),
+                     tzone = if (is.null(tz)) "" else tz))
+  }
+  as.Date(vals, origin = "1970-01-01")
 }
 
 #' The roster of line items in a plan
@@ -83,16 +90,15 @@ grain_values <- function(plan, col = NULL) {
 #'
 #' @param plan A [MediaPlan].
 #' @return A data frame: the [line_item_grain()] columns, then `line_item` (the
-#'   key), `planned_spend` (the item's total), `n_rows`, and — only when the
-#'   plan has a time dimension — `flight_start` and `flight_end`. The date
-#'   columns are absent rather than `NA` on a timeless plan.
+#'   key), `planned_spend` (the item's total), `n_rows`, `flight_start` and
+#'   `flight_end` — the item's own window, in the time column's type.
 #' @examples
 #' p <- media_plan_from_df(
 #'   data.frame(week    = as.Date(c("2026-03-02", "2026-03-02", "2026-04-06")),
 #'              channel = c("TV", "Search", "TV"),
 #'              partner = c("NBC", "Google", "NBC"),
 #'              planned_spend = c(30, 20, 35)),
-#'   grain = c("channel", "partner", "week"), week = "week", name = "Q2 plan"
+#'   grain = c("channel", "partner"), time = "week", name = "Q2 plan"
 #' )
 #'
 #' line_item_summary(p)
@@ -104,7 +110,7 @@ line_item_summary <- function(plan) {
   d  <- plan@data
   lg <- line_item_grain(plan)
   if (!length(lg)) {
-    stop("the plan's grain is only its week column, so it has no line items ",
+    stop("the plan's grain is only its time column, so it has no line items ",
          "to summarise.", call. = FALSE)
   }
 
@@ -115,10 +121,9 @@ line_item_summary <- function(plan) {
     out[["line_item"]]     <- character(0)
     out[["planned_spend"]] <- numeric(0)
     out[["n_rows"]]        <- integer(0)
-    if (!is.null(span)) {
-      out[["flight_start"]] <- as.Date(character(0))
-      out[["flight_end"]]   <- as.Date(character(0))
-    }
+    none <- d[[plan@time_col]][0]
+    out[["flight_start"]] <- none
+    out[["flight_end"]]   <- none
     rownames(out) <- NULL
     return(out)
   }
@@ -137,10 +142,8 @@ line_item_summary <- function(plan) {
   # cleanly here even though they need care at a coarser grain.
   out <- .attach_units(out, .aggregate_units(d, k, keys))
 
-  if (!is.null(span)) {
-    out[["flight_start"]] <- .span_by_item(span$start, k, keys, min)
-    out[["flight_end"]]   <- .span_by_item(span$end,   k, keys, max)
-  }
+  out[["flight_start"]] <- .span_by_item(span$start, k, keys, min)
+  out[["flight_end"]]   <- .span_by_item(span$end,   k, keys, max)
 
   out <- out[order(-out[["planned_spend"]], out[["line_item"]]), , drop = FALSE]
   rownames(out) <- NULL

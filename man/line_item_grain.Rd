@@ -2,7 +2,7 @@
 % Please edit documentation in R/media-plan.R
 \name{line_item_grain}
 \alias{line_item_grain}
-\title{The grain columns that identify a line item, excluding the week}
+\title{The grain columns that identify a line item, excluding time}
 \usage{
 line_item_grain(plan)
 }
@@ -10,11 +10,11 @@ line_item_grain(plan)
 \item{plan}{A \link{MediaPlan}.}
 }
 \value{
-Character vector of grain columns excluding \verb{@week_col}.
+Character vector of grain columns excluding \verb{@time_col}.
 }
 \description{
-A plan's \verb{@grain} describes a row. When the plan has a week column, a row is
-a line item \emph{per week}; this drops the week so what remains identifies the
-line item itself — the level the decomp constrains and response models are
-fitted at.
+A plan's \verb{@grain} describes a row, and every plan is keyed by time, so a row
+is a line item \emph{for one period}. This drops \verb{@time_col}, leaving the columns
+that identify the line item itself — the level the decomp constrains and
+response models are fitted at.
 }

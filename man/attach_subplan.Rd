@@ -48,10 +48,11 @@ refinement.
 
 \section{Cadence}{
 
-A weekly parent needs a subplan with a week column; its spend is re-cut onto
-the parent's weeks with \code{\link[=calendarize]{calendarize()}} before the rollup, so daily flights
-or a different week start land correctly. A parent with no time dimension
-accepts any subplan and collapses time as \code{\link[=roll_up]{roll_up()}} would.
+The subplan's spend is re-cut onto the parent's own calendar with
+\code{\link[=calendarize]{calendarize()}} before the rollup, so daily flights, a different week start,
+or a weekly subplan beneath a monthly topline all land correctly. The one
+parent that cannot host a subplan is one keyed by moments: a spot schedule
+is not a calendar to gather anything onto.
 }
 
 \section{What attaching changes}{
@@ -75,13 +76,15 @@ cannot be attached beneath itself.
 
 \examples{
 topline <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(100, 40)),
-  grain = "channel", name = "Q3 topline"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(100, 40)),
+  grain = "channel", time = "week", name = "Q3 topline"
 )
 tv <- media_plan_from_df(
-  data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+  data.frame(week = as.Date("2026-07-06"),
+             channel = "TV", partner = c("NBC", "ESPN"),
              planned_spend = c(70, 50)),
-  grain = c("channel", "partner"), name = "TV detail"
+  grain = c("channel", "partner"), time = "week", name = "TV detail"
 )
 p <- attach_subplan(topline, tv)
 p@data                      # TV is now 120, from the subplan

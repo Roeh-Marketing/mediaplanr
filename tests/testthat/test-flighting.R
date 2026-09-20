@@ -98,7 +98,7 @@ test_that("flights() recovers exactly what was authored", {
   expect_identical(ooh$flight_start, as.Date("2026-04-06"))
   expect_identical(ooh$flight_end, as.Date("2026-05-03"))
   expect_identical(ooh$planned_spend, 120000)
-  expect_identical(ooh$n_weeks, 4L)
+  expect_identical(ooh$n_periods, 4L)
 })
 
 test_that("flights() totals reconcile with the plan", {
@@ -111,7 +111,7 @@ test_that("a plan with no recorded flights reports none rather than guessing", {
   p <- media_plan_from_df(
     data.frame(week = seq(as.Date("2026-04-06"), by = "week", length.out = 4),
                channel = "TV", planned_spend = rep(30000, 4)),
-    grain = c("channel", "week"), week = "week", name = "weekly")
+    grain = "channel", time = "week", name = "weekly")
   fl <- flights(p)
   expect_identical(nrow(fl), 0L)
   expect_true("planned_spend" %in% names(fl))
@@ -156,7 +156,7 @@ test_that("editing one week of a flight makes it custom but keeps the flight", {
   fl <- flights(s)
   expect_identical(fl$pacing[fl$channel == "OOH"], "custom")
   # the buy is still one buy, with its dates and its new total intact
-  expect_identical(fl$n_weeks[fl$channel == "OOH"], 4L)
+  expect_identical(fl$n_periods[fl$channel == "OOH"], 4L)
   expect_identical(fl$flight_end[fl$channel == "OOH"], as.Date("2026-05-03"))
   expect_equal(fl$planned_spend[fl$channel == "OOH"], 50000 + 30000 * 3)
 })
@@ -256,7 +256,7 @@ test_that("two flights of one line item overlapping a week is an error", {
     flight_end   = as.Date(c("2026-04-12", "2026-04-09")),
     planned_spend = c(100, 50))
   expect_error(media_plan_from_flights(df, grain = "channel", name = "clash"),
-               "overlap the same week")
+               "overlap the same period")
 })
 
 test_that("a flight that ends before it starts is an error", {
@@ -288,25 +288,25 @@ test_that("rows sharing a flight_id must agree on that flight's dates", {
   d <- p@data
   d$flight_end[1] <- as.Date("2026-04-30")     # one row of the OOH flight differs
   expect_error(
-    MediaPlan(data = d, grain = p@grain, week_col = p@week_col, name = "bad"),
+    MediaPlan(data = d, grain = p@grain, time_col = p@time_col, name = "bad"),
     "disagree on 'flight_end'")
 })
 
 test_that("a bad cadence or pacing value is rejected", {
   p <- flight_plan()
   d <- p@data; d$period_basis[1] <- "fortnight"
-  expect_error(MediaPlan(data = d, grain = p@grain, week_col = p@week_col,
+  expect_error(MediaPlan(data = d, grain = p@grain, time_col = p@time_col,
                          name = "bad"), "period_basis")
 
   d2 <- p@data; d2$pacing[1] <- "frontloaded"
-  expect_error(MediaPlan(data = d2, grain = p@grain, week_col = p@week_col,
+  expect_error(MediaPlan(data = d2, grain = p@grain, time_col = p@time_col,
                          name = "bad"), "pacing")
 })
 
 test_that("flight_end before flight_start is rejected by the validator", {
   p <- flight_plan()
   d <- p@data; d$flight_end <- d$flight_start - 1L
-  expect_error(MediaPlan(data = d, grain = p@grain, week_col = p@week_col,
+  expect_error(MediaPlan(data = d, grain = p@grain, time_col = p@time_col,
                          name = "bad"), "before flight_start")
 })
 

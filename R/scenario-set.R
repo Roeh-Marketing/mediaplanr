@@ -68,8 +68,9 @@ ScenarioSet <- S7::new_class(
 #' @return A [ScenarioSet] containing one (baseline) scenario.
 #' @examples
 #' base <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-#'   grain = "channel", name = "Q3 base"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(80, 40)),
+#'   grain = "channel", time = "week", name = "Q3 base"
 #' )
 #' scenario_set(base)
 #' @export
@@ -179,12 +180,14 @@ add_scenario <- function(set, plan, name = NULL) {
 #' @return A data frame.
 #' @examples
 #' base <- media_plan_from_df(
-#'   data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-#'   grain = "channel", name = "base"
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(80, 40)),
+#'   grain = "channel", time = "week", name = "base"
 #' )
 #' set <- scenario_set(base)
-#' set <- add_scenario(set, build_scenario(base, edits = c("Search" = 120),
-#'                                         name = "Search boost"))
+#' set <- add_scenario(set, build_scenario(
+#'   base, edits = list(target = list(channel = "Search"), total = 120),
+#'   name = "Search boost"))
 #' compare_scenarios(set)
 #' compare_scenarios(set, "cell")
 #' @export
@@ -278,7 +281,7 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
   base <- set@base_name
 
   fl <- lapply(scen, flights)
-  lg <- setdiff(setdiff(set@grain, scen[[base]]@week_col), flight_cols())
+  lg <- setdiff(setdiff(set@grain, scen[[base]]@time_col), flight_cols())
 
   ids <- unique(unlist(lapply(fl, function(f) f[["flight_id"]]),
                        use.names = FALSE))
@@ -312,18 +315,23 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
 
     spend <- ifelse(here, f[["planned_spend"]][i], 0)
     b_spend <- ifelse(!is.na(bi), b[["planned_spend"]][bi], 0)
-    start <- .as_date(ifelse(here, f[["flight_start"]][i], NA_real_))
-    end   <- .as_date(ifelse(here, f[["flight_end"]][i],   NA_real_))
-    b_start <- .as_date(ifelse(!is.na(bi), b[["flight_start"]][bi], NA_real_))
+    # ifelse() drops the class, and a plan keyed by moments carries POSIXct
+    # flight dates, so each of these is put back into the type it came from.
+    start <- .as_time_like(ifelse(here, f[["flight_start"]][i], NA_real_),
+                           f[["flight_start"]])
+    end   <- .as_time_like(ifelse(here, f[["flight_end"]][i], NA_real_),
+                           f[["flight_end"]])
+    b_start <- .as_time_like(ifelse(!is.na(bi), b[["flight_start"]][bi], NA_real_),
+                             b[["flight_start"]])
 
     out <- cbind(data.frame(scenario = nm, stringsAsFactors = FALSE), spine)
     out[["flight_start"]]  <- start
     out[["flight_end"]]    <- end
     out[["planned_spend"]] <- spend
-    out[["n_weeks"]]       <- ifelse(here, f[["n_weeks"]][i], 0L)
+    out[["n_periods"]]     <- ifelse(here, f[["n_periods"]][i], 0L)
     out[["pacing"]]        <- ifelse(here, f[["pacing"]][i], NA_character_)
     out[["spend_vs_base"]] <- spend - b_spend
-    out[["start_shift_days"]] <- as.integer(start - b_start)
+    out[["start_shift_days"]] <- as.integer(.to_date(start) - .to_date(b_start))
     out[["change"]] <- .flight_change(nm, base, here, !is.na(bi), f, b, i, bi)
     out
   })
@@ -360,10 +368,10 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
   out <- plan@data[0, lg, drop = FALSE]
   out <- cbind(data.frame(scenario = character(0), stringsAsFactors = FALSE), out)
   out[["flight_id"]]     <- character(0)
-  out[["flight_start"]]  <- as.Date(character(0))
-  out[["flight_end"]]    <- as.Date(character(0))
+  out[["flight_start"]]  <- plan@data[[plan@time_col]][0]
+  out[["flight_end"]]    <- plan@data[[plan@time_col]][0]
   out[["planned_spend"]] <- numeric(0)
-  out[["n_weeks"]]       <- integer(0)
+  out[["n_periods"]]     <- integer(0)
   out[["pacing"]]        <- character(0)
   out[["spend_vs_base"]] <- numeric(0)
   out[["start_shift_days"]] <- integer(0)

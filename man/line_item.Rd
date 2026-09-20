@@ -24,9 +24,9 @@ package identifies what a row is buying. This is what the decomp constrains
 and what response models attach to.
 }
 \details{
-At a weekly grain a row is a line item \emph{for a given week}, so pass
-\code{\link[=line_item_grain]{line_item_grain()}} to identify the line item independent of time, or the
-full \verb{@grain} to identify the row.
+Every plan is keyed by time, so a row is a line item \emph{for one period} —
+a week, a day, a month, a moment. Pass \code{\link[=line_item_grain]{line_item_grain()}} to identify the
+line item independent of time, or the full \verb{@grain} to identify the row.
 }
 \examples{
 d <- data.frame(channel = c("TV", "TV"), partner = c("NBC", "ESPN"))
