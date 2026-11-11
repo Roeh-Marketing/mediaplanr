@@ -28,6 +28,11 @@ test_that("each constructor builds exactly the hand-written op", {
   expect_identical(op_total(200, during = april),
                    list(total = 200, during = april))
   expect_identical(
+    op_transfer(500, from = tv, to = list(channel = "Search"),
+                to_during = april),
+    list(transfer = 500, from = tv, to = list(channel = "Search"),
+         to_during = april))
+  expect_identical(
     op_add(channel = "Audio", week = "2026-07-06", planned_spend = 25),
     list(add = list(channel = "Audio", week = "2026-07-06", planned_spend = 25)))
   expect_identical(op_drop(target = tv), list(drop = TRUE, target = tv))
@@ -62,8 +67,10 @@ test_that("an op parsed from JSON applies like the constructor-built one", {
 # ---- the registry is the source of truth -------------------------------------
 
 test_that("the registry reproduces the op keys that were maintained by hand", {
-  expect_identical(.op_keys, c("set", "scale", "delta", "delta_each", "total",
-                               "add", "drop", "shift", "restage"))
+  # transfer is new in the registry; the rest are the hand-kept list, in order
+  expect_identical(setdiff(.op_keys, "transfer"),
+                   c("set", "scale", "delta", "delta_each", "total",
+                     "add", "drop", "shift", "restage"))
 })
 
 test_that("every op in the registry has a constructor", {
@@ -81,6 +88,9 @@ test_that("a malformed value errors at construction, naming the constructor", {
   expect_error(op_total(NA_real_), "single non-missing number")
   expect_error(op_set(-1), "`set` must be 0 or more")
   expect_error(op_shift(2.5), "whole number of days")
+  expect_error(op_transfer(0, from = tv, to = list(channel = "Search")),
+               "`transfer` must be more than 0")
+  expect_error(op_transfer(10, from = tv, to = "Search"), "`to` must be a named list")
 })
 
 test_that("a malformed target or window errors at construction", {

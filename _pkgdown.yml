@@ -83,6 +83,7 @@ reference:
     schema, narrowed to a plan, is the contract to hand an agent.
   contents:
   - ops
+  - op_transfer
   - plan_ops_schema
 
 - title: Subplans and revisions

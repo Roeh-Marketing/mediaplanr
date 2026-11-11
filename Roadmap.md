@@ -408,6 +408,12 @@ Listed because earlier revisions of the README named these as future work:
   every op -- however it was made -- gets the same plan-free checks when
   applied. With a plan, the schema narrows targets to its grain values and
   dates to its basis. The style reasoning is above, under *API style*.
+- **`transfer`** — built. The commonest real edit, a zero-sum move between
+  line items, as one op rather than two deltas whose pairing is lost. Each
+  side spreads like `delta`; a destination that plans nothing fills evenly by
+  in-market days, the rule an even flight follows. All three of `delta`,
+  `total` and `transfer` spread money through one helper, `.distribute()`,
+  which is where spend bounds will be enforced.
 
 ---
 

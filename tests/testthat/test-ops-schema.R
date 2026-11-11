@@ -38,6 +38,10 @@ good_ops <- c(
     "during": {"from": "2026-07-01", "to": "2026-07-12"}}',
   '{"delta_each": -5, "target": {"week": "2026-07-13"}}',
   '{"total": 900}',
+  '{"transfer": 50, "from": {"channel": "TV"}, "to": {"channel": "Search"}}',
+  '{"transfer": 50, "from": {"channel": "TV"}, "to": {"channel": "Search"},
+    "from_during": {"from": "2026-07-06", "to": "2026-07-12"},
+    "to_during": {"from": "2026-07-13", "to": "2026-07-19"}}',
   '{"add": {"channel": "Audio", "week": "2026-07-06", "planned_spend": 25}}',
   '{"add": {"channel": "Audio", "flight_start": "2026-07-06",
             "flight_end": "2026-07-19", "planned_spend": 25}}',
@@ -62,12 +66,23 @@ bad_ops <- c(
   add_half_fl    = '{"add": {"channel": "Audio", "planned_spend": 5,
                              "flight_start": "2026-07-06"}}',
   add_target     = '{"add": {"channel": "Audio", "week": "2026-07-06",
-                             "planned_spend": 5}, "target": {"channel": "TV"}}'
+                             "planned_spend": 5}, "target": {"channel": "TV"}}',
+  transfer_zero  = '{"transfer": 0, "from": {"channel": "TV"},
+                     "to": {"channel": "Search"}}',
+  transfer_no_to = '{"transfer": 5, "from": {"channel": "TV"}}',
+  transfer_tgt   = '{"transfer": 5, "from": {"channel": "TV"},
+                     "to": {"channel": "Search"}, "target": {"channel": "TV"}}',
+  transfer_2win  = '{"transfer": 5, "from": {"channel": "TV"},
+                     "to": {"channel": "Search"},
+                     "during": {"from": "2026-07-06", "to": "2026-07-12"},
+                     "from_during": {"from": "2026-07-06", "to": "2026-07-12"}}'
 )
 
 # Shaped right, but wrong on schema_plan() in particular.
 bad_on_plan <- c(
   unknown_value  = '{"scale": 1, "target": {"channel": "Radio"}}',
+  transfer_radio = '{"transfer": 5, "from": {"channel": "TV"},
+                     "to": {"channel": "Radio"}}',
   not_grain      = '{"scale": 1, "target": {"partner": "X"}}',
   clock_on_week  = '{"scale": 1, "during": {"from": "2026-07-01 08:00",
                                            "to": "2026-07-31"}}',

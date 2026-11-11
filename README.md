@@ -48,8 +48,9 @@ A comprehensive set of opperations are avalible to mutate the media plan. Every 
 - `during` — anything in market between two dates, including a buy that started earlier and is still running
 
 **Change the budget**
+- `transfer` — move this much from one place to another; the total stays the same ← *the everyday one*
 - `total` — make it add up to this
-- `delta` — add or take away this much overall ← *the everyday one*
+- `delta` — add or take away this much overall
 - `scale` — up or down by a percentage (1.2 = +20%)
 - `set` — this exact amount on every week you picked
 - `delta_each` — add this to every week you picked
@@ -68,6 +69,8 @@ Moving a buy keeps it recognisable as the *same* buy, so you can compare before 
 
 
 ```r
+list(transfer = 50000, from = list(channel = "TV"),   # move 50k from TV
+     to = list(channel = "Social"))                   #   to Social
 list(target = list(channel = "TV"), delta = -50000)   # take 50k out of TV
 list(target = list(channel = "OOH"), shift = 7)       # push the buy a week
 list(add = list(channel = "Audio", week = "2026-04-06", planned_spend = 25000))

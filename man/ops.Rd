@@ -88,6 +88,8 @@ their mix.}
 \item{\code{op_delta()}}{Move the matched rows' \strong{sum} by \code{by}, holding their
 mix. The usual way to say "take 50k out of TV".}
 \item{\code{op_delta_each()}}{Add \code{by} to \strong{each} matched row.}
+\item{\code{\link[=op_transfer]{op_transfer()}}}{Move an amount from one set of rows to another,
+leaving the plan's total unchanged. Documented on its own page.}
 \item{\code{op_add()}}{Introduce a line item, named by its columns in \code{...}:
 every line item column, \code{planned_spend}, and either the plan's time
 column or \code{flight_start} and \code{flight_end}.}
@@ -115,9 +117,9 @@ base <- media_plan_from_df(
              planned_spend = c(80, 40, 40)),
   grain = "channel", time = "week", name = "base"
 )
-build_scenario(base, name = "move 10 to Search", edits = list(
+build_scenario(base, name = "trim TV, drop Social", edits = list(
   op_delta(-10, target = list(channel = "TV")),
-  op_delta(10,  target = list(channel = "Search"))
+  op_drop(target = list(channel = "Social"))
 ))
 }
 \seealso{

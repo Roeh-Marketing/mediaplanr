@@ -11,7 +11,10 @@
 # grain (a partial key). Missing/empty target matches every row. Unmatched
 # values error rather than silently selecting nothing — a caller (or an LLM)
 # that typos a channel name must hear about it, not get a no-op scenario back.
-.match_target <- function(d, grain, target, where = "") {
+#
+# `none_hint` is appended when nothing matches, for a caller that knows what
+# the fix is likely to be.
+.match_target <- function(d, grain, target, where = "", none_hint = "") {
   if (is.null(target) || length(target) == 0) return(rep(TRUE, nrow(d)))
 
   .check_target_shape(target, "target", where)
@@ -31,7 +34,8 @@
       stop(where, "no such value(s) in '", nm, "': ",
            paste(bad, collapse = ", "), ". Valid: ",
            paste(utils::head(have, 8), collapse = ", "),
-           if (length(have) > 8) ", ..." else "", call. = FALSE)
+           if (length(have) > 8) ", ..." else ".", none_hint,
+           call. = FALSE)
     }
   }
 
@@ -41,7 +45,7 @@
   }
   if (!any(keep)) {
     stop(where, "target matched no rows: the values are individually valid but ",
-         "do not co-occur in the plan.", call. = FALSE)
+         "do not co-occur in the plan.", none_hint, call. = FALSE)
   }
   keep
 }
@@ -108,13 +112,21 @@
   d
 }
 
-# The rows an op acts on: target, narrowed by during when given.
+# The rows an op acts on: its target, narrowed by its during when given.
 .match_rows <- function(d, plan, op, where = "") {
-  keep <- .match_target(d, plan@grain, op[["target"]], where)
-  if (!is.null(op[["during"]])) {
-    keep <- keep & .match_during(d, plan, op[["during"]], where)
+  .select_rows(d, plan, op[["target"]], op[["during"]], where)
+}
+
+# The rows a target selects, narrowed by a window when given. Rows a subplan
+# owns are refused here, so every edit door gets that check.
+.select_rows <- function(d, plan, target, during = NULL, where = "",
+                         none_hint = "") {
+  keep <- .match_target(d, plan@grain, target, where, none_hint)
+  if (!is.null(during)) {
+    keep <- keep & .match_during(d, plan, during, where)
     if (!any(keep)) {
-      stop(where, "no rows are in market during that window.", call. = FALSE)
+      stop(where, "no rows are in market during that window.", none_hint,
+           call. = FALSE)
     }
   }
   .stop_if_backed(plan, d, keep, where)
@@ -156,10 +168,11 @@
 
   out <- switch(
     key,
-    add     = .apply_add(d, plan, op[["add"]], where),
-    drop    = .apply_drop(d, plan, op, where),
-    shift   = .apply_shift(d, plan, op, where),
-    restage = .apply_restage(d, plan, op, where),
+    transfer = .apply_transfer(d, plan, op, where),
+    add      = .apply_add(d, plan, op[["add"]], where),
+    drop     = .apply_drop(d, plan, op, where),
+    shift    = .apply_shift(d, plan, op, where),
+    restage  = .apply_restage(d, plan, op, where),
     .apply_value(d, plan, op, key, where)
   )
   rownames(out) <- NULL
@@ -202,7 +215,95 @@
          "it currently plans ", format(s), ". A plan cannot hold negative ",
          "spend.", call. = FALSE)
   }
-  ps / s * target
+  .distribute(ps, change = target - s, weights = ps)
+}
+
+# Spread `change` across a group of rows in proportion to `weights`, and return
+# the group's new planned_spend.
+#
+# THE ONE PLACE money is spread across rows: delta, total and transfer all come
+# through here, so a rule about how a group absorbs a change is written once.
+# `lower` and `upper` are each row's bounds -- a plan cannot hold negative
+# spend, so `lower` is at least 0. Callers first check, in their own op's
+# terms, that the group as a whole can absorb the change; a row crossing a
+# bound here would be a bug.
+.distribute <- function(ps, change, weights, lower = 0, upper = Inf) {
+  new <- ps + change * weights / sum(weights)
+  tol <- 1e-6
+  if (any(new < lower - tol) || any(new > upper + tol)) {
+    stop("internal: spreading a change pushed a row past its bound. This is ",
+         "a bug in mediaplanr.", call. = FALSE)
+  }
+  # Taking a group exactly to its floor can leave float dust just below it.
+  pmax(new, lower)
+}
+
+# transfer -- move an amount from one set of rows to another, leaving the plan's
+# total unchanged. The commonest real edit ("move 50k from TV to Social"), and
+# as two deltas it would lose the fact that its halves belong together.
+.apply_transfer <- function(d, plan, op, where) {
+  amount <- op[["transfer"]]
+
+  # Each side is a target narrowed by its own window, or by the shared one.
+  from_rows <- .select_rows(
+    d, plan, op[["from"]], op[["from_during"]] %||% op[["during"]],
+    where = paste0(where, "`from`: ")
+  )
+  to_rows <- .select_rows(
+    d, plan, op[["to"]], op[["to_during"]] %||% op[["during"]],
+    where = paste0(where, "`to`: "),
+    none_hint = paste0(" To move money into a line item the plan does not ",
+                       "have yet, `add` it first, earlier in the same edits.")
+  )
+  both <- from_rows & to_rows
+  if (any(both)) {
+    rows <- line_item(d, plan@grain)[both]
+    stop(where, "`from` and `to` share ", sum(both), " row(s), e.g. ",
+         paste(utils::head(rows, 3), collapse = "; "), ". Money cannot move ",
+         "from a row to itself: narrow one side with its target or window.",
+         call. = FALSE)
+  }
+
+  ps <- d[["planned_spend"]]
+  available <- sum(ps[from_rows])
+  # Within half a cent of everything the source holds means all of it: a sum
+  # of fractional rows rarely equals the figure a person types for it.
+  if (amount > available && amount - available < 0.005) amount <- available
+  if (amount > available) {
+    stop(where, "`transfer` of ", format(amount), " is more than `from` ",
+         "holds: it plans ", format(available), ". A plan cannot hold ",
+         "negative spend.", call. = FALSE)
+  }
+
+  ps[from_rows] <- .distribute(ps[from_rows], -amount, weights = ps[from_rows])
+  ps[to_rows]   <- .distribute(ps[to_rows], amount,
+                               weights = .receiving_weights(d, plan, to_rows))
+  .stop_if_total_changed(d[["planned_spend"]], ps, "transfer")
+
+  d[["planned_spend"]] <- ps
+  d
+}
+
+# How the rows receiving a transfer share it. In proportion to what they
+# already plan, like delta -- or, when they plan nothing and so have no mix to
+# follow, evenly by the days each is in market: the rule an even flight
+# follows, so money moved into an empty flight lands as if it had been bought
+# that way.
+.receiving_weights <- function(d, plan, rows) {
+  current <- d[["planned_spend"]][rows]
+  if (sum(current) > 0) return(current)
+  .row_days(d, plan@time_col, plan@time_basis)[rows]
+}
+
+# An op that only moves money must leave the plan's total where it was, to the
+# cent. If it does not, the arithmetic above is wrong.
+.stop_if_total_changed <- function(before, after, what) {
+  drift <- sum(after) - sum(before)
+  if (abs(drift) >= 0.005) {
+    stop("internal: `", what, "` changed the plan's total by ", format(drift),
+         ". This is a bug in mediaplanr.", call. = FALSE)
+  }
+  invisible(NULL)
 }
 
 # drop -- remove matched rows entirely. Distinct from zeroing them: a dropped
@@ -555,6 +656,10 @@
 #'     across cells mean the same thing for a multiplier.}
 #'   \item{`set`}{Absolute planned_spend, applied to **each** matched cell.}
 #'   \item{`delta_each`}{Add to **each** matched cell (may be negative).}
+#'   \item{`transfer`}{Move this amount from the `from` cells to the `to`
+#'     cells, leaving the plan's total unchanged. Takes `from` and `to` in
+#'     place of `target`, and `from_during` / `to_during` to window one side.
+#'     See [op_transfer()].}
 #' }
 #'
 #' Note the deliberate split, and that it runs both ways:
@@ -569,11 +674,12 @@
 #' takes 50 out of TV altogether, while `delta_each = -50` takes 50 out of
 #' every TV row — which on a 26-week plan is 1,300.
 #'
-#' `delta` is almost always the one you want, and it is the one to reach for
-#' when a user says "move 50k from TV to Social": two ops, `delta = -50000` on
-#' TV and `delta = 50000` on Social. Distributing in proportion rather than
-#' evenly per cell preserves the channel's flighting shape, so a flight stays
-#' evenly paced through it.
+#' `delta` is almost always the one you want when the budget itself changes:
+#' distributing in proportion rather than evenly per cell preserves the
+#' channel's flighting shape, so a flight stays evenly paced through it. When
+#' money moves *between* line items -- "move 50k from TV to Social" -- reach for
+#' `transfer`. It spreads each side the same way `delta` would, and keeps the
+#' two halves of the move together as one op.
 #'
 #' **Changing which rows there are**
 #' \describe{
@@ -656,12 +762,16 @@
 #' # "Set the total budget to 200", holding the current mix
 #' build_scenario(base, edits = op_total(200), name = "Budget 200")
 #'
-#' # "Move 10 from TV to Search" — ops apply in order. `delta` moves each
-#' # group's TOTAL, so this is budget-neutral however many rows they have.
+#' # "Move 10 from TV to Search" — budget-neutral however many rows each has
+#' build_scenario(base, edits = op_transfer(10, from = list(channel = "TV"),
+#'                                          to = list(channel = "Search")),
+#'                name = "move 10")
+#'
+#' # Ops in a list apply in order
 #' build_scenario(base, edits = list(
-#'   op_delta(-10, target = list(channel = "TV")),
-#'   op_delta( 10, target = list(channel = "Search"))
-#' ), name = "shift 10")
+#'   op_transfer(10, from = list(channel = "TV"), to = list(channel = "Search")),
+#'   op_scale(0.5, target = list(channel = "Social"))
+#' ), name = "move 10, halve Social")
 #'
 #' # Absolute allocation (e.g. from mrmopt::opt_mix())
 #' build_scenario(

@@ -51,6 +51,14 @@
   data.frame(start = start, end = end)
 }
 
+# How many calendar days each row is in market, from .span_of(). This is the
+# weight an even flight spreads its spend by, so anything that wants to spread
+# money "the way an even flight would" uses it too.
+.row_days <- function(d, time_col, basis) {
+  span <- .span_of(d, time_col, basis)
+  as.integer(.to_date(span$end) - .to_date(span$start)) + 1L
+}
+
 #' The plan's flight window
 #'
 #' The first and last dates on which the plan has any line item in market — the

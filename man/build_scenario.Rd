@@ -88,6 +88,10 @@ This is the "take 50k out of TV" operation.}
 across cells mean the same thing for a multiplier.}
 \item{\code{set}}{Absolute planned_spend, applied to \strong{each} matched cell.}
 \item{\code{delta_each}}{Add to \strong{each} matched cell (may be negative).}
+\item{\code{transfer}}{Move this amount from the \code{from} cells to the \code{to}
+cells, leaving the plan's total unchanged. Takes \code{from} and \code{to} in
+place of \code{target}, and \code{from_during} / \code{to_during} to window one side.
+See \code{\link[=op_transfer]{op_transfer()}}.}
 }
 
 Note the deliberate split, and that it runs both ways:\tabular{lll}{
@@ -102,11 +106,12 @@ to 50, while \code{set = 50} puts 50 on every TV row. Likewise \code{delta = -50
 takes 50 out of TV altogether, while \code{delta_each = -50} takes 50 out of
 every TV row — which on a 26-week plan is 1,300.
 
-\code{delta} is almost always the one you want, and it is the one to reach for
-when a user says "move 50k from TV to Social": two ops, \code{delta = -50000} on
-TV and \code{delta = 50000} on Social. Distributing in proportion rather than
-evenly per cell preserves the channel's flighting shape, so a flight stays
-evenly paced through it.
+\code{delta} is almost always the one you want when the budget itself changes:
+distributing in proportion rather than evenly per cell preserves the
+channel's flighting shape, so a flight stays evenly paced through it. When
+money moves \emph{between} line items -- "move 50k from TV to Social" -- reach for
+\code{transfer}. It spreads each side the same way \code{delta} would, and keeps the
+two halves of the move together as one op.
 
 \strong{Changing which rows there are}
 \describe{
@@ -180,12 +185,16 @@ build_scenario(base, edits = list(scale = 1.2,
 # "Set the total budget to 200", holding the current mix
 build_scenario(base, edits = op_total(200), name = "Budget 200")
 
-# "Move 10 from TV to Search" — ops apply in order. `delta` moves each
-# group's TOTAL, so this is budget-neutral however many rows they have.
+# "Move 10 from TV to Search" — budget-neutral however many rows each has
+build_scenario(base, edits = op_transfer(10, from = list(channel = "TV"),
+                                         to = list(channel = "Search")),
+               name = "move 10")
+
+# Ops in a list apply in order
 build_scenario(base, edits = list(
-  op_delta(-10, target = list(channel = "TV")),
-  op_delta( 10, target = list(channel = "Search"))
-), name = "shift 10")
+  op_transfer(10, from = list(channel = "TV"), to = list(channel = "Search")),
+  op_scale(0.5, target = list(channel = "Social"))
+), name = "move 10, halve Social")
 
 # Absolute allocation (e.g. from mrmopt::opt_mix())
 build_scenario(

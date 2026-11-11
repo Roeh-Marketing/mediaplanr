@@ -443,7 +443,7 @@ media_plan_from_flights <- function(df, grain,
   span <- .span_of(d, time_col, basis)
   if (is.null(span)) return(d)
 
-  ndays <- as.integer(.to_date(span$end) - .to_date(span$start)) + 1L
+  ndays <- .row_days(d, time_col, basis)
   k  <- d[["flight_id"]]
   sp  <- d[["planned_spend"]]
 

@@ -17,7 +17,8 @@
 
 # One field of an op. `type` is one of:
 #
-#   "number"     a single number; `min` is an optional lower bound
+#   "number"     a single number; `min` is an optional lower bound, and
+#                `above` an optional strict one (the number must exceed it)
 #   "days"       a single whole number of days
 #   "true"       the literal TRUE, for an op that carries no value (drop)
 #   "target"     a named list of grain column = value(s)
@@ -26,8 +27,10 @@
 #
 # `description` is written for whoever composes the op -- often a model reading
 # the JSON Schema -- so it says what the field means, not how it is stored.
-.field <- function(type, description, required = FALSE, min = NULL) {
-  list(type = type, description = description, required = required, min = min)
+.field <- function(type, description, required = FALSE, min = NULL,
+                   above = NULL) {
+  list(type = type, description = description, required = required,
+       min = min, above = above)
 }
 
 # The two ways an op selects rows. Most ops take both.
@@ -43,11 +46,15 @@
 )
 
 # One op: its family, a one-line description, and its fields. The field named
-# after the op carries its value and is the only required one.
-.op_spec <- function(key, family, description, ...) {
+# after the op carries its value and is always required; another field is
+# required only when its .field() says so.
+#
+# `exclusive` lists pairs of fields that cannot be given together.
+.op_spec <- function(key, family, description, ..., exclusive = list()) {
   fields <- list(...)
   fields[[key]]$required <- TRUE
-  list(family = family, description = description, fields = fields)
+  list(family = family, description = description, fields = fields,
+       exclusive = exclusive)
 }
 
 # Every op the package knows. Two families: value ops change planned_spend on
@@ -85,6 +92,34 @@
     total  = .field("number", "The new total planned_spend.", min = 0),
     target = .target_field,
     during = .during_field
+  ),
+  transfer = .op_spec(
+    "transfer", "value",
+    "Move this amount from the `from` rows to the `to` rows; the plan's total
+    does not change. The source gives in proportion to what each row plans.
+    The destination receives in proportion too, or, when it plans nothing,
+    evenly by the days each row is in market.",
+    transfer = .field("number", "The amount to move.", above = 0),
+    from = .field(
+      "target", "Rows the money comes from: grain column = value(s).",
+      required = TRUE
+    ),
+    to = .field(
+      "target",
+      "Rows the money goes to. They must already be in the plan: add a new
+      line item first, earlier in the same edits.",
+      required = TRUE
+    ),
+    during = .field(
+      "window", "Narrow both sides to rows in market during this window."
+    ),
+    from_during = .field(
+      "window", "Narrow only the `from` side. Instead of `during`."
+    ),
+    to_during = .field(
+      "window", "Narrow only the `to` side. Instead of `during`."
+    ),
+    exclusive = list(c("during", "from_during"), c("during", "to_during"))
   ),
   add = .op_spec(
     "add", "structural",
@@ -159,6 +194,12 @@
          key, "` takes: ", paste(names(fields), collapse = ", "), ".",
          call. = FALSE)
   }
+  for (pair in .op_registry[[key]]$exclusive) {
+    if (all(pair %in% names(op))) {
+      stop(where, "give `", pair[1], "` or `", pair[2], "`, not both.",
+           call. = FALSE)
+    }
+  }
 
   for (nm in names(fields)) {
     value <- op[[nm]]
@@ -177,7 +218,7 @@
 .check_field <- function(x, spec, name, where = "") {
   switch(
     spec$type,
-    number    = .check_number(x, name, spec$min, where),
+    number    = .check_number(x, name, spec$min, spec$above, where),
     days      = .check_days(x, name, where),
     true      = .check_true(x, name, where),
     target    = .check_target_shape(x, name, where),
@@ -191,13 +232,17 @@
   is.numeric(x) && length(x) == 1L && !is.na(x)
 }
 
-.check_number <- function(x, name, min = NULL, where = "") {
+.check_number <- function(x, name, min = NULL, above = NULL, where = "") {
   if (!.is_single_number(x)) {
     stop(where, "`", name, "` must be a single non-missing number.",
          call. = FALSE)
   }
   if (!is.null(min) && x < min) {
     stop(where, "`", name, "` must be ", min, " or more; got ", x, ".",
+         call. = FALSE)
+  }
+  if (!is.null(above) && x <= above) {
+    stop(where, "`", name, "` must be more than ", above, "; got ", x, ".",
          call. = FALSE)
   }
 }
@@ -339,6 +384,8 @@
 #'   \item{`op_delta()`}{Move the matched rows' **sum** by `by`, holding their
 #'     mix. The usual way to say "take 50k out of TV".}
 #'   \item{`op_delta_each()`}{Add `by` to **each** matched row.}
+#'   \item{[op_transfer()]}{Move an amount from one set of rows to another,
+#'     leaving the plan's total unchanged. Documented on its own page.}
 #'   \item{`op_add()`}{Introduce a line item, named by its columns in `...`:
 #'     every line item column, `planned_spend`, and either the plan's time
 #'     column or `flight_start` and `flight_end`.}
@@ -382,9 +429,9 @@
 #'              planned_spend = c(80, 40, 40)),
 #'   grain = "channel", time = "week", name = "base"
 #' )
-#' build_scenario(base, name = "move 10 to Search", edits = list(
+#' build_scenario(base, name = "trim TV, drop Social", edits = list(
 #'   op_delta(-10, target = list(channel = "TV")),
-#'   op_delta(10,  target = list(channel = "Search"))
+#'   op_drop(target = list(channel = "Social"))
 #' ))
 #' @name ops
 NULL
@@ -417,6 +464,81 @@ op_delta_each <- function(by, target = NULL, during = NULL) {
 #' @export
 op_total <- function(value, target = NULL, during = NULL) {
   .new_op("total", total = value, target = target, during = during)
+}
+
+#' Build a transfer op: move money between line items
+#'
+#' The most common real edit to a plan: *"move 37,419 from DSP A in October to
+#' the regional tactic in October."* A transfer takes `amount` out of the `from`
+#' rows and puts it into the `to` rows, so the plan's total does not change.
+#' Written as two `delta` ops, the same edit loses the fact that its halves
+#' belong together; as one op it is one intent, and one scenario.
+#'
+#' Like every [op constructor][ops], this returns a plain list --
+#' `list(transfer = amount, from = from, to = to, ...)` -- and checks it where
+#' it is written.
+#'
+#' @section How the money is spread:
+#' **The source gives in proportion** to what each of its rows plans, exactly
+#' like `delta = -amount`. Its mix holds, so an evenly paced flight stays even.
+#' It cannot give more than it holds.
+#'
+#' **The destination receives in proportion** to what its rows plan, exactly
+#' like `delta = +amount` -- unless it plans **nothing**, when there is no mix
+#' to follow. Then the amount is spread **evenly by in-market days** across the
+#' matched rows: the rule an evenly paced flight follows, so money moved into
+#' an empty flight lands as if the flight had been bought that way. A flight
+#' that starts on a Wednesday gets five days' worth in its first week and
+#' seven in each full week.
+#'
+#' @section Choosing the two sides:
+#' `from` and `to` are targets, with the same rules as `target` in any op: a
+#' named list of grain column = value(s), naming any subset of the grain. A
+#' value that is not in the plan is an error, never a silent no-op.
+#'
+#' - `during` narrows **both** sides to the rows in market in that window.
+#' - `from_during` and `to_during` narrow **one** side each, so the same line
+#'   item can move money between months. Give these or `during`, not both.
+#'
+#' The two sides must not share a row: money cannot move from a row to
+#' itself. The destination must already be in the plan; to move money into a
+#' new line item, `add` it first, earlier in the same edits list. Rows a
+#' subplan owns are read-only on either side.
+#'
+#' @param amount A single number, more than 0: how much to move.
+#' @param from,to Named lists of grain column = value(s): the rows the money
+#'   comes from and goes to.
+#' @param during Optional `list(from =, to =)` narrowing both sides.
+#' @param from_during,to_during Optional `list(from =, to =)` narrowing one
+#'   side each, instead of `during`.
+#' @return A plain list: one edit op, for the `edits` argument of
+#'   [build_scenario()].
+#' @seealso [ops] for the other operations; [build_scenario()] to apply them.
+#' @examples
+#' plan <- media_plan_from_df(
+#'   data.frame(month = as.Date(c("2026-10-01", "2026-11-01")),
+#'              channel = rep(c("Streaming", "Online Video"), each = 2),
+#'              planned_spend = c(60000, 40000, 20000, 0)),
+#'   grain = "channel", time = "month", name = "Q4"
+#' )
+#'
+#' # Move 10,000 from Streaming to Online Video across the quarter
+#' op_transfer(10000, from = list(channel = "Streaming"),
+#'             to = list(channel = "Online Video"))
+#'
+#' # Move it within one line item, from October into November. November's
+#' # Online Video plans nothing, so it takes the whole amount.
+#' s <- build_scenario(plan, name = "pull into November", edits = op_transfer(
+#'   5000, from = list(channel = "Online Video"),
+#'   to = list(channel = "Online Video"),
+#'   from_during = list(from = "2026-10-01", to = "2026-10-31"),
+#'   to_during   = list(from = "2026-11-01", to = "2026-11-30")))
+#' s@data
+#' @export
+op_transfer <- function(amount, from, to, during = NULL, from_during = NULL,
+                        to_during = NULL) {
+  .new_op("transfer", transfer = amount, from = from, to = to,
+          during = during, from_during = from_during, to_during = to_during)
 }
 
 #' @rdname ops
@@ -525,7 +647,7 @@ plan_ops_schema <- function(plan = NULL, as_json = FALSE) {
   props <- lapply(spec$fields, .field_schema, plan = plan)
   required <- names(spec$fields)[vapply(spec$fields, function(f) f$required,
                                         logical(1))]
-  list(
+  out <- list(
     title                = key,
     description          = .squish(spec$description),
     type                 = "object",
@@ -533,6 +655,14 @@ plan_ops_schema <- function(plan = NULL, as_json = FALSE) {
     required             = I(required),
     additionalProperties = FALSE
   )
+  # Fields that cannot be given together: the op must not match any object
+  # carrying both of a pair.
+  if (length(spec$exclusive)) {
+    out$not <- list(anyOf = lapply(spec$exclusive, function(pair) {
+      list(required = I(pair))
+    }))
+  }
+  out
 }
 
 # The schema for one field, by its registry type.
@@ -540,14 +670,16 @@ plan_ops_schema <- function(plan = NULL, as_json = FALSE) {
   description <- .squish(field$description)
   out <- switch(
     field$type,
-    number    = list(type = "number", minimum = field$min),
+    number    = list(type = "number", minimum = field$min,
+                     exclusiveMinimum = field$above),
     days      = list(type = "integer"),
     true      = list(const = TRUE),
     target    = .target_schema(plan),
     window    = .window_schema(plan),
     line_item = .line_item_schema(plan)
   )
-  # description first, and no NULL entries (an unset `minimum`).
+  # description first, and no NULL entries (an unset `minimum` or
+  # `exclusiveMinimum`).
   Filter(Negate(is.null), c(list(description = description), out))
 }
 

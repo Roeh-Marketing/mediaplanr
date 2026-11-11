@@ -12,9 +12,9 @@ schema_keywords <- c(
   # annotations, ignored
   "$schema", "title", "description",
   # checked
-  "type", "const", "enum", "pattern", "minimum", "minItems", "items",
-  "properties", "required", "additionalProperties", "dependentRequired",
-  "anyOf", "oneOf"
+  "type", "const", "enum", "pattern", "minimum", "exclusiveMinimum",
+  "minItems", "items", "properties", "required", "additionalProperties",
+  "dependentRequired", "anyOf", "oneOf", "not"
 )
 
 json_is_object <- function(x) is.list(x) && !is.null(names(x))
@@ -66,6 +66,10 @@ schema_problems <- function(x, schema, path = "$") {
       x < schema[["minimum"]]) {
     found(x, " is below the minimum of ", schema[["minimum"]])
   }
+  if (!is.null(schema[["exclusiveMinimum"]]) && is.numeric(x) &&
+      x <= schema[["exclusiveMinimum"]]) {
+    found(x, " is not above ", schema[["exclusiveMinimum"]])
+  }
 
   if (json_is_array(x)) {
     if (!is.null(schema[["minItems"]]) && length(x) < schema[["minItems"]]) {
@@ -113,6 +117,9 @@ schema_problems <- function(x, schema, path = "$") {
   if (!is.null(schema[["oneOf"]])) {
     n <- sum(matches(schema[["oneOf"]]))
     if (n != 1L) found("matches ", n, " of oneOf, not exactly 1")
+  }
+  if (!is.null(schema[["not"]]) && matches(list(schema[["not"]]))) {
+    found("matches a schema it must not")
   }
 
   problems
