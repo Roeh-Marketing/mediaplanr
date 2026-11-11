@@ -9,11 +9,105 @@ For what the package *is*, see the README and
 
 ---
 
+## Agentic planner: responsibility split
+
+The package's next job is to be the substrate an **agentic media planner**
+works on: an agent inspects a plan compactly, acts on it only through
+validated ops, never violates a commercial commitment, is scored by `mrmopt`
+at the right grain, checks itself against the same constraints the optimizer
+uses, and leaves an auditable record of what it changed and why.
+
+Three owners, one job each:
+
+- **mediaplanr** — plan state, legal actions, constraints, checks, history.
+- **mrmopt** — scoring and optimization.
+- **The app** — the agent loop and the human approval gate.
+
+The loop this supports, and which step each owner takes:
+
+```
+describe        describe_plan(plan)                         mediaplanr
+propose ops     op_*() / JSON against plan_ops_schema(plan) agent (app)
+validate        build_scenario(plan, edits, rationale = )   mediaplanr
+score           spend_by_model() -> response models         mrmopt
+check           check_constraints(scenario, constraints)    mediaplanr
+record why      @rationale, edit_log()                      mediaplanr
+approve         revise(status = "approved")                 human (app)
+```
+
+Much of this is already in place, and it is the reason the package suits the
+job: value semantics, a validator on every construction, ops as data, errors
+that list the alternatives, lineage and status. An agent cannot corrupt a plan,
+and every proposal it makes is an inspectable scenario rather than an edit in
+place.
+
+What is missing, and planned for 0.2.0–0.3.0:
+
+1. **Commitments the edit path respects** — row-level spend bounds, so money
+   that cannot move is a fact in the plan rather than something an agent has
+   to be told.
+2. **A compact, bounded plan summary** for the agent's context —
+   `describe_plan()`.
+3. **A deterministic map from line items to `mrmopt` response models**, which
+   may be fitted at a different (and mixed) grain — `model_map()`,
+   `spend_by_model()`.
+4. **One constraint object** read by both the agent's self-check and the
+   optimizer — `PlanConstraints`, `check_constraints()`.
+5. **Structured rationale on each proposal** — who proposed it, toward what
+   goal, under which constraints.
+
+The agent loop itself is the app's, not this package's.
+
+---
+
+## API style
+
+### Decided
+
+The consumers of the edit path are LLM agents — emitting JSON tool calls or
+generating R — and the humans reviewing what they did. That decides the style.
+
+**In:**
+
+- Plan-first arguments, and pure functions that return the same class.
+- Standard evaluation: column names are strings, targets are named lists
+  (`list(channel = "TV")`).
+- `op_*()` constructors, each returning the **same plain list** a hand-written
+  or JSON-parsed op is, so the three are interchangeable.
+- One JSON Schema for the edits array, `plan_ops_schema()`.
+
+**Out, with reasons:**
+
+- **dplyr generics on `MediaPlan`** (`mutate()`, `filter()`, …). They would
+  bypass everything that makes an edit legal: the validator, the units
+  identity, subplan locks, flight identity and spend bounds. Each would have
+  to re-route through the op machinery anyway, at which point it is an op
+  with a misleading name.
+- **Tidy evaluation / bare column names.** A quoted R expression is not
+  JSON-serializable, so a tool-calling agent cannot produce one. A target has
+  to be data.
+- **Per-step mutating pipe verbs** (`plan |> scale_spend() |> shift()`). Each
+  step would mint a lineage generation, so one intent would land as a chain of
+  half-finished scenarios. One intent is one `build_scenario()` call with an
+  edits list.
+
+**Read-only projections may be piped freely** — `roll_up()`, `calendarize()`,
+`line_item_summary()` and the like return views, not new generations.
+
+---
+
 ## SubPlans
 
 Built — `attach_subplan()`, `detach_subplan()`, `is_topline()`, `revise()`;
 see *Already grown*. The design record stays here because the decisions were
 argued, not assumed.
+
+**Status: held.** Built and tested at one level. No further investment — no
+depth testing, no staleness detection — and not exposed in the app until a
+real multi-owner engagement needs it. The common case that *looks* like a
+subplan is a signed budget envelope (channel × quarter authorizations checked
+with a tolerated variance); that is `check_budget()` (planned for 0.2.0), not
+ownership.
 
 A channel team plans its own detail, at its own granularity, on its own
 schedule, with its own objectives — and that detail rolls up into the weekly
@@ -137,8 +231,6 @@ constructor sites that used to name every slot by hand now go through it.
 
 `@revision` is manual. `revise()` sets it; nothing bumps it; anything minting
 a new id — a scenario, a rollup — starts again at 1.
-
----
 
 ---
 
@@ -327,6 +419,3 @@ Listed because earlier revisions of the README named these as future work:
 - **Ids as an external join contract.** `@id`, `@parent_id` and `flight_id` are
   opaque, exist for identity and lineage, and are scoped to a derivation tree.
   Do not build an external join on them.
-
-
-  ## Tydification

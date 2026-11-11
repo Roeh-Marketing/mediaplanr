@@ -51,6 +51,30 @@ build_scenario(p, edits = list(target = list(channel = "TV"), scale = 1.5),
                name = "revised")@data
 ```
 
+### Credits are not intent
+
+Agency workbooks often carry **negative rows**: a make-good credit, a rebate, a
+partner refunding an under-delivered week. A plan refuses them:
+
+```{r, error = TRUE}
+media_plan_from_df(
+  data.frame(week = as.Date("2026-01-05"), channel = c("TV", "TV credit"),
+             planned_spend = c(50000, -4000)),
+  grain = "channel", time = "week", name = "With a credit row"
+)
+```
+
+That is deliberate. A credit is **billing reconciliation**, not something
+anyone planned to buy, so it is not a line item. Decide which of two things it
+is:
+
+- **It changes planned media** — the credit was reinvested, or the line is
+  genuinely buying less. Net it into that line's `planned_spend` before
+  import, so the plan says what is now intended.
+- **It does not** — the media runs as planned and only the invoice changes.
+  Keep it in a separate adjustments table outside the plan, and reconcile the
+  two where billing is done.
+
 ## A plan is blind to past and future
 
 This follows from the above, and it is the point most likely to be missed.
@@ -580,8 +604,8 @@ reconcile, and the reader would see money appearing from nowhere.
 
 ## What lives elsewhere
 
-`mediaplanr` does not fit models, forecast, or optimize, and imports nothing but
-S7.
+`mediaplanr` does not fit models, forecast, or optimize. Its only imports are
+S7 and jsonlite, plus base R's stats and utils.
 
 ```
          mediaplanr                       mrmopt
