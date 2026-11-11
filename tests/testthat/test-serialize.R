@@ -95,9 +95,9 @@ test_that("a mixed plan (some rows flighted, some not) round-trips", {
 
 test_that("schema_version is written and a newer one warns", {
   js <- plan_to_json(std_plan(), pretty = FALSE)
-  expect_match(js, "\"schema_version\":3")
+  expect_match(js, "\"schema_version\":4")
 
-  newer <- sub("\"schema_version\":3", "\"schema_version\":999", js, fixed = TRUE)
+  newer <- sub("\"schema_version\":4", "\"schema_version\":999", js, fixed = TRUE)
   expect_warning(plan_from_json(newer), "schema_version")
 })
 

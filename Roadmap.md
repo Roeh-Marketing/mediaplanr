@@ -428,6 +428,15 @@ Listed because earlier revisions of the README named these as future work:
   `.commitment()`, never stored. Bounds change only through the `rebound`
   op. Line-total commitments ("$300K upfront, phasing flexible") are group
   rules, planned with `PlanConstraints`.
+- **Provenance** — built. A derived plan carries `@edits`, the canonical
+  record of what `build_scenario()` applied (ops operation-first with dates
+  as text on the plan's clock, or the allocation as given), and
+  `@rationale`, who proposed it and why. The scenario is derived by
+  replaying its own record, so replaying `@edits` on the parent reproduces
+  it exactly; an added flight's id is minted into the record for the same
+  reason. Roots and rollups record none, nothing inherits it, `revise()` may
+  set a rationale. `edit_log()` reads a set's records as a change log. JSON
+  went to schema 4.
 
 ---
 

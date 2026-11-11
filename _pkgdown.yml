@@ -118,6 +118,7 @@ reference:
   - subplan_map
   - ownership_map
   - lineage
+  - edit_log
   - plan_mermaid
 
 - title: What a line item buys

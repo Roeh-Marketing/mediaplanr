@@ -19,7 +19,9 @@ MediaPlan(
   status = "",
   objective = "",
   revision = 1L,
-  subplans = list()
+  subplans = list(),
+  edits = list(),
+  rationale = list()
 )
 }
 \arguments{
@@ -73,6 +75,16 @@ never bumped automatically. Printed as \verb{Rev 2} when above 1.}
 back. Populate through \code{\link[=attach_subplan]{attach_subplan()}}, not by hand: attaching
 recomputes the parent's rows for that cell and the validator refuses a
 subplan whose rollup the parent's rows do not match.}
+
+\item{edits}{The edits that derived this plan from \code{parent_id}, as
+\code{\link[=build_scenario]{build_scenario()}} recorded them; empty for a root. Replaying them on the
+parent reproduces \code{data} exactly. See \code{\link[=edit_log]{edit_log()}}.}
+
+\item{rationale}{Why this plan was derived: a named list with any of
+\code{author} (\code{"human"}, \code{"agent"} or \code{"optimizer"}), \code{goal},
+\code{constraints_id}, \code{forecast} (a named list of numbers the caller
+supplies) and \code{notes}. Empty when unstated. Set through
+\code{\link[=build_scenario]{build_scenario()}} or \code{\link[=revise]{revise()}}.}
 }
 \value{
 A \code{MediaPlan} S7 object.

@@ -378,7 +378,9 @@
     new <- .blank_rows(d, nrow(sp))
     new[[wk]] <- sp[["period"]]
     new[["planned_spend"]] <- sp[["planned_spend"]]
-    new[["flight_id"]]    <- .flight_ids(1L)
+    # The recorded op names the flight it creates (.canonical_line_item()),
+    # so a replay creates the same flight.
+    new[["flight_id"]]    <- spec[["flight_id"]] %||% .flight_ids(1L)
     new[["flight_start"]] <- fs
     new[["flight_end"]]   <- fe
     new[["period_basis"]] <- .infer_basis(fs, fe, ws)
@@ -403,8 +405,10 @@
   .stop_if_backed(plan, new, rep(TRUE, nrow(new)), where)
 
   # Anything else the caller named that the plan carries as a column.
+  # The flight columns are set above, and only for a flight: a flight_id named
+  # on a single-period add must not attach the row to some other buy.
   for (nm in setdiff(names(spec), c(li, wk, "planned_spend", bound_cols(),
-                                    "flight_start", "flight_end"))) {
+                                    flight_cols()))) {
     if (nm %in% names(new)) new[[nm]] <- spec[[nm]]
   }
 
@@ -622,61 +626,24 @@
   d
 }
 
-# Apply edits to a plan's data, returning a new data frame. Accepts three
-# shapes; see ?build_scenario.
-.apply_edits <- function(plan, edits) {
-  d <- plan@data
-  g <- plan@grain
-  base_key <- line_item(d, g)
+# Apply a canonical edits record (see .record_edits() in provenance.R) to the
+# parent's data, returning the derived data frame.
+#
+# This is the ONLY way a scenario's data is made: build_scenario() records the
+# edits and then replays that record, so replaying a stored @edits on its
+# parent reproduces the scenario's @data exactly.
+.replay <- function(parent, record) {
+  d <- parent@data
 
-  if (is.data.frame(edits)) {
-    miss <- setdiff(g, names(edits))
-    if (length(miss)) {
-      stop("`edits` data frame is missing grain column(s): ",
-           paste(miss, collapse = ", "), call. = FALSE)
-    }
-    if (!"planned_spend" %in% names(edits)) {
-      stop("`edits` data frame must contain a 'planned_spend' column.",
-           call. = FALSE)
-    }
-    ek <- line_item(edits, g)
-    unknown <- setdiff(ek, base_key)
-    if (length(unknown)) {
-      stop("`edits` reference row(s) not in the plan: ",
-           paste(utils::head(unknown, 5), collapse = "; "), call. = FALSE)
-    }
-    idx <- match(ek, base_key)
-    .stop_if_backed(plan, d, seq_len(nrow(d)) %in% idx)
-    d <- .set_allocation(d, plan, idx, as.numeric(edits[["planned_spend"]]))
-
-  } else if (is.numeric(edits) && !is.null(names(edits))) {
-    unknown <- setdiff(names(edits), base_key)
-    if (length(unknown)) {
-      stop("`edits` reference row(s) not in the plan: ",
-           paste(utils::head(unknown, 5), collapse = "; "), call. = FALSE)
-    }
-    idx <- match(names(edits), base_key)
-    .stop_if_backed(plan, d, seq_len(nrow(d)) %in% idx)
-    d <- .set_allocation(d, plan, idx, as.numeric(edits))
-
-  } else if (is.list(edits)) {
-    # One op, or a list of ops applied in order.
-    ops <- if (any(names(edits) %in% .op_field_names())) {
-      list(edits)
-    } else {
-      edits
-    }
-    if (!length(ops)) {
-      stop("`edits` is an empty list; supply at least one operation.",
-           call. = FALSE)
-    }
-    for (i in seq_along(ops)) d <- .apply_op(d, plan, ops[[i]], i)
-
+  if (identical(record$form, "allocation")) {
+    alloc <- record$data
+    idx <- .allocation_rows(d, parent@grain, line_item(alloc, parent@grain))
+    .stop_if_backed(parent, d, seq_len(nrow(d)) %in% idx)
+    d <- .set_allocation(d, parent, idx, alloc[["planned_spend"]])
   } else {
-    stop("`edits` must be one of: a list of operations (target + ",
-         paste(.op_keys, collapse = "/"), "), a data frame (grain columns + ",
-         "planned_spend), or a named numeric vector keyed by line_item().",
-         call. = FALSE)
+    for (i in seq_along(record$ops)) {
+      d <- .apply_op(d, parent, record$ops[[i]], i)
+    }
   }
 
   # Every edit form funnels through here, so this is the one place the derived
@@ -687,7 +654,7 @@
   # .repace() re-derives each flight's pacing; a flight is never broken by an
   # edit, only re-labelled "custom" when its shape no longer matches an even
   # spread.
-  .repace(.reunit(d), plan@time_col, plan@time_basis)
+  .repace(.reunit(d), parent@time_col, parent@time_basis)
 }
 
 #' Derive a new scenario plan from a base plan
@@ -830,6 +797,13 @@
 #' [attach_subplan()]. `@revision` restarts at 1, since a new id is a new
 #' revision history; see [revise()].
 #'
+#' `@edits` records exactly what was applied, in a canonical form: the ops
+#' with their fields in a fixed order and dates as text on the plan's clock,
+#' or the allocation as given. The scenario is derived by replaying that
+#' record, so replaying it on the parent reproduces the scenario. `@rationale`
+#' holds the `rationale` given here. Both belong to this derivation and are
+#' never inherited; [edit_log()] lays them out across a set.
+#'
 #' @param plan The base [MediaPlan].
 #' @param edits The edits to apply; see *Edit forms*.
 #' @param name Formal name for the new scenario. **Required**.
@@ -840,6 +814,12 @@
 #' @param status Workflow state for the new scenario; defaults to
 #'   `"in development"`. Never inherited from the parent.
 #' @param objective Human-facing objective / notes for the new scenario.
+#' @param rationale Optional structured reasons for the derivation, kept as
+#'   `@rationale` beside the `objective` headline: a named list with any of
+#'   `author` (`"human"`, `"agent"` or `"optimizer"`), `goal` (text),
+#'   `constraints_id` (the id of the constraints it was checked against),
+#'   `forecast` (a named list of numbers the caller supplies -- the package
+#'   never computes them) and `notes` (text). Never inherited.
 #' @param ... Unused; for method extension.
 #' @return A new [MediaPlan] at the base plan's grain, with `@parent_id` set.
 #' @examples
@@ -894,11 +874,12 @@
 #' @export
 build_scenario <- S7::new_generic("build_scenario", "plan",
   function(plan, edits, name, nickname = "", advertiser = NULL, planner = NULL,
-           status = "in development", objective = "", ...) S7::S7_dispatch())
+           status = "in development", objective = "", rationale = list(),
+           ...) S7::S7_dispatch())
 
 S7::method(build_scenario, MediaPlan) <- function(plan, edits, name,
     nickname = "", advertiser = NULL, planner = NULL,
-    status = "in development", objective = "", ...) {
+    status = "in development", objective = "", rationale = list(), ...) {
   if (missing(edits) || is.null(edits)) {
     stop("`edits` is required: supply a list of operations, a data frame ",
          "(grain columns + planned_spend), or a named numeric vector keyed ",
@@ -908,12 +889,16 @@ S7::method(build_scenario, MediaPlan) <- function(plan, edits, name,
     stop("`name` is required: every scenario carries a formal name. Use ",
          "`nickname` for a short working handle.", call. = FALSE)
   }
+  # Record the edits in canonical form, then derive the scenario by replaying
+  # that record, so what is stored is exactly what was applied.
+  record <- .record_edits(plan, edits)
+
   # Everything not named here is carried from the parent -- including its
   # subplans, whose rows the edit path refuses to touch, so the scenario is
   # still a valid topline.
   .copy_plan(
     plan,
-    data       = .apply_edits(plan, edits),
+    data       = .replay(plan, record),
     id         = new_id("plan"),
     parent_id  = plan@id,
     name       = name,
@@ -924,6 +909,9 @@ S7::method(build_scenario, MediaPlan) <- function(plan, edits, name,
     # NOT inherited: a derivative of an approved plan is not itself approved.
     status     = .normalise_status(status),
     objective  = objective,
+    # Provenance: this scenario's own edits and reasons, never the parent's.
+    edits      = record,
+    rationale  = .as_rationale(rationale),
     # A new id is a new revision history.
     revision   = 1L
   )

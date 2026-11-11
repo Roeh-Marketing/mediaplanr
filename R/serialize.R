@@ -8,8 +8,9 @@
 # v1: the flat plan. v2 adds `revision` and a recursive `subplans` object; a v1
 # file has neither and reads exactly as it did. v3 renames `week_col` to
 # `time_col` and adds `time_basis`; a v1 or v2 file names a week column, which
-# reads as a weekly plan.
-.plan_schema_version <- 3L
+# reads as a weekly plan. v4 adds `edits` and `rationale`, the provenance of a
+# derived plan; a v1-v3 file has neither and reads as a plan with none.
+.plan_schema_version <- 4L
 
 # A written tree came through attach_subplan() and is finite. A PARSED file is
 # untrusted and can nest arbitrarily, so the reader carries a defensive bound,
@@ -44,7 +45,11 @@
 # is corrected rather than trusted, and an illegal tree -- wrong grain, a
 # subplan spanning cells, a plan beneath itself -- is refused by the same
 # checks that refuse it interactively.
-.plan_from_payload <- function(x, depth = 1L) {
+#
+# `raw` is the same payload parsed WITHOUT simplification. Provenance is read
+# from it: simplifying would turn a list of ops into a data frame and a
+# one-value target array into a bare string.
+.plan_from_payload <- function(x, depth = 1L, raw = x) {
   if (depth > .max_subplan_depth) {
     stop("plan JSON nests subplans more than ", .max_subplan_depth,
          " levels deep; refusing to read it.", call. = FALSE)
@@ -104,8 +109,17 @@
   # The written key is informative only; attach_subplan() re-derives the cell
   # from the child's own data, which is the fact that cannot be hand-edited
   # into inconsistency.
-  for (child in x$subplans) {
-    plan <- attach_subplan(plan, .plan_from_payload(child, depth + 1L))
+  for (i in seq_along(x$subplans)) {
+    child <- .plan_from_payload(x$subplans[[i]], depth + 1L,
+                                raw = raw$subplans[[i]])
+    plan <- attach_subplan(plan, child)
+  }
+
+  # Provenance last, onto the finished plan: none of it changes the rows.
+  edits     <- .edits_from_json(x$edits, raw$edits, plan)
+  rationale <- .as_rationale(raw$rationale)
+  if (length(edits) || length(rationale)) {
+    plan <- .copy_plan(plan, edits = edits, rationale = rationale)
   }
   plan
 }
@@ -223,7 +237,8 @@ plan_to_json <- function(x, path = NULL, pretty = TRUE) {
 #' plan_from_json(plan_to_json(scenario_set(p)))
 #' @export
 plan_from_json <- function(txt) {
-  x <- jsonlite::fromJSON(txt, simplifyDataFrame = TRUE)
+  x   <- jsonlite::fromJSON(txt, simplifyDataFrame = TRUE)
+  raw <- jsonlite::fromJSON(txt, simplifyVector = FALSE)
 
   if (!is.null(x$schema_version) &&
       isTRUE(x$schema_version > .plan_schema_version)) {
@@ -246,7 +261,9 @@ plan_from_json <- function(txt) {
            call. = FALSE)
     }
     nm   <- names(x$scenarios)
-    scen <- lapply(x$scenarios, .plan_from_payload)
+    scen <- lapply(nm, function(s) {
+      .plan_from_payload(x$scenarios[[s]], raw = raw$scenarios[[s]])
+    })
     names(scen) <- nm
     ScenarioSet(
       scenarios = scen,
@@ -255,7 +272,7 @@ plan_from_json <- function(txt) {
       id        = as.character(x$id)[1]
     )
   } else {
-    .plan_from_payload(x)
+    .plan_from_payload(x, raw = raw)
   }
 }
 

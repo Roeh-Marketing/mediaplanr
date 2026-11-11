@@ -40,6 +40,7 @@ Collate:
     'inventory.R'
     'ops.R'
     'verbs.R'
+    'provenance.R'
     'subplan.R'
     'scenario-set.R'
     'structure.R'

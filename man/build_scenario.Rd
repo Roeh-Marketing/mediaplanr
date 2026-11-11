@@ -13,6 +13,7 @@ build_scenario(
   planner = NULL,
   status = "in development",
   objective = "",
+  rationale = list(),
   ...
 )
 }
@@ -34,6 +35,13 @@ labelling the scenario in a \link{ScenarioSet}.}
 \code{"in development"}. Never inherited from the parent.}
 
 \item{objective}{Human-facing objective / notes for the new scenario.}
+
+\item{rationale}{Optional structured reasons for the derivation, kept as
+\verb{@rationale} beside the \code{objective} headline: a named list with any of
+\code{author} (\code{"human"}, \code{"agent"} or \code{"optimizer"}), \code{goal} (text),
+\code{constraints_id} (the id of the constraints it was checked against),
+\code{forecast} (a named list of numbers the caller supplies -- the package
+never computes them) and \code{notes} (text). Never inherited.}
 
 \item{...}{Unused; for method extension.}
 }
@@ -185,6 +193,13 @@ backs are read-only, so an edit reaching one — including a whole-plan op
 like \code{list(total = 200)} — errors naming the subplan to edit instead. See
 \code{\link[=attach_subplan]{attach_subplan()}}. \verb{@revision} restarts at 1, since a new id is a new
 revision history; see \code{\link[=revise]{revise()}}.
+
+\verb{@edits} records exactly what was applied, in a canonical form: the ops
+with their fields in a fixed order and dates as text on the plan's clock,
+or the allocation as given. The scenario is derived by replaying that
+record, so replaying it on the parent reproduces the scenario. \verb{@rationale}
+holds the \code{rationale} given here. Both belong to this derivation and are
+never inherited; \code{\link[=edit_log]{edit_log()}} lays them out across a set.
 }
 
 \examples{

@@ -138,6 +138,14 @@ status_levels <- function() {
 #'   back. Populate through [attach_subplan()], not by hand: attaching
 #'   recomputes the parent's rows for that cell and the validator refuses a
 #'   subplan whose rollup the parent's rows do not match.
+#' @param edits The edits that derived this plan from `parent_id`, as
+#'   [build_scenario()] recorded them; empty for a root. Replaying them on the
+#'   parent reproduces `data` exactly. See [edit_log()].
+#' @param rationale Why this plan was derived: a named list with any of
+#'   `author` (`"human"`, `"agent"` or `"optimizer"`), `goal`,
+#'   `constraints_id`, `forecast` (a named list of numbers the caller
+#'   supplies) and `notes`. Empty when unstated. Set through
+#'   [build_scenario()] or [revise()].
 #' @section Derived properties:
 #' `@flight_start`, `@flight_end` and `@flight_days` are computed from `@data`
 #' on every read and cannot be assigned. They describe the plan's own extent —
@@ -174,6 +182,13 @@ MediaPlan <- S7::new_class(
     # changes is the PARENT's behaviour. Its rows for that cell are the
     # subplan's rollup and are read-only. See ?attach_subplan.
     subplans   = S7::new_property(S7::class_list, default = quote(list())),
+
+    # Provenance: how this plan was derived from @parent_id, and why. @edits
+    # is the canonical record build_scenario() applied -- replaying it on the
+    # parent reproduces @data exactly. @rationale is the structured reason
+    # beside @objective's headline. Both empty on a root. See ?edit_log.
+    edits      = S7::new_property(S7::class_list, default = quote(list())),
+    rationale  = S7::new_property(S7::class_list, default = quote(list())),
 
     # Derived, never stored: getter properties are read-only, so these cannot
     # drift from @data. Their type is the time column's -- Dates on most plans,
@@ -322,6 +337,9 @@ MediaPlan <- S7::new_class(
         self@revision < 1L) {
       errs <- c(errs, "@revision must be a single positive integer.")
     }
+
+    errs <- c(errs, .validate_edits(self@edits, self@parent_id),
+              .validate_rationale(self@rationale))
 
     # Only when the table itself is sound: the subplan invariant compares
     # rows against rollups, which is meaningless on a malformed table.
@@ -679,7 +697,8 @@ roll_up <- function(plan, grain, name = NULL) {
 
   # A rollup is a coarser VIEW, so it drops the subplans: the cells they back
   # may not exist at the new grain, and a view does not own anything. A new id
-  # starts the revision count over.
+  # starts the revision count over. It records no edits and no rationale: it
+  # changed nothing, and the source's edits would not replay at this grain.
   .copy_plan(
     plan,
     data      = out,
@@ -688,16 +707,20 @@ roll_up <- function(plan, grain, name = NULL) {
     parent_id = plan@id,
     name      = name %||% plan@name,
     revision  = 1L,
-    subplans  = list()
+    subplans  = list(),
+    edits     = list(),
+    rationale = list()
   )
 }
 
 #' Revise a plan's metadata without changing what it plans
 #'
 #' The metadata-only edit verb. Changes any of `name`, `nickname`,
-#' `advertiser`, `planner`, `status`, `objective` and `revision`, and leaves
-#' everything else — `@data`, `@grain`, `@id`, `@parent_id`, `@subplans` —
-#' exactly as it was. Because `@id` is kept, the result is *the same plan*,
+#' `advertiser`, `planner`, `status`, `objective`, `rationale` and `revision`,
+#' and leaves everything else — `@data`, `@grain`, `@id`, `@parent_id`,
+#' `@subplans`, `@edits` — exactly as it was. `rationale` is here because it
+#' describes the plan, not its spend: an author or a forecast can be added
+#' after the fact. Because `@id` is kept, the result is *the same plan*,
 #' revised, rather than a derivative of it; that is the difference from
 #' [build_scenario()], which mints a new id and lineage.
 #'
@@ -711,7 +734,8 @@ roll_up <- function(plan, grain, name = NULL) {
 #'
 #' @param plan A [MediaPlan].
 #' @param ... Named metadata fields to change: `name`, `nickname`,
-#'   `advertiser`, `planner`, `status`, `objective`, `revision`. At least one.
+#'   `advertiser`, `planner`, `status`, `objective`, `rationale` (see
+#'   [build_scenario()]), `revision`. At least one.
 #' @return The same plan (same `@id`) with the named fields changed.
 #' @examples
 #' p <- media_plan_from_df(
@@ -729,7 +753,7 @@ revise <- function(plan, ...) {
   }
   changes <- list(...)
   allowed <- c("name", "nickname", "advertiser", "planner", "status",
-               "objective", "revision")
+               "objective", "rationale", "revision")
   if (!length(changes)) {
     stop("nothing to revise: name at least one of ",
          paste(allowed, collapse = ", "), ".", call. = FALSE)
@@ -748,5 +772,8 @@ revise <- function(plan, ...) {
   }
   if ("status"   %in% names(changes)) changes$status   <- .normalise_status(changes$status)
   if ("revision" %in% names(changes)) changes$revision <- .as_revision(changes$revision)
+  if ("rationale" %in% names(changes)) {
+    changes$rationale <- .as_rationale(changes$rationale)
+  }
   do.call(.copy_plan, c(list(plan), changes))
 }
