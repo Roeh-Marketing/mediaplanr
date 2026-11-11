@@ -60,6 +60,7 @@ reference:
   - calendarize
   - flight_cols
   - period_basis_levels
+  - time_basis_levels
   - pacing_levels
 
 - title: Scenarios
@@ -73,6 +74,16 @@ reference:
   - add_scenario
   - compare_scenarios
   - ScenarioSet
+
+- title: Edit operations
+  desc: >
+    The operations build_scenario() applies, as constructors and as one JSON
+    Schema. An op is a plain list, so one built by a constructor, one written
+    by hand and one parsed from an agent's tool call are the same object; the
+    schema, narrowed to a plan, is the contract to hand an agent.
+  contents:
+  - ops
+  - plan_ops_schema
 
 - title: Subplans and revisions
   desc: >

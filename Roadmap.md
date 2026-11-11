@@ -292,7 +292,8 @@ semantics live in `mediaplanr`:
 - **`plan_ops_schema()`** → the JSON Schema for the operations array. The app
   passes ops to the model as an unschema'd JSON *string*, because `ellmer`'s
   typed arguments cannot express the recursive shape, so a malformed op is
-  discovered only when R throws.
+  discovered only when R throws. *Built* — see *Already grown*; the app has
+  not adopted it yet.
 
 ---
 
@@ -400,6 +401,13 @@ Listed because earlier revisions of the README named these as future work:
   `.copy_plan()` door landed with it, closing the drop-a-slot trap, and JSON
   went to schema 2 with a recursive writer and a re-attaching reader. Depth is
   legal; one level is tested. The design reasoning is above, under *SubPlans*.
+- **Op constructors and the ops schema** — built. One registry in `R/ops.R`
+  names every op, its fields and their types; `.apply_op()`, the `op_*()`
+  constructors and `plan_ops_schema()` all read it, so they cannot disagree.
+  A constructor returns the same plain list a hand-written or JSON op is, and
+  every op -- however it was made -- gets the same plan-free checks when
+  applied. With a plan, the schema narrows targets to its grain values and
+  dates to its basis. The style reasoning is above, under *API style*.
 
 ---
 

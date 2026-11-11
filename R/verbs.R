@@ -1,14 +1,9 @@
 # Verbs that take a plan are S7 generics dispatching on it.
-
-# The operation keys recognised in an edit op. Exactly one per op.
 #
-# Two families. Value ops change planned_spend on rows that already exist and
-# leave the row set alone -- everything the package could do until now.
-# Structural ops change which rows there are: a plan can finally gain and lose
-# line items, and a flight can move.
-.value_ops      <- c("set", "scale", "delta", "delta_each", "total")
-.structural_ops <- c("add", "drop", "shift", "restage")
-.op_keys        <- c(.value_ops, .structural_ops)
+# Which ops exist, the fields each takes, and every check that needs no plan
+# live in ops.R. This file applies an op to a plan's rows, and holds the checks
+# that do need one: does the target exist, is the window in market, would a
+# move collide with a row already planned.
 
 # Resolve an op's `target` to a logical row mask over `d`.
 #
@@ -19,10 +14,7 @@
 .match_target <- function(d, grain, target, where = "") {
   if (is.null(target) || length(target) == 0) return(rep(TRUE, nrow(d)))
 
-  if (!is.list(target) || is.null(names(target)) || any(!nzchar(names(target)))) {
-    stop(where, "`target` must be a named list of grain column = value(s).",
-         call. = FALSE)
-  }
+  .check_target_shape(target, "target", where)
   unknown <- setdiff(names(target), grain)
   if (length(unknown)) {
     stop(where, "`target` may only name grain columns (",
@@ -156,44 +148,27 @@
   if (!is.list(op)) {
     stop(where, "each op must be a list.", call. = FALSE)
   }
-
-  present <- intersect(names(op), .op_keys)
-  if (length(present) != 1L) {
-    stop(where, "supply exactly one of ", paste(.op_keys, collapse = "/"),
-         "; got ",
-         if (!length(present)) "none" else paste(present, collapse = " + "),
-         ".", call. = FALSE)
-  }
-  extra <- setdiff(names(op), c("target", "during", .op_keys))
-  if (length(extra)) {
-    stop(where, "unknown field(s): ", paste(extra, collapse = ", "),
-         ". Allowed: target, during, ", paste(.op_keys, collapse = ", "), ".",
-         call. = FALSE)
-  }
-  if (present == "add" && !is.null(op[["target"]])) {
-    stop(where, "`add` does not take a `target`: it names the line item to ",
-         "create, which by definition is not in the plan yet.", call. = FALSE)
-  }
+  # Everything checkable without the plan, from the registry in ops.R -- the
+  # same checks an op_*() constructor ran, so a hand-written or JSON op gets
+  # them too.
+  key <- .op_key(op, where)
+  .check_op_fields(op, key, where)
 
   out <- switch(
-    present,
-    add     = .op_add(d, plan, op[["add"]], where),
-    drop    = .op_drop(d, plan, op, where),
-    shift   = .op_shift(d, plan, op, where),
-    restage = .op_restage(d, plan, op, where),
-    .op_value(d, plan, op, present, where)
+    key,
+    add     = .apply_add(d, plan, op[["add"]], where),
+    drop    = .apply_drop(d, plan, op, where),
+    shift   = .apply_shift(d, plan, op, where),
+    restage = .apply_restage(d, plan, op, where),
+    .apply_value(d, plan, op, key, where)
   )
   rownames(out) <- NULL
   out
 }
 
-# set / scale / delta / total -- spend on rows that already exist.
-.op_value <- function(d, plan, op, present, where) {
+# set / scale / delta / delta_each / total -- spend on rows that already exist.
+.apply_value <- function(d, plan, op, present, where) {
   v <- op[[present]]
-  if (!is.numeric(v) || length(v) != 1L || is.na(v)) {
-    stop(where, "`", present, "` must be a single non-missing number.",
-         call. = FALSE)
-  }
   keep <- .match_rows(d, plan, op, where)
   ps <- d[["planned_spend"]]
 
@@ -233,11 +208,7 @@
 # drop -- remove matched rows entirely. Distinct from zeroing them: a dropped
 # line item is not bought at all, where a zeroed one is still in the plan at
 # nothing, and compare_scenarios() reports the two identically only by accident.
-.op_drop <- function(d, plan, op, where) {
-  if (!isTRUE(op[["drop"]])) {
-    stop(where, "`drop` must be TRUE. It takes no value: the rows to remove ",
-         "are named by `target` / `during`.", call. = FALSE)
-  }
+.apply_drop <- function(d, plan, op, where) {
   keep <- .match_rows(d, plan, op, where)
   d[!keep, , drop = FALSE]
 }
@@ -245,21 +216,11 @@
 # add -- introduce a line item the plan does not have. Either for one week, or
 # as a flight, which expands across the weeks it touches exactly as an import
 # would.
-.op_add <- function(d, plan, spec, where) {
-  if (!is.list(spec) || is.null(names(spec)) || any(!nzchar(names(spec)))) {
-    stop(where, "`add` must be a named list of the line item's columns plus ",
-         "planned_spend, and either a week or flight_start/flight_end.",
-         call. = FALSE)
-  }
-  if (!"planned_spend" %in% names(spec)) {
-    stop(where, "`add` needs a `planned_spend`.", call. = FALSE)
-  }
+#
+# `spec`'s shape -- a named list, a valid spend, both flight dates or neither --
+# was checked by .check_line_item(); what is checked here needs the plan.
+.apply_add <- function(d, plan, spec, where) {
   spend <- spec[["planned_spend"]]
-  if (!is.numeric(spend) || length(spend) != 1L || is.na(spend) || spend < 0) {
-    stop(where, "`add$planned_spend` must be a single non-negative number.",
-         call. = FALSE)
-  }
-
   wk <- plan@time_col
   li <- setdiff(plan@grain, wk)
   miss <- setdiff(li, names(spec))
@@ -348,26 +309,18 @@
 }
 
 # shift -- move matched flights, or matched weeks, by a number of days.
-.op_shift <- function(d, plan, op, where) {
-  by <- op[["shift"]]
-  if (!is.numeric(by) || length(by) != 1L || is.na(by) || by != round(by)) {
-    stop(where, "`shift` must be a single whole number of days ",
-         "(negative to move earlier).", call. = FALSE)
-  }
-  by <- as.integer(by)
+.apply_shift <- function(d, plan, op, where) {
+  by <- as.integer(op[["shift"]])
   keep <- .match_rows(d, plan, op, where)
   .restage_rows(d, plan, keep, by = by, where = where)
 }
 
 # restage -- move matched flights to explicit dates.
-.op_restage <- function(d, plan, op, where) {
+.apply_restage <- function(d, plan, op, where) {
   spec <- op[["restage"]]
-  if (!is.list(spec) || !all(c("from", "to") %in% names(spec))) {
-    stop(where, "`restage` must be a list with `from` and `to` dates.",
-         call. = FALSE)
-  }
   # Read in the plan's own frame, here rather than in .restage_one(), so the
-  # two are comparable before anything is moved.
+  # two are comparable before anything is moved. A date and a moment can only
+  # be ordered once both are on the plan's clock, so the order is checked again.
   tv   <- d[[plan@time_col]]
   from <- .as_op_time(spec[["from"]], "restage$from", tv, where)
   to   <- .as_op_time(spec[["to"]],   "restage$to",   tv, where, end = TRUE)
@@ -444,10 +397,9 @@
   fs <- d[["flight_start"]][i][1]
   fe <- d[["flight_end"]][i][1]
 
-  # `by` is whole days, in the flight column's own type; `from`/`to` are read
-  # in it, so a timed buy can be restaged to a date and a dated one to a moment.
   # `by` is whole days, in the flight column's own type; `from` and `to` have
-  # already been read in the plan's frame by .op_restage().
+  # already been read in the plan's frame by .apply_restage(), so a timed buy
+  # can be restaged to a date and a dated one to a moment.
   new_fs <- if (is.null(by)) .align_time(from, fs)   else .shift_time(fs, by)
   new_fe <- if (is.null(by)) .align_time_end(to, fe) else .shift_time(fe, by)
 
@@ -527,7 +479,7 @@
 
   } else if (is.list(edits)) {
     # One op, or a list of ops applied in order.
-    ops <- if (any(names(edits) %in% c("target", "during", .op_keys))) {
+    ops <- if (any(names(edits) %in% .op_field_names())) {
       list(edits)
     } else {
       edits
@@ -575,7 +527,11 @@
 #' the form to drive from a UI or an LLM tool call: the caller states the
 #' *operation* and the arithmetic happens here, exactly.
 #'
-#' Each op is `list(<selection>, <exactly one operation>)`.
+#' Each op is `list(<exactly one operation>, <selection>)`, a plain list that
+#' can be written by hand, built by an [op constructor][ops] such as
+#' [op_scale()], or parsed from an agent's JSON tool call -- all three are the
+#' same object. The constructors check an op where it is written;
+#' [plan_ops_schema()] gives the same rules as a JSON Schema.
 #'
 #' **Selecting rows**
 #' \describe{
@@ -689,17 +645,22 @@
 #' )
 #'
 #' # "Increase Search by 20%" — the caller states intent, R does the math
-#' build_scenario(base, edits = list(target = list(channel = "Search"),
-#'                                   scale = 1.2), name = "Search +20%")
+#' build_scenario(base, edits = op_scale(1.2, target = list(channel = "Search")),
+#'                name = "Search +20%")
+#'
+#' # The same op written by hand, as an agent's JSON would arrive
+#' build_scenario(base, edits = list(scale = 1.2,
+#'                                   target = list(channel = "Search")),
+#'                name = "Search +20%, by hand")
 #'
 #' # "Set the total budget to 200", holding the current mix
-#' build_scenario(base, edits = list(total = 200), name = "Budget 200")
+#' build_scenario(base, edits = op_total(200), name = "Budget 200")
 #'
 #' # "Move 10 from TV to Search" — ops apply in order. `delta` moves each
 #' # group's TOTAL, so this is budget-neutral however many rows they have.
 #' build_scenario(base, edits = list(
-#'   list(target = list(channel = "TV"),     delta = -10),
-#'   list(target = list(channel = "Search"), delta =  10)
+#'   op_delta(-10, target = list(channel = "TV")),
+#'   op_delta( 10, target = list(channel = "Search"))
 #' ), name = "shift 10")
 #'
 #' # Absolute allocation (e.g. from mrmopt::opt_mix())
@@ -715,11 +676,10 @@
 #'                name = "Search boost")
 #'
 #' # A plan can gain and lose line items
-#' build_scenario(base, edits = list(add = list(channel = "Audio",
-#'                                              week = "2026-07-06",
-#'                                              planned_spend = 25)),
+#' build_scenario(base, edits = op_add(channel = "Audio", week = "2026-07-06",
+#'                                     planned_spend = 25),
 #'                name = "add audio")
-#' build_scenario(base, edits = list(target = list(channel = "TV"), drop = TRUE),
+#' build_scenario(base, edits = op_drop(target = list(channel = "TV")),
 #'                name = "no TV")
 #' @export
 build_scenario <- S7::new_generic("build_scenario", "plan",

@@ -37,6 +37,7 @@ Collate:
     'flighting.R'
     'units.R'
     'inventory.R'
+    'ops.R'
     'verbs.R'
     'subplan.R'
     'scenario-set.R'

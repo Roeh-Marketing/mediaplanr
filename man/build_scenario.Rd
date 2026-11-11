@@ -60,7 +60,11 @@ in as an absolute \code{edits} data frame.
 the form to drive from a UI or an LLM tool call: the caller states the
 \emph{operation} and the arithmetic happens here, exactly.
 
-Each op is \verb{list(<selection>, <exactly one operation>)}.
+Each op is \verb{list(<exactly one operation>, <selection>)}, a plain list that
+can be written by hand, built by an \link[=ops]{op constructor} such as
+\code{\link[=op_scale]{op_scale()}}, or parsed from an agent's JSON tool call -- all three are the
+same object. The constructors check an op where it is written;
+\code{\link[=plan_ops_schema]{plan_ops_schema()}} gives the same rules as a JSON Schema.
 
 \strong{Selecting rows}
 \describe{
@@ -165,17 +169,22 @@ base <- media_plan_from_df(
 )
 
 # "Increase Search by 20\%" — the caller states intent, R does the math
-build_scenario(base, edits = list(target = list(channel = "Search"),
-                                  scale = 1.2), name = "Search +20\%")
+build_scenario(base, edits = op_scale(1.2, target = list(channel = "Search")),
+               name = "Search +20\%")
+
+# The same op written by hand, as an agent's JSON would arrive
+build_scenario(base, edits = list(scale = 1.2,
+                                  target = list(channel = "Search")),
+               name = "Search +20\%, by hand")
 
 # "Set the total budget to 200", holding the current mix
-build_scenario(base, edits = list(total = 200), name = "Budget 200")
+build_scenario(base, edits = op_total(200), name = "Budget 200")
 
 # "Move 10 from TV to Search" — ops apply in order. `delta` moves each
 # group's TOTAL, so this is budget-neutral however many rows they have.
 build_scenario(base, edits = list(
-  list(target = list(channel = "TV"),     delta = -10),
-  list(target = list(channel = "Search"), delta =  10)
+  op_delta(-10, target = list(channel = "TV")),
+  op_delta( 10, target = list(channel = "Search"))
 ), name = "shift 10")
 
 # Absolute allocation (e.g. from mrmopt::opt_mix())
@@ -191,10 +200,9 @@ build_scenario(base, edits = c("Search | 2026-07-06" = 120),
                name = "Search boost")
 
 # A plan can gain and lose line items
-build_scenario(base, edits = list(add = list(channel = "Audio",
-                                             week = "2026-07-06",
-                                             planned_spend = 25)),
+build_scenario(base, edits = op_add(channel = "Audio", week = "2026-07-06",
+                                    planned_spend = 25),
                name = "add audio")
-build_scenario(base, edits = list(target = list(channel = "TV"), drop = TRUE),
+build_scenario(base, edits = op_drop(target = list(channel = "TV")),
                name = "no TV")
 }
