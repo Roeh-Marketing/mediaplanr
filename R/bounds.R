@@ -201,12 +201,28 @@ bound_cols <- function() {
        "bounds: ", .first_few(bad), ". ", fix, call. = FALSE)
 }
 
-# ---- Bounds at a coarser grain -----------------------------------------------
+# ---- Bounds through periods and rollups --------------------------------------
+
+# Split one row's bound into per-period parts, beside its spend already split
+# into `parts`. `col` names the bound ("min_spend" or "max_spend"); `total` is
+# the row's spend; `split` spreads an amount across the periods exactly as the
+# spend was spread.
 #
-# Where a row is cut into periods -- calendarize(), a flight expanding onto
-# weeks -- each bound is spread exactly as a spend of the same size would be,
-# so a committed row splits into committed periods to the cent. Those call
-# sites do it inline; this is the other direction.
+# Splitting the bound on its own is not safe: each is rounded to the cent
+# separately, and the rounding can land a floor a cent above the spend in one
+# period although the row as a whole is valid. So the SLACK is split instead:
+# a floor is each period's spend less its share of (spend - min), a cap each
+# period's spend plus its share of (max - spend). Every period then keeps
+# min <= spend <= max, the parts still sum to the bound exactly, and a
+# committed row (no slack) splits into committed periods.
+.split_bound <- function(bound, col, total, parts, split) {
+  if (is.na(bound)) return(rep(NA_real_, length(parts)))
+  is_floor <- identical(col, "min_spend")
+  slack <- if (is_floor) total - bound else bound - total
+  # Already outside its bounds: split it plainly and let the validator say so.
+  if (slack < 0) return(split(bound))
+  round(if (is_floor) parts - split(slack) else parts + split(slack), 2)
+}
 
 # Sum bounds to a coarser key, the way .aggregate_to() sums spend. A floor of
 # "none" counts as 0, so a group's floor is the sum of the floors it has. A cap

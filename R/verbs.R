@@ -383,12 +383,14 @@
     new[["flight_end"]]   <- fe
     new[["period_basis"]] <- .infer_basis(fs, fe, ws)
     new[["pacing"]]       <- "even"
-    # A flight's bounds are for the whole buy, so they are spread across its
-    # periods exactly as its spend is: a committed flight stays committed in
-    # every period.
+    # A flight's bounds are for the whole buy, so they are split across its
+    # periods beside its spend: a committed flight stays committed in every
+    # period.
     for (b in bounds) {
-      new[[b]] <- if (is.na(spec[[b]])) NA_real_ else
-        .spread_flight(fs, fe, spec[[b]], plan@time_basis, ws)[["planned_spend"]]
+      new[[b]] <- .split_bound(
+        as.numeric(spec[[b]]), b, spend, sp[["planned_spend"]],
+        function(x) .spread_flight(fs, fe, x, plan@time_basis, ws)[["planned_spend"]]
+      )
     }
   } else {
     new <- .blank_rows(d, 1L)
@@ -571,7 +573,9 @@
   bounds  <- intersect(bound_cols(), names(d))
   bounded <- length(bounds) > 0 && any(!is.na(unlist(d[i, bounds])))
   old_ord <- order(.span_of(d, wk, basis)$start[i])
-  if (custom || bounded) {
+  # A timed buy is always one row, wherever it moves, so it always maps 1:1.
+  check_structure <- (custom || bounded) && !identical(basis, "instant")
+  if (check_structure) {
     old_days <- .row_days(d, wk, basis)[i][old_ord]
     new_days <- as.integer(pmin(.period_end(sp[["period"]], basis), new_fe) -
                              pmax(sp[["period"]], new_fs)) + 1L

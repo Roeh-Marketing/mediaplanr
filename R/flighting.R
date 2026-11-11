@@ -220,9 +220,9 @@ week_start <- function(plan) {
 #'
 #' @param df A data frame with one row per flight: the line item columns, a
 #'   start date, an end date, and a spend. Optional `min_spend` and
-#'   `max_spend` ([bound_cols()]) bound the whole flight, and are spread across
-#'   its periods exactly as its spend is, so a committed flight is committed
-#'   in every period.
+#'   `max_spend` ([bound_cols()]) bound the whole flight, and are split across
+#'   its periods beside its spend, so every period stays within its bounds and
+#'   a committed flight is committed in every period.
 #' @param grain Character vector naming the **line item** columns (channel,
 #'   partner, tactic). The time column is created and appended, so do not
 #'   include it.
@@ -339,16 +339,23 @@ media_plan_from_flights <- function(df, grain,
   # Expand each flight onto its periods, remembering which flight each row is
   # part of so the operation can be undone exactly. A timed buy expands onto
   # exactly one row: the slot it occupies.
-  # A flight's spend bounds are for the whole buy, so they are spread across
-  # its periods exactly as its spend is: a committed flight becomes committed
-  # periods, to the cent.
+  # A flight's spend bounds are for the whole buy, so they are split across its
+  # periods beside its spend: a committed flight becomes committed periods, to
+  # the cent.
   df <- .normalise_bound_cols(df)
   bounds <- intersect(bound_cols(), names(df))
+  for (b in bounds) {
+    if (!is.numeric(df[[b]])) {
+      stop("'", b, "' must be numeric (NA for no bound).", call. = FALSE)
+    }
+  }
   pieces <- lapply(seq_len(nrow(df)), function(i) {
     sp <- .spread_flight(fs[i], fe[i], spend[i], basis, ws)
     for (b in bounds) {
-      sp[[b]] <- if (is.na(df[[b]][i])) NA_real_ else
-        .spread_flight(fs[i], fe[i], df[[b]][i], basis, ws)[["planned_spend"]]
+      sp[[b]] <- .split_bound(
+        df[[b]][i], b, spend[i], sp[["planned_spend"]],
+        function(x) .spread_flight(fs[i], fe[i], x, basis, ws)[["planned_spend"]]
+      )
     }
     sp[[".src"]] <- i
     sp
@@ -663,11 +670,12 @@ calendarize <- function(plan, basis = c("week", "day", "month"),
     piece <- data.frame(.src = i, period = periods,
                         planned_spend = .allocate_minor(d[["planned_spend"]][i],
                                                         n_day))
-    # Bounds split by the same days as the spend, so a committed row stays
-    # committed in every period it lands in.
+    # Bounds split beside the spend, by the same days, so every period keeps
+    # min <= spend <= max and a committed row stays committed.
     for (b in bounds) {
-      piece[[b]] <- if (is.na(d[[b]][i])) NA_real_ else
-        .allocate_minor(d[[b]][i], n_day)
+      piece[[b]] <- .split_bound(d[[b]][i], b, d[["planned_spend"]][i],
+                                 piece[["planned_spend"]],
+                                 function(x) .allocate_minor(x, n_day))
     }
     piece
   })

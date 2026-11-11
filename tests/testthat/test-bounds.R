@@ -220,6 +220,39 @@ test_that("a flight's bounds are spread across its periods like its spend", {
   expect_true(all(.commitment(p@data) == "committed"))
 })
 
+test_that("splitting a bound never puts a period outside it", {
+  # A 2-day first week, then four full weeks. Rounding the floor to the cent on
+  # its own used to land it a cent above the spend in one week, so this valid
+  # flight was refused. The slack is split now, not the bound.
+  flight <- function(...) {
+    media_plan_from_flights(
+      data.frame(channel = "TV", flight_start = as.Date("2026-04-11"),
+                 flight_end = as.Date("2026-05-10"), ...),
+      grain = "channel", name = "ragged")
+  }
+  floored <- flight(planned_spend = 374735.95, min_spend = 374735.92)
+  expect_true(all(floored@data$min_spend <= floored@data$planned_spend))
+  expect_equal(sum(floored@data$min_spend), 374735.92)
+
+  capped <- flight(planned_spend = 374735.92, max_spend = 374735.95)
+  expect_true(all(capped@data$max_spend >= capped@data$planned_spend))
+  expect_equal(sum(capped@data$max_spend), 374735.95)
+
+  daily <- calendarize(floored, "day")
+  expect_true(all(daily$min_spend <= daily$planned_spend))
+  expect_equal(sum(daily$min_spend), 374735.92)
+})
+
+test_that("a flight's bounds must be numbers", {
+  expect_error(
+    media_plan_from_flights(
+      data.frame(channel = "TV", flight_start = as.Date("2026-04-06"),
+                 flight_end = as.Date("2026-04-19"), planned_spend = 100,
+                 min_spend = "fifty"),
+      grain = "channel", name = "x"),
+    "'min_spend' must be numeric")
+})
+
 test_that("bounds move with a flight shifted by whole periods", {
   s <- build_scenario(committed_flight(), edits = op_shift(7), name = "later")
   expect_equal(s@data$week, as.Date("2026-04-13") + 7 * 0:3)
@@ -236,6 +269,24 @@ test_that("a bounded flight cannot move onto a different period structure", {
   # without its bounds it moves freely
   expect_no_error(build_scenario(committed_flight(), name = "x", edits = list(
     op_rebound(min = NA, max = NA), op_shift(3))))
+})
+
+test_that("a committed spot moves freely, even one that crosses midnight", {
+  # A timed buy is one row wherever it goes, so it always maps 1:1.
+  spots <- media_plan_from_flights(
+    data.frame(channel = "TV", programme = c("Late", "Final"),
+               flight_start = as.POSIXct(c("2026-04-06 23:50:00",
+                                           "2026-04-06 20:00:00"), tz = "UTC"),
+               flight_end   = as.POSIXct(c("2026-04-07 00:10:00",
+                                           "2026-04-06 20:00:30"), tz = "UTC"),
+               planned_spend = c(90000, 450000), min_spend = c(90000, 450000),
+               max_spend = c(90000, 450000)),
+    grain = c("channel", "programme"), basis = "instant", name = "spots")
+  s <- build_scenario(spots, name = "next week",
+                      edits = op_shift(7, target = list(programme = "Late")))
+  late <- s@data$programme == "Late"
+  expect_equal(format(s@data$time[late]), "2026-04-13 23:50:00")
+  expect_true(all(.commitment(s@data) == "committed"))
 })
 
 test_that("add can bring bounds with a new line item", {

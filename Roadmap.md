@@ -109,6 +109,11 @@ subplan is a signed budget envelope (channel × quarter authorizations checked
 with a tolerated variance); that is `check_budget()` (planned for 0.2.0), not
 ownership.
 
+Known gaps, left as part of the hold: the validator's subplan invariant
+compares spend, not spend bounds; and attaching a subplan replaces the cell's
+bounds with the subplan's rollup, so a floor set on the topline cell is
+dropped if the subplan carries none.
+
 A channel team plans its own detail, at its own granularity, on its own
 schedule, with its own objectives — and that detail rolls up into the weekly
 plan everyone else looks at.
