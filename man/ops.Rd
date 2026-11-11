@@ -96,6 +96,8 @@ column or \code{flight_start} and \code{flight_end}.}
 \item{\code{op_drop()}}{Remove the matched rows entirely.}
 \item{\code{op_shift()}}{Move the matched flights by \code{days}.}
 \item{\code{op_restage()}}{Move the matched flights to run \code{from}--\code{to}.}
+\item{\code{\link[=op_rebound]{op_rebound()}}}{Change the spend bounds on the matched rows, and
+no spend. Documented on its own page.}
 }
 }
 

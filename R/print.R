@@ -159,10 +159,11 @@ S7::method(print, MediaPlan) <- function(x, ...) {
   # --- a short preview of the plan itself ---
   # The flighting columns are omitted: they repeat identically down every row of
   # a flight, they are already summarised above, and five extra columns wrap the
-  # preview into unreadability. @data still has them.
+  # preview into unreadability. Units and bounds go for the same width reason.
+  # @data still has them all.
   if (nrow(d)) {
     n_show <- min(3L, nrow(d))
-    prev_cols <- setdiff(names(d), c(flight_cols(), unit_cols()))
+    prev_cols <- setdiff(names(d), c(flight_cols(), unit_cols(), bound_cols()))
     cat("\n")
     prev <- utils::capture.output(
       print(utils::head(d[, prev_cols, drop = FALSE], n_show), row.names = FALSE))

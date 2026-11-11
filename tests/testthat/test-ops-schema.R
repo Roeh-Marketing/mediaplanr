@@ -48,7 +48,10 @@ good_ops <- c(
   '{"drop": true, "target": {"channel": "Social"}}',
   '{"shift": 7, "target": {"channel": "Social"}}',
   '{"restage": {"from": "2026-08-03", "to": "2026-08-16"},
-    "target": {"channel": "Search"}}'
+    "target": {"channel": "Search"}}',
+  '{"rebound": {"min": 10, "max": null}, "target": {"channel": "TV"}}',
+  '{"add": {"channel": "Audio", "week": "2026-07-06", "planned_spend": 25,
+            "min_spend": 25, "max_spend": 25}}'
 )
 
 # Wrong whatever the plan.
@@ -75,7 +78,12 @@ bad_ops <- c(
   transfer_2win  = '{"transfer": 5, "from": {"channel": "TV"},
                      "to": {"channel": "Search"},
                      "during": {"from": "2026-07-06", "to": "2026-07-12"},
-                     "from_during": {"from": "2026-07-06", "to": "2026-07-12"}}'
+                     "from_during": {"from": "2026-07-06", "to": "2026-07-12"}}',
+  rebound_empty  = '{"rebound": {}}',
+  rebound_neg    = '{"rebound": {"min": -1}}',
+  rebound_word   = '{"rebound": {"floor": 5}}',
+  add_neg_bound  = '{"add": {"channel": "Audio", "week": "2026-07-06",
+                             "planned_spend": 5, "max_spend": -1}}'
 )
 
 # Shaped right, but wrong on schema_plan() in particular.

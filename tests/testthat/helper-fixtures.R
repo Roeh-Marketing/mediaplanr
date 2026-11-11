@@ -62,8 +62,13 @@ weekly_plan <- function(name = "weekly") {
 #   - Online Video | Video B | Promo | Regional plans nothing: a slot held open.
 #   - Online Video | Video A | Brand | Added Value is bonus inventory at a
 #     token rate.
+#   - Streaming | Stream A | Brand | Upfront is committed: min = max = spend
+#     in every month, so no edit can move it.
+#   - Programmatic | DSP B is a partner with a floor of 15,000 a month.
+#   - Online Video | Video A | Brand | Prospecting is capped at 60,000 a month.
 #
-# 9 line items x 6 months = 54 rows; total planned spend 1,320,600.
+# 9 line items x 6 months = 54 rows; total planned spend 1,320,600, of which
+# 360,000 is committed and 90,000 is floor.
 fix_agency_lines <- function() {
   data.frame(
     channel  = c("Streaming", "Streaming", "Streaming",
@@ -93,10 +98,19 @@ fix_agency_df <- function() {
   rows <- merge(lines, data.frame(month = months, shape = shape))
   rows$planned_spend <- rows$monthly * rows$shape
   rows$unit_type <- "impression"
+
+  upfront <- rows$tactic == "Upfront"
+  rows$min_spend <- ifelse(upfront, rows$planned_spend,
+                           ifelse(rows$partner == "DSP B", 15000, NA))
+  rows$max_spend <- ifelse(upfront, rows$planned_spend,
+                           ifelse(rows$partner == "Video A" &
+                                    rows$tactic == "Prospecting", 60000, NA))
+
   out <- rows[order(rows$channel, rows$partner, rows$campaign, rows$tactic,
                     rows$month),
               c("month", "channel", "partner", "campaign", "tactic",
-                "unit_type", "planned_spend", "planned_rate")]
+                "unit_type", "planned_spend", "planned_rate",
+                "min_spend", "max_spend")]
   rownames(out) <- NULL
   out
 }

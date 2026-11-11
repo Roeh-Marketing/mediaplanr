@@ -36,6 +36,7 @@ Collate:
     'flight.R'
     'flighting.R'
     'units.R'
+    'bounds.R'
     'inventory.R'
     'ops.R'
     'verbs.R'

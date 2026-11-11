@@ -413,7 +413,16 @@ Listed because earlier revisions of the README named these as future work:
   side spreads like `delta`; a destination that plans nothing fills evenly by
   in-market days, the rule an even flight follows. All three of `delta`,
   `total` and `transfer` spread money through one helper, `.distribute()`,
-  which is where spend bounds will be enforced.
+  which is where spend bounds are enforced.
+- **Spend bounds** — built. Optional `min_spend` / `max_spend` per row
+  (`bound_cols()`) record commitments, floors and caps; the validator holds
+  `min <= spend <= max` to the cent. Group edits water-fill around a bound
+  in `.distribute()`; per-row edits are refused at one; `drop`, `shift` and
+  `restage` respect them; `roll_up()`, `calendarize()`, flight import and
+  subplan rollups carry them. "Committed" / "floor" / "capped" is derived by
+  `.commitment()`, never stored. Bounds change only through the `rebound`
+  op. Line-total commitments ("$300K upfront, phasing flexible") are group
+  rules, planned with `PlanConstraints`.
 
 ---
 

@@ -84,7 +84,17 @@ reference:
   contents:
   - ops
   - op_transfer
+  - op_rebound
   - plan_ops_schema
+
+- title: Spend that cannot move
+  desc: >
+    An upfront commitment, a partner floor, a cap: recorded per row as
+    min_spend and max_spend, respected by every edit, and changed only by an
+    explicit rebound. Whether a row is committed is derived from its bounds,
+    never stored.
+  contents:
+  - bound_cols
 
 - title: Subplans and revisions
   desc: >

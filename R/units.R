@@ -207,10 +207,11 @@ unit_type_levels <- function() {
 }
 
 # Collapse `d` to one row per distinct `cols` key: spend summed, units
-# aggregated within one unit_type, blended rate re-derived. THE ONE PLACE a
-# table is summed to a coarser key, so roll_up(), calendarize() and a subplan
-# rollup cannot disagree about what "sum" means. Rows come out in first-seen
-# order of the key; callers that want another order sort afterwards.
+# aggregated within one unit_type, blended rate re-derived, spend bounds
+# summed. THE ONE PLACE a table is summed to a coarser key, so roll_up(),
+# calendarize() and a subplan rollup cannot disagree about what "sum" means.
+# Rows come out in first-seen order of the key; callers that want another
+# order sort afterwards.
 .aggregate_to <- function(d, cols) {
   k     <- line_item(d, cols)
   first <- !duplicated(k)
@@ -220,6 +221,8 @@ unit_type_levels <- function() {
   # Units add up only within one unit_type; a mixed group keeps its spend and
   # reports no units. The rate that comes back is the blended one.
   out <- .attach_units(out, .aggregate_units(d, k, k[first]))
+  bounds <- .aggregate_bounds(d, k, k[first])
+  for (nm in names(bounds)) out[[nm]] <- bounds[[nm]]
   rownames(out) <- NULL
   out
 }

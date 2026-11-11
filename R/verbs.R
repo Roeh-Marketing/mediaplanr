@@ -173,6 +173,7 @@
     drop     = .apply_drop(d, plan, op, where),
     shift    = .apply_shift(d, plan, op, where),
     restage  = .apply_restage(d, plan, op, where),
+    rebound  = .apply_rebound(d, plan, op, where),
     .apply_value(d, plan, op, key, where)
   )
   rownames(out) <- NULL
@@ -181,29 +182,43 @@
 
 # set / scale / delta / delta_each / total -- spend on rows that already exist.
 .apply_value <- function(d, plan, op, present, where) {
-  v <- op[[present]]
+  v    <- op[[present]]
   keep <- .match_rows(d, plan, op, where)
-  ps <- d[["planned_spend"]]
+  # The matched rows as a group: what they plan, and their spend bounds.
+  group <- list(
+    ps    = d[["planned_spend"]][keep],
+    lower = .lower_bounds(d)[keep],
+    upper = .upper_bounds(d)[keep],
+    keys  = .bound_labels(d, plan@grain, keep),
+    what  = paste0("`", present, "` of ", .money(v))
+  )
+  ps <- group$ps
 
-  d[["planned_spend"]][keep] <- switch(
+  new <- switch(
     present,
-    set        = v,
-    scale      = ps[keep] * v,
-    delta_each = ps[keep] + v,
+    set        = rep(v, length(ps)),
+    scale      = ps * v,
+    delta_each = ps + v,
     # `delta` is the relative partner of `total`: it moves the matched cells'
     # SUM by v, holding their mix -- so "take 50k out of TV" takes 50k out of
     # TV, not 50k out of each of its weeks. Distributing in proportion rather
     # than evenly per cell is what preserves the channel's flighting shape, and
     # is why a flight stays "even" through it instead of flipping to "custom".
-    delta = .group_total(ps[keep], sum(ps[keep]) + v, present, v, where),
-    total = .group_total(ps[keep], v, present, v, where)
+    # Rows at a bound stop there and the rest of the group takes up the slack.
+    delta = .group_total(group, sum(ps) + v, present, v, where),
+    total = .group_total(group, v, present, v, where)
   )
+  # delta and total have already routed around the bounds; set, scale and
+  # delta_each name each row's value outright, so a bound can only refuse them.
+  .stop_if_outside_bounds(new, group$lower, group$upper, group$keys,
+                          group$what, where)
+  d[["planned_spend"]][keep] <- new
   d
 }
 
-# Re-scale a group to `target`, holding its mix.
-.group_total <- function(ps, target, present, v, where) {
-  s <- sum(ps)
+# Re-scale a group to `target`, holding its mix as far as its bounds allow.
+.group_total <- function(group, target, present, v, where) {
+  s <- sum(group$ps)
   if (s == 0) {
     stop(where, "cannot apply `", present, "` to a group whose current ",
          "planned_spend is 0: there is no mix to distribute by. Use `set`",
@@ -215,27 +230,9 @@
          "it currently plans ", format(s), ". A plan cannot hold negative ",
          "spend.", call. = FALSE)
   }
-  .distribute(ps, change = target - s, weights = ps)
-}
-
-# Spread `change` across a group of rows in proportion to `weights`, and return
-# the group's new planned_spend.
-#
-# THE ONE PLACE money is spread across rows: delta, total and transfer all come
-# through here, so a rule about how a group absorbs a change is written once.
-# `lower` and `upper` are each row's bounds -- a plan cannot hold negative
-# spend, so `lower` is at least 0. Callers first check, in their own op's
-# terms, that the group as a whole can absorb the change; a row crossing a
-# bound here would be a bug.
-.distribute <- function(ps, change, weights, lower = 0, upper = Inf) {
-  new <- ps + change * weights / sum(weights)
-  tol <- 1e-6
-  if (any(new < lower - tol) || any(new > upper + tol)) {
-    stop("internal: spreading a change pushed a row past its bound. This is ",
-         "a bug in mediaplanr.", call. = FALSE)
-  }
-  # Taking a group exactly to its floor can leave float dust just below it.
-  pmax(new, lower)
+  .distribute(group$ps, change = target - s, weights = group$ps,
+              lower = group$lower, upper = group$upper,
+              keys = group$keys, what = group$what, where = where)
 }
 
 # transfer -- move an amount from one set of rows to another, leaving the plan's
@@ -275,9 +272,23 @@
          "negative spend.", call. = FALSE)
   }
 
-  ps[from_rows] <- .distribute(ps[from_rows], -amount, weights = ps[from_rows])
-  ps[to_rows]   <- .distribute(ps[to_rows], amount,
-                               weights = .receiving_weights(d, plan, to_rows))
+  # Each side spreads within its rows' bounds, so a transfer out of a channel
+  # with a committed line comes out of the lines that are free to give.
+  lower <- .lower_bounds(d)
+  upper <- .upper_bounds(d)
+  keys  <- .bound_labels(d, plan@grain, rep(TRUE, nrow(d)))
+  what  <- paste0("`transfer` of ", .money(amount))
+
+  ps[from_rows] <- .distribute(
+    ps[from_rows], -amount, weights = ps[from_rows],
+    lower = lower[from_rows], upper = upper[from_rows], keys = keys[from_rows],
+    what = what, where = paste0(where, "`from`: ")
+  )
+  ps[to_rows] <- .distribute(
+    ps[to_rows], amount, weights = .receiving_weights(d, plan, to_rows),
+    lower = lower[to_rows], upper = upper[to_rows], keys = keys[to_rows],
+    what = what, where = paste0(where, "`to`: ")
+  )
   .stop_if_total_changed(d[["planned_spend"]], ps, "transfer")
 
   d[["planned_spend"]] <- ps
@@ -309,8 +320,17 @@
 # drop -- remove matched rows entirely. Distinct from zeroing them: a dropped
 # line item is not bought at all, where a zeroed one is still in the plan at
 # nothing, and compare_scenarios() reports the two identically only by accident.
+#
+# A row with a floor cannot be dropped: the floor is money already promised.
 .apply_drop <- function(d, plan, op, where) {
   keep <- .match_rows(d, plan, op, where)
+  floored <- keep & .lower_bounds(d) > 0
+  if (any(floored)) {
+    stop(where, "`drop` would remove row(s) with a floor: ",
+         .first_few(.bound_labels(d, plan@grain, floored)), ". Lower the ",
+         "floor first with `rebound`, earlier in the same edits.",
+         call. = FALSE)
+  }
   d[!keep, , drop = FALSE]
 }
 
@@ -335,6 +355,10 @@
     stop(where, "`add` needs either `", wk, "` or flight_start/flight_end: a ",
          "new line item has to say when it runs.", call. = FALSE)
   }
+  # Bounds given for the new line item introduce the bound columns, NA (no
+  # bound) on every row that already exists.
+  bounds <- intersect(bound_cols(), names(spec))
+  if (length(bounds)) d <- .ensure_bound_cols(d)
 
   if (has_flight) {
     # Read in the plan's own type: a date given to a timed plan means that whole
@@ -359,17 +383,25 @@
     new[["flight_end"]]   <- fe
     new[["period_basis"]] <- .infer_basis(fs, fe, ws)
     new[["pacing"]]       <- "even"
+    # A flight's bounds are for the whole buy, so they are spread across its
+    # periods exactly as its spend is: a committed flight stays committed in
+    # every period.
+    for (b in bounds) {
+      new[[b]] <- if (is.na(spec[[b]])) NA_real_ else
+        .spread_flight(fs, fe, spec[[b]], plan@time_basis, ws)[["planned_spend"]]
+    }
   } else {
     new <- .blank_rows(d, 1L)
     new[[wk]] <- .as_op_time(spec[[wk]], paste0("add$", wk), d[[wk]], where)
     new[["planned_spend"]] <- spend
+    for (b in bounds) new[[b]] <- as.numeric(spec[[b]])
   }
   for (nm in li) new[[nm]] <- spec[[nm]]
   # Adding into a cell a subplan owns is an edit to that cell.
   .stop_if_backed(plan, new, rep(TRUE, nrow(new)), where)
 
   # Anything else the caller named that the plan carries as a column.
-  for (nm in setdiff(names(spec), c(li, wk, "planned_spend",
+  for (nm in setdiff(names(spec), c(li, wk, "planned_spend", bound_cols(),
                                     "flight_start", "flight_end"))) {
     if (nm %in% names(new)) new[[nm]] <- spec[[nm]]
   }
@@ -383,6 +415,30 @@
          call. = FALSE)
   }
   out
+}
+
+# rebound -- set min_spend / max_spend on the matched rows, and no spend.
+#
+# A bound named in the op is replaced; one left out is untouched; NA or null
+# removes it. The new bounds must still contain what each row plans: rebound
+# records a commitment, it does not move money to fit one.
+.apply_rebound <- function(d, plan, op, where) {
+  spec <- op[["rebound"]]
+  keep <- .match_rows(d, plan, op, where)
+  d    <- .ensure_bound_cols(d)
+
+  as_bound <- function(v) if (.is_no_bound(v)) NA_real_ else as.numeric(v)
+  if ("min" %in% names(spec)) d[["min_spend"]][keep] <- as_bound(spec[["min"]])
+  if ("max" %in% names(spec)) d[["max_spend"]][keep] <- as_bound(spec[["max"]])
+
+  .stop_if_outside_bounds(
+    d[["planned_spend"]][keep], .lower_bounds(d)[keep], .upper_bounds(d)[keep],
+    keys = .bound_labels(d, plan@grain, keep), what = "`rebound`",
+    where = where,
+    fix = paste("Choose bounds that contain the spend already planned, or",
+                "change the spend first, earlier in the same edits.")
+  )
+  d
 }
 
 # n all-NA rows with `d`'s exact columns and types.
@@ -507,38 +563,59 @@
   total <- sum(d[["planned_spend"]][i])
   sp    <- .spread_flight(new_fs, new_fe, total, basis, ws)
 
-  # A hand-shaped flight has per-period values with nowhere to land if the
-  # period structure changes. Carry the shape across when it maps 1:1, and
-  # refuse otherwise rather than silently discarding the planner's work.
-  if (identical(d[["pacing"]][i][1], "custom")) {
-    old_span <- .span_of(d, wk, basis)[i, , drop = FALSE]
-    old_ord  <- order(old_span$start)
-    old_days <- as.integer(.to_date(old_span$end) -
-                             .to_date(old_span$start))[old_ord] + 1L
+  # Per-period figures -- a hand-set shape, or spend bounds -- have nowhere to
+  # land if the period structure changes. Carry them across when it maps 1:1,
+  # and refuse otherwise rather than silently discarding the planner's work
+  # or a commitment.
+  custom  <- identical(d[["pacing"]][i][1], "custom")
+  bounds  <- intersect(bound_cols(), names(d))
+  bounded <- length(bounds) > 0 && any(!is.na(unlist(d[i, bounds])))
+  old_ord <- order(.span_of(d, wk, basis)$start[i])
+  if (custom || bounded) {
+    old_days <- .row_days(d, wk, basis)[i][old_ord]
     new_days <- as.integer(pmin(.period_end(sp[["period"]], basis), new_fe) -
                              pmax(sp[["period"]], new_fs)) + 1L
     if (!identical(old_days, new_days)) {
-      stop(where, "flight ", id, " is custom-paced, and moving it there ",
-           "changes its period structure (", paste(old_days, collapse = "+"),
-           " days becomes ", paste(new_days, collapse = "+"),
-           "), so its hand-set figures have nowhere to land. Move it a whole ",
-           "number of periods, or re-shape it after moving.",
-           call. = FALSE)
+      stop(where, "flight ", id, " is ",
+           if (custom) "custom-paced" else "bound by min/max spend",
+           ", and moving it there changes its period structure (",
+           paste(old_days, collapse = "+"), " days becomes ",
+           paste(new_days, collapse = "+"), "), so its per-period ",
+           if (custom) "figures" else "bounds", " have nowhere to land. Move ",
+           "it a whole number of periods, or ",
+           if (custom) "re-shape it" else "clear its bounds with `rebound`",
+           " first.", call. = FALSE)
     }
     sp[["planned_spend"]] <- d[["planned_spend"]][i][old_ord]
   }
 
   new <- .blank_rows(d, nrow(sp))
   for (nm in setdiff(names(d), c(wk, "planned_spend", "flight_start",
-                                 "flight_end"))) {
+                                 "flight_end", bound_cols()))) {
     new[[nm]] <- d[[nm]][i][1]
   }
   new[[wk]]              <- sp[["period"]]
   new[["planned_spend"]] <- sp[["planned_spend"]]
   new[["flight_start"]]  <- new_fs
   new[["flight_end"]]    <- new_fe
+  # Bounds move with their periods, in order; a flight with none keeps NA.
+  if (bounded) for (b in bounds) new[[b]] <- d[[b]][i][old_ord]
 
   rbind(d[-i, , drop = FALSE], new)
+}
+
+# An allocation -- a data frame or named vector of absolute spend, typically an
+# optimizer's output -- names each row's value outright, so a row it would put
+# outside its bounds is refused. The fix is upstream: give the optimizer the
+# bounds.
+.set_allocation <- function(d, plan, idx, values) {
+  .stop_if_outside_bounds(
+    values, .lower_bounds(d)[idx], .upper_bounds(d)[idx],
+    keys = line_item(d, plan@grain)[idx],
+    what = "the allocation in `edits`"
+  )
+  d[["planned_spend"]][idx] <- values
+  d
 }
 
 # Apply edits to a plan's data, returning a new data frame. Accepts three
@@ -566,7 +643,7 @@
     }
     idx <- match(ek, base_key)
     .stop_if_backed(plan, d, seq_len(nrow(d)) %in% idx)
-    d[["planned_spend"]][idx] <- as.numeric(edits[["planned_spend"]])
+    d <- .set_allocation(d, plan, idx, as.numeric(edits[["planned_spend"]]))
 
   } else if (is.numeric(edits) && !is.null(names(edits))) {
     unknown <- setdiff(names(edits), base_key)
@@ -576,7 +653,7 @@
     }
     idx <- match(names(edits), base_key)
     .stop_if_backed(plan, d, seq_len(nrow(d)) %in% idx)
-    d[["planned_spend"]][idx] <- as.numeric(edits)
+    d <- .set_allocation(d, plan, idx, as.numeric(edits))
 
   } else if (is.list(edits)) {
     # One op, or a list of ops applied in order.
@@ -710,6 +787,25 @@
 #'
 #' **3. Named numeric vector** — keyed by [line_item()], e.g. `c("TV" = 100)`.
 #' Terse for one or two cells at a simple grain.
+#'
+#' @section Spend bounds:
+#' Rows may carry `min_spend` and `max_spend` ([bound_cols()]): an upfront
+#' commitment, a partner floor, a cap. Every edit respects them.
+#'
+#' - `delta`, `total` and `transfer` spread a change across a group, and a row
+#'   that reaches its bound **stops there** while the rest of the group takes
+#'   up the slack. A cut to a channel with a committed line comes out of its
+#'   other lines. Only when the group as a whole cannot absorb the change is
+#'   the op refused, saying how much it could take.
+#' - `set`, `scale`, `delta_each` and allocation edits name each row's value
+#'   outright, so a row that would land outside its bounds is refused.
+#' - `drop` refuses a row with a floor. `shift` and `restage` carry each
+#'   period's bounds with it, and refuse a move that changes a bounded
+#'   flight's period structure.
+#'
+#' Bounds change only through `rebound` ([op_rebound()]), never as a side
+#' effect of moving money: to cut committed spend, lower the commitment and
+#' then cut, in that order, in one edits list.
 #'
 #' @section Metadata on a derived scenario:
 #' `advertiser` and `planner` are **inherited** from the parent — they describe

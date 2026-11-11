@@ -84,12 +84,14 @@
 # Replace the parent's rows at `key` with `rows`, aligned to the parent's
 # columns. Rollup rows have no flight identity and none of the parent's
 # pass-through columns, so those are NA -- a mixed plan, which the validator
-# already accepts. Units the rollup carries that the parent lacks are added,
-# NA on every other row, as .ensure_flight_cols() does for flights.
+# already accepts. Units and spend bounds the rollup carries that the parent
+# lacks are added, NA on every other row, as .ensure_flight_cols() does for
+# flights.
 .splice_rows <- function(parent, key, rows) {
   d    <- parent@data
   keep <- d[!(line_item(d, line_item_grain(parent)) %in% key), , drop = FALSE]
-  for (nm in intersect(unit_cols(), setdiff(names(rows), names(keep)))) {
+  for (nm in intersect(c(unit_cols(), bound_cols()),
+                       setdiff(names(rows), names(keep)))) {
     keep[[nm]] <- if (identical(nm, "unit_type")) NA_character_ else NA_real_
   }
   new <- .blank_rows(keep, nrow(rows))

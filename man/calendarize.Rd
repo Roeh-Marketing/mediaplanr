@@ -20,7 +20,9 @@ the plan is not weekly.}
 \value{
 A data frame: the line item columns, a date column named after
 \code{basis} holding each period's start, and \code{planned_spend}. One row per line
-item per period, ordered by period.
+item per period, ordered by period. A plan with units or spend bounds
+(\code{\link[=bound_cols]{bound_cols()}}) carries them too; bounds are split by the same days as
+the spend.
 }
 \description{
 The temporal counterpart to \code{\link[=roll_up]{roll_up()}}. Where \code{roll_up()} aggregates over

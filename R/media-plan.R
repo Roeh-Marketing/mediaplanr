@@ -277,11 +277,12 @@ MediaPlan <- S7::new_class(
       })
     }
 
-    # Flighting and unit columns ride along: checked, never part of the key. A
-    # plan that records neither skips all of this. Flight dates are compared
-    # against the time column, so they are held to its type.
+    # Flighting, unit and bound columns ride along: checked, never part of the
+    # key. A plan that records none of them skips all of this. Flight dates are
+    # compared against the time column, so they are held to its type.
     errs <- c(errs, .validate_flight_cols(d, type))
     if (!length(errs)) errs <- c(errs, .validate_unit_cols(d))
+    if (!length(errs)) errs <- c(errs, .validate_bound_cols(d, line_item(d, g)))
 
     # One row per grain cell.
     if (length(miss) == 0 && length(g) >= 1 && nrow(d) > 0) {
@@ -451,7 +452,9 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' re-run whenever the decomp refreshes, without rebuilding the plan.
 #'
 #' @param df A data frame holding the plan: grain columns plus a spend column.
-#'   All other columns are preserved on `@data` untouched.
+#'   All other columns are preserved on `@data` untouched. Optional
+#'   [bound_cols()] `min_spend` and `max_spend` record spend that cannot move
+#'   -- a commitment, a floor, a cap -- and every edit then respects them.
 #' @param grain Character vector naming the **line item** columns — channel,
 #'   partner, tactic. The time column is appended to them automatically, so
 #'   there is no need to name it here; naming it anyway is harmless, and it is
@@ -529,6 +532,7 @@ media_plan_from_df <- function(df, grain, time = NULL, time_basis = NULL,
          "`nickname` for a short working handle.", call. = FALSE)
   }
   df <- as.data.frame(df, stringsAsFactors = FALSE)
+  df <- .normalise_bound_cols(df)
 
   df <- .rename_col(df, planned_units, "planned_units")
   df <- .rename_col(df, planned_rate,  "planned_rate")

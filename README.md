@@ -65,6 +65,11 @@ A comprehensive set of opperations are avalible to mutate the media plan. Every 
 
 Moving a buy keeps it recognisable as the *same* buy, so you can compare before and after.
 
+**Change what a line may spend**
+- `rebound` — set a floor or a cap (or both: a commitment); moves no money
+
+Money that cannot move — an upfront commitment, a partner minimum, a cap — is recorded on the plan as `min_spend` / `max_spend`, and every edit respects it: a cut to a channel comes out of the lines that are free to give.
+
 **Not edits.** Pacing (even or hand-shaped) is read off the numbers, never set. Names, status and approvals change separately. Anything planned in a detail plan is locked — edit that plan instead.
 
 

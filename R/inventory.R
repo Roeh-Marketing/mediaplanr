@@ -91,7 +91,10 @@ grain_values <- function(plan, col = NULL) {
 #' @param plan A [MediaPlan].
 #' @return A data frame: the [line_item_grain()] columns, then `line_item` (the
 #'   key), `planned_spend` (the item's total), `n_rows`, `flight_start` and
-#'   `flight_end` — the item's own window, in the time column's type.
+#'   `flight_end` — the item's own window, in the time column's type. A plan
+#'   that records units adds them; one that records spend bounds
+#'   ([bound_cols()]) adds `committed_spend`, the sum of the line's floors —
+#'   spend no edit can take out — and `headroom`, what is left above them.
 #' @examples
 #' p <- media_plan_from_df(
 #'   data.frame(week    = as.Date(c("2026-03-02", "2026-03-02", "2026-04-06")),
@@ -141,6 +144,13 @@ line_item_summary <- function(plan) {
   # A line item is bought on one unit type at one rate, so these aggregate
   # cleanly here even though they need care at a coarser grain.
   out <- .attach_units(out, .aggregate_units(d, k, keys))
+
+  # What of the line's spend is promised, and what is free to move out.
+  if (any(bound_cols() %in% names(d))) {
+    floors <- tapply(.lower_bounds(d), k, sum)[keys]
+    out[["committed_spend"]] <- as.numeric(floors)
+    out[["headroom"]]        <- out[["planned_spend"]] - out[["committed_spend"]]
+  }
 
   out[["flight_start"]] <- .span_by_item(span$start, k, keys, min)
   out[["flight_end"]]   <- .span_by_item(span$end,   k, keys, max)

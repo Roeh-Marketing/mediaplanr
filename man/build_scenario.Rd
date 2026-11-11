@@ -144,6 +144,28 @@ overridden with those absolute values. Natural for optimizer output.
 Terse for one or two cells at a simple grain.
 }
 
+\section{Spend bounds}{
+
+Rows may carry \code{min_spend} and \code{max_spend} (\code{\link[=bound_cols]{bound_cols()}}): an upfront
+commitment, a partner floor, a cap. Every edit respects them.
+\itemize{
+\item \code{delta}, \code{total} and \code{transfer} spread a change across a group, and a row
+that reaches its bound \strong{stops there} while the rest of the group takes
+up the slack. A cut to a channel with a committed line comes out of its
+other lines. Only when the group as a whole cannot absorb the change is
+the op refused, saying how much it could take.
+\item \code{set}, \code{scale}, \code{delta_each} and allocation edits name each row's value
+outright, so a row that would land outside its bounds is refused.
+\item \code{drop} refuses a row with a floor. \code{shift} and \code{restage} carry each
+period's bounds with it, and refuse a move that changes a bounded
+flight's period structure.
+}
+
+Bounds change only through \code{rebound} (\code{\link[=op_rebound]{op_rebound()}}), never as a side
+effect of moving money: to cut committed spend, lower the commitment and
+then cut, in that order, in one edits list.
+}
+
 \section{Metadata on a derived scenario}{
 
 \code{advertiser} and \code{planner} are \strong{inherited} from the parent — they describe

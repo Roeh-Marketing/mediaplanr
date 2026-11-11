@@ -13,8 +13,8 @@ schema_keywords <- c(
   "$schema", "title", "description",
   # checked
   "type", "const", "enum", "pattern", "minimum", "exclusiveMinimum",
-  "minItems", "items", "properties", "required", "additionalProperties",
-  "dependentRequired", "anyOf", "oneOf", "not"
+  "minItems", "items", "properties", "minProperties", "required",
+  "additionalProperties", "dependentRequired", "anyOf", "oneOf", "not"
 )
 
 json_is_object <- function(x) is.list(x) && !is.null(names(x))
@@ -29,6 +29,7 @@ json_has_type <- function(x, type) {
     number  = scalar && is.numeric(x),
     integer = scalar && is.numeric(x) && x == round(x),
     boolean = scalar && is.logical(x),
+    null    = is.null(x),
     stop("schema_problems(): unknown type '", type, "'.")
   )
 }
@@ -84,6 +85,10 @@ schema_problems <- function(x, schema, path = "$") {
   }
 
   if (json_is_object(x)) {
+    if (!is.null(schema[["minProperties"]]) &&
+        length(x) < schema[["minProperties"]]) {
+      found("fewer than ", schema[["minProperties"]], " propert(ies)")
+    }
     for (req in unlist(schema[["required"]])) {
       if (!req %in% names(x)) found("missing required '", req, "'")
     }

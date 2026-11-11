@@ -27,7 +27,9 @@ media_plan_from_df(
 }
 \arguments{
 \item{df}{A data frame holding the plan: grain columns plus a spend column.
-All other columns are preserved on \verb{@data} untouched.}
+All other columns are preserved on \verb{@data} untouched. Optional
+\code{\link[=bound_cols]{bound_cols()}} \code{min_spend} and \code{max_spend} record spend that cannot move
+-- a commitment, a floor, a cap -- and every edit then respects them.}
 
 \item{grain}{Character vector naming the \strong{line item} columns — channel,
 partner, tactic. The time column is appended to them automatically, so

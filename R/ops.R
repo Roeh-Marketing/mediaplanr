@@ -24,6 +24,7 @@
 #   "target"     a named list of grain column = value(s)
 #   "window"     list(from =, to =) of dates or moments
 #   "line_item"  the new line item `add` introduces
+#   "bounds"     list(min =, max =) for `rebound`; NA or null clears one
 #
 # `description` is written for whoever composes the op -- often a model reading
 # the JSON Schema -- so it says what the field means, not how it is stored.
@@ -57,8 +58,9 @@
        exclusive = exclusive)
 }
 
-# Every op the package knows. Two families: value ops change planned_spend on
-# rows that already exist; structural ops change which rows there are.
+# Every op the package knows. Three families: value ops change planned_spend
+# on rows that already exist; structural ops change which rows there are; the
+# bounds op changes what spend a row may hold, and never the spend itself.
 .op_registry <- list(
   set = .op_spec(
     "set", "value", "Put this planned_spend on each matched row.",
@@ -153,6 +155,18 @@
     restage = .field("window", "The flights' new in-market window."),
     target  = .target_field,
     during  = .during_field
+  ),
+  rebound = .op_spec(
+    "rebound", "bounds",
+    "Set the spend bounds on each matched row. Changes no spend, and is
+    refused if the new bounds would exclude the spend already planned.",
+    rebound = .field(
+      "bounds",
+      "The bounds for each matched row: `min` (min_spend) and/or `max`
+      (max_spend). A bound left out is unchanged; null removes it."
+    ),
+    target = .target_field,
+    during = .during_field
   )
 )
 
@@ -224,6 +238,7 @@
     target    = .check_target_shape(x, name, where),
     window    = .check_window(x, name, where),
     line_item = .check_line_item(x, name, where),
+    bounds    = .check_bounds_spec(x, name, where),
     stop("internal: unknown field type '", spec$type, "'.", call. = FALSE)
   )
 }
@@ -330,6 +345,11 @@
          "not: ", paste(not_single, collapse = ", "), ".", call. = FALSE)
   }
 
+  for (b in intersect(bound_cols(), names(x))) {
+    if (!.is_no_bound(x[[b]])) .check_number(x[[b]], paste0(name, "$", b),
+                                             min = 0, where = where)
+  }
+
   has_end <- c("flight_start", "flight_end") %in% names(x)
   if (sum(has_end) == 1L) {
     stop(where, "`", name, "` needs both flight_start and flight_end, or ",
@@ -339,6 +359,36 @@
     .check_date_pair(x[["flight_start"]], x[["flight_end"]],
                      paste0(name, "$flight_start"), paste0(name, "$flight_end"),
                      label = "the added flight", where = where)
+  }
+}
+
+# Is `v` a request for no bound? NA from R, null from JSON (which a parsed
+# list holds as NULL).
+.is_no_bound <- function(v) {
+  is.null(v) || (length(v) == 1L && is.na(v))
+}
+
+# The bounds `rebound` sets: `min` and/or `max`, each a number of 0 or more,
+# or NA / null to remove that bound.
+.check_bounds_spec <- function(x, name, where = "") {
+  if (!is.list(x) || !length(x) || is.null(names(x))) {
+    stop(where, "`", name, "` must be a list naming `min` and/or `max`.",
+         call. = FALSE)
+  }
+  extra <- setdiff(names(x), c("min", "max"))
+  if (length(extra)) {
+    stop(where, "`", name, "` takes only `min` and `max`; got also: ",
+         paste(extra, collapse = ", "), ".", call. = FALSE)
+  }
+  for (nm in names(x)) {
+    if (!.is_no_bound(x[[nm]])) {
+      .check_number(x[[nm]], paste0(name, "$", nm), min = 0, where = where)
+    }
+  }
+  if (!.is_no_bound(x[["min"]]) && !.is_no_bound(x[["max"]]) &&
+      x[["min"]] > x[["max"]]) {
+    stop(where, "`", name, "$min` (", x[["min"]], ") is above `", name,
+         "$max` (", x[["max"]], ").", call. = FALSE)
   }
 }
 
@@ -392,6 +442,8 @@
 #'   \item{`op_drop()`}{Remove the matched rows entirely.}
 #'   \item{`op_shift()`}{Move the matched flights by `days`.}
 #'   \item{`op_restage()`}{Move the matched flights to run `from`--`to`.}
+#'   \item{[op_rebound()]}{Change the spend bounds on the matched rows, and
+#'     no spend. Documented on its own page.}
 #' }
 #'
 #' @param value A single number: planned spend per row (`op_set()`) or for the
@@ -541,6 +593,55 @@ op_transfer <- function(amount, from, to, during = NULL, from_during = NULL,
           during = during, from_during = from_during, to_during = to_during)
 }
 
+#' Build a rebound op: change what spend rows may hold
+#'
+#' Sets the spend bounds -- `min_spend` and `max_spend`, see [bound_cols()] --
+#' on each matched row. It changes **no spend**. Bounds record money that
+#' cannot move, so changing one is a deliberate act of its own, never a side
+#' effect of moving money: lowering a floor so a line can be cut takes a
+#' `rebound` and then the cut, in that order, in one edits list.
+#'
+#' Like every [op constructor][ops], this returns a plain list --
+#' `list(rebound = list(min = , max = ), target = , during = )` -- and checks
+#' it where it is written.
+#'
+#' Each bound is set per row, so `min = 5000` on a monthly line item puts a
+#' floor of 5,000 under every month it matches. A bound left out (`NULL`) is
+#' unchanged; `NA` removes it. The new bounds must still contain the spend each
+#' row already plans, or the op is refused naming the rows; change the spend
+#' first, earlier in the same edits, if it needs to move.
+#'
+#' @param min,max The new floor and cap for each matched row: a number of 0 or
+#'   more, `NA` to remove that bound, or `NULL` (the default) to leave it as it
+#'   is. Give at least one.
+#' @param target,during Select the rows, as in every op; see [ops].
+#' @return A plain list: one edit op, for the `edits` argument of
+#'   [build_scenario()].
+#' @seealso [bound_cols()] for what the bounds mean; [ops] for the other
+#'   operations.
+#' @examples
+#' plan <- media_plan_from_df(
+#'   data.frame(month = as.Date(c("2026-10-01", "2026-11-01")),
+#'              channel = "Streaming", planned_spend = c(60000, 40000),
+#'              min_spend = c(60000, 40000), max_spend = c(60000, 40000)),
+#'   grain = "channel", time = "month", name = "Q4"
+#' )
+#'
+#' # Committed spend cannot be cut ...
+#' try(build_scenario(plan, edits = op_delta(-10000), name = "cut"))
+#'
+#' # ... until the commitment is lowered, first, in the same edits
+#' s <- build_scenario(plan, name = "renegotiated", edits = list(
+#'   op_rebound(min = 30000, target = list(month = "2026-11-01")),
+#'   op_delta(-10000, target = list(month = "2026-11-01"))
+#' ))
+#' s@data
+#' @export
+op_rebound <- function(min = NULL, max = NULL, target = NULL, during = NULL) {
+  bounds <- Filter(Negate(is.null), list(min = min, max = max))
+  .new_op("rebound", rebound = bounds, target = target, during = during)
+}
+
 #' @rdname ops
 #' @export
 op_add <- function(...) {
@@ -676,7 +777,8 @@ plan_ops_schema <- function(plan = NULL, as_json = FALSE) {
     true      = list(const = TRUE),
     target    = .target_schema(plan),
     window    = .window_schema(plan),
-    line_item = .line_item_schema(plan)
+    line_item = .line_item_schema(plan),
+    bounds    = .bounds_schema()
   )
   # description first, and no NULL entries (an unset `minimum` or
   # `exclusiveMinimum`).
@@ -732,19 +834,34 @@ plan_ops_schema <- function(plan = NULL, as_json = FALSE) {
                            "(YYYY-MM-DD HH:MM:SS) on the plan's clock."))
 }
 
+# What `rebound` sets: `min` and/or `max`, each a number or null to remove it.
+.bounds_schema <- function() {
+  bound <- list(type = I(c("number", "null")), minimum = 0)
+  list(
+    type                 = "object",
+    properties           = list(min = bound, max = bound),
+    minProperties        = 1L,
+    additionalProperties = FALSE
+  )
+}
+
 # The line item `add` introduces. On a plan: every line item column required,
 # and the period given either by the time column or by both flight dates.
 .line_item_schema <- function(plan = NULL) {
   spend   <- list(type = "number", minimum = 0)
-  flights <- list(flight_start = .time_schema(plan),
-                  flight_end   = .time_schema(plan))
+  # Optional on any new line: its flight dates, and its spend bounds (for a
+  # flight, bounds cover the whole buy).
+  optional <- list(flight_start = .time_schema(plan),
+                   flight_end   = .time_schema(plan),
+                   min_spend    = spend,
+                   max_spend    = spend)
   both_flight_dates <- list(flight_start = I("flight_end"),
                             flight_end   = I("flight_start"))
 
   if (is.null(plan)) {
     return(list(
       type                 = "object",
-      properties           = c(list(planned_spend = spend), flights),
+      properties           = c(list(planned_spend = spend), optional),
       required             = I("planned_spend"),
       dependentRequired    = both_flight_dates,
       additionalProperties = list(type = I(c("string", "number")))
@@ -760,13 +877,13 @@ plan_ops_schema <- function(plan = NULL, as_json = FALSE) {
   # Other columns the plan carries, such as unit_type or planned_rate, may be
   # set too; the flight bookkeeping columns are minted by add itself.
   others <- setdiff(names(plan@data),
-                    c(plan@grain, "planned_spend", flight_cols()))
+                    c(plan@grain, "planned_spend", flight_cols(), bound_cols()))
   other_props <- stats::setNames(
     rep(list(list(type = I(c("string", "number")))), length(others)), others)
 
   list(
     type       = "object",
-    properties = c(li_props, time_prop, list(planned_spend = spend), flights,
+    properties = c(li_props, time_prop, list(planned_spend = spend), optional,
                    other_props),
     required   = I(c(li, "planned_spend")),
     oneOf      = list(

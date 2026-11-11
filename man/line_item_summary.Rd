@@ -12,7 +12,10 @@ line_item_summary(plan)
 \value{
 A data frame: the \code{\link[=line_item_grain]{line_item_grain()}} columns, then \code{line_item} (the
 key), \code{planned_spend} (the item's total), \code{n_rows}, \code{flight_start} and
-\code{flight_end} — the item's own window, in the time column's type.
+\code{flight_end} — the item's own window, in the time column's type. A plan
+that records units adds them; one that records spend bounds
+(\code{\link[=bound_cols]{bound_cols()}}) adds \code{committed_spend}, the sum of the line's floors —
+spend no edit can take out — and \code{headroom}, what is left above them.
 }
 \description{
 One row per line item — the time-free identity of what is being bought — with

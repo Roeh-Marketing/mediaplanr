@@ -21,7 +21,10 @@ media_plan_from_flights(
 }
 \arguments{
 \item{df}{A data frame with one row per flight: the line item columns, a
-start date, an end date, and a spend.}
+start date, an end date, and a spend. Optional \code{min_spend} and
+\code{max_spend} (\code{\link[=bound_cols]{bound_cols()}}) bound the whole flight, and are spread across
+its periods exactly as its spend is, so a committed flight is committed
+in every period.}
 
 \item{grain}{Character vector naming the \strong{line item} columns (channel,
 partner, tactic). The time column is created and appended, so do not

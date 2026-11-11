@@ -40,6 +40,9 @@ test_that("each constructor builds exactly the hand-written op", {
   expect_identical(
     op_restage("2026-05-04", "2026-05-31", target = tv),
     list(restage = list(from = "2026-05-04", to = "2026-05-31"), target = tv))
+  expect_identical(op_rebound(min = 100, max = NA, target = tv),
+                   list(rebound = list(min = 100, max = NA), target = tv))
+  expect_identical(op_rebound(max = 500), list(rebound = list(max = 500)))
 })
 
 test_that("a constructor-built op applies exactly as the hand-written one", {
@@ -67,8 +70,9 @@ test_that("an op parsed from JSON applies like the constructor-built one", {
 # ---- the registry is the source of truth -------------------------------------
 
 test_that("the registry reproduces the op keys that were maintained by hand", {
-  # transfer is new in the registry; the rest are the hand-kept list, in order
-  expect_identical(setdiff(.op_keys, "transfer"),
+  # transfer and rebound are new in the registry; the rest are the hand-kept
+  # list, in order
+  expect_identical(setdiff(.op_keys, c("transfer", "rebound")),
                    c("set", "scale", "delta", "delta_each", "total",
                      "add", "drop", "shift", "restage"))
 })
