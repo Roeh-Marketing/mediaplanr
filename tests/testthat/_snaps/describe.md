@@ -28,6 +28,7 @@
           "subplan_cells": []
         },
         "money": {
+          "spend_basis": "",
           "total": 1320600,
           "spend_by": {
             "channel": {
@@ -218,6 +219,7 @@
           "subplan_cells": []
         },
         "money": {
+          "spend_basis": "",
           "total": 1348341.9,
           "spend_by": {
             "channel": {

@@ -11,23 +11,32 @@ revise(plan, ...)
 
 \item{...}{Named metadata fields to change: \code{name}, \code{nickname},
 \code{advertiser}, \code{planner}, \code{status}, \code{approved_on} (a \code{Date} or ISO
-string; only on an approved plan), \code{objective}, \code{rationale} (see
-\code{\link[=build_scenario]{build_scenario()}}). At least one.}
+string; only on an approved plan), \code{objective}, \code{spend_basis} (a
+correction, not a conversion), \code{rationale} (see \code{\link[=build_scenario]{build_scenario()}}). At
+least one.}
 }
 \value{
 The same plan (same \verb{@id}) with the named fields changed.
 }
 \description{
 The metadata-only edit verb. Changes any of \code{name}, \code{nickname},
-\code{advertiser}, \code{planner}, \code{status}, \code{approved_on}, \code{objective} and
-\code{rationale}, and leaves everything else — \verb{@data}, \verb{@grain}, \verb{@id}, \verb{@parent_id},
-\verb{@subplans}, \verb{@edits} — exactly as it was. \code{rationale} is here because it
-describes the plan, not its spend: an author or a forecast can be added
-after the fact. Because \verb{@id} is kept, the result is \emph{the same plan},
-revised, rather than a derivative of it; that is the difference from
-\code{\link[=build_scenario]{build_scenario()}}, which mints a new id and lineage.
+\code{advertiser}, \code{planner}, \code{status}, \code{approved_on}, \code{objective},
+\code{spend_basis} and \code{rationale}, and leaves everything else — \verb{@data},
+\verb{@grain}, \verb{@id}, \verb{@parent_id}, \verb{@subplans}, \verb{@edits} — exactly as it was.
+\code{rationale} is here because it describes the plan, not its spend: an author
+or a forecast can be added after the fact.
 }
 \details{
+\code{spend_basis} is here as a \strong{correction to a declaration}, never a
+conversion. A plan imported as \code{"media_net"} whose figures were in fact
+client net is corrected with \code{revise(spend_basis = "client_net")}, and its
+numbers do not change. Turning media net into client net means applying a
+fee schedule, which is the caller's job.
+
+Because \verb{@id} is kept, the result is \emph{the same plan},
+revised, rather than a derivative of it; that is the difference from
+\code{\link[=build_scenario]{build_scenario()}}, which mints a new id and lineage.
+
 This exists so that a consumer never has to rebuild a plan by naming its
 slots by hand — the habit that silently drops any slot added later. Use
 \code{revise()} for metadata, \code{\link[=build_scenario]{build_scenario()}} for spend, and

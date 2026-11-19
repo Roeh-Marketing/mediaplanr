@@ -46,7 +46,8 @@ allocation edit; empty for a root).}
 \item{\code{shape}}{\code{grain} (coarsest first, time last), \code{time_col},
 \code{time_basis}, \code{tz}, the flight window, \code{n_line_items}, \code{n_rows},
 \code{is_topline} and the \code{subplan_cells} a subplan owns.}
-\item{\code{money}}{\code{total}, and \code{spend_by} each line item column: its
+\item{\code{money}}{\code{spend_basis} -- what every figure measures (\code{""} when
+undeclared) -- \code{total}, and \code{spend_by} each line item column: its
 \code{top} values (\code{value}, \code{spend}, \code{share}) and an \code{other} bucket
 (\code{n_values}, \code{spend}).}
 \item{\code{commitments}}{Spend that cannot move, from the spend bounds

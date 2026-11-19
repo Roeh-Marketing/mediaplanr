@@ -9,9 +9,9 @@
 # file has neither and reads exactly as it did. v3 renames `week_col` to
 # `time_col` and adds `time_basis`; a v1 or v2 file names a week column, which
 # reads as a weekly plan. v4 adds `edits` and `rationale`, the provenance of a
-# derived plan, and `approved_on`, and drops `revision` -- a lineage fact now,
-# not a stored one. A v1-v3 file reads as a plan with no provenance and no
-# approval date, its `revision` ignored.
+# derived plan, `approved_on` and `spend_basis`, and drops `revision` -- a
+# lineage fact now, not a stored one. A v1-v3 file reads as a plan with no
+# provenance, no approval date and an undeclared basis, its `revision` ignored.
 .plan_schema_version <- 4L
 
 # A written tree came through attach_subplan() and is finite. A PARSED file is
@@ -102,6 +102,7 @@
     status     = scal(x$status),
     approved_on = .as_approved_on(unlist(x$approved_on)),
     objective  = scal(x$objective),
+    spend_basis = scal(x$spend_basis),
     id         = id_v,
     parent_id  = as.character(if (is.null(x$parent_id)) character(0) else x$parent_id)
   )
@@ -149,8 +150,8 @@
 #' ignores `subplans` still gets the right totals. Schema version 2 added
 #' `revision` and `subplans`; version 3 renamed `week_col` to `time_col` and
 #' added `time_basis`, and still reads a v1 or v2 file as the weekly plan it
-#' was. Version 4 adds `edits`, `rationale` and `approved_on` and drops
-#' `revision`, which an older file may still carry and is ignored.
+#' was. Version 4 adds `edits`, `rationale`, `approved_on` and `spend_basis`
+#' and drops `revision`, which an older file may still carry and is ignored.
 #'
 #' @param x A [MediaPlan] or [ScenarioSet].
 #' @param path Optional file path. When supplied, the JSON is written there and

@@ -50,6 +50,16 @@ ScenarioSet <- S7::new_class(
         if (any(!same_grain)) {
           errs <- c(errs, "every scenario must share the set's @grain.")
         }
+        # Comparing spend across scenarios is only meaningful when every one
+        # of them measures the same thing.
+        bases <- vapply(s, function(e) e@spend_basis, character(1))
+        if (length(unique(bases)) > 1L) {
+          errs <- c(errs, paste0(
+            "every scenario must share one spend basis; got ",
+            paste0(names(s), " = \"", bases, "\"", collapse = ", "),
+            ". If one was declared wrongly, correct it with ",
+            "revise(spend_basis = )."))
+        }
       }
       if (!is.null(nm) && !self@base_name %in% nm) {
         errs <- c(errs, paste0("@base_name '", self@base_name,

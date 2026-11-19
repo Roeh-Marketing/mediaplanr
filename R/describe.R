@@ -38,7 +38,8 @@
 #'   \item{`shape`}{`grain` (coarsest first, time last), `time_col`,
 #'     `time_basis`, `tz`, the flight window, `n_line_items`, `n_rows`,
 #'     `is_topline` and the `subplan_cells` a subplan owns.}
-#'   \item{`money`}{`total`, and `spend_by` each line item column: its
+#'   \item{`money`}{`spend_basis` -- what every figure measures (`""` when
+#'     undeclared) -- `total`, and `spend_by` each line item column: its
 #'     `top` values (`value`, `spend`, `share`) and an `other` bucket
 #'     (`n_values`, `spend`).}
 #'   \item{`commitments`}{Spend that cannot move, from the spend bounds
@@ -158,7 +159,9 @@ describe_plan <- function(plan, top_n = 10, as_json = FALSE) {
     .top_by_spend(d[[col]], d[["planned_spend"]], top_n, total)
   })
   names(spend_by) <- lg
-  list(total = round(total, 2), spend_by = spend_by)
+  # The basis says what every figure in this section measures.
+  list(spend_basis = plan@spend_basis, total = round(total, 2),
+       spend_by = spend_by)
 }
 
 # One column's values ranked by the spend on them: the first `top_n` with

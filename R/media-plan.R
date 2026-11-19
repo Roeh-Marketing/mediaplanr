@@ -132,6 +132,11 @@ status_levels <- function() {
 #' @param status Optional workflow state; one of [status_levels()], or `""` when
 #'   unset.
 #' @param objective Human-facing objective / notes.
+#' @param spend_basis What `planned_spend` measures, as free text: commonly
+#'   `"media_net"` (media cost to the agency), `"client_net"` (what the client
+#'   pays, fees included) or `"gross"`. `""` when undeclared. It declares the
+#'   basis and converts nothing. Plans combine -- in a [ScenarioSet], or as a
+#'   subplan -- only when their bases match exactly.
 #' @param approved_on The date the plan was approved: a single `Date`, or
 #'   empty when unset. Only an approved plan may carry one, and even then it
 #'   is optional -- it is never defaulted to today. A plan's *revision* is not
@@ -174,6 +179,12 @@ MediaPlan <- S7::new_class(
     planner    = S7::new_property(S7::class_character, default = ""),
     status     = S7::new_property(S7::class_character, default = ""),
     objective  = S7::new_property(S7::class_character, default = ""),
+
+    # What planned_spend measures: "media_net", "client_net", "gross", ...
+    # Free text, "" when undeclared. A declaration, never a conversion: the
+    # package holds no fees and turns no basis into another. Plans combine
+    # only when theirs match exactly.
+    spend_basis = S7::new_property(S7::class_character, default = ""),
 
     # The date the plan was approved, when it is and someone said when. Empty
     # otherwise -- never defaulted from Sys.Date(). "Rev 2" is not stored: a
@@ -325,7 +336,8 @@ MediaPlan <- S7::new_class(
       errs <- c(errs, "@name is required: every plan must carry a formal name.")
     }
 
-    for (fld in c("nickname", "advertiser", "planner", "status")) {
+    for (fld in c("nickname", "advertiser", "planner", "status",
+                  "spend_basis")) {
       v <- S7::prop(self, fld)
       if (length(v) > 1) {
         errs <- c(errs, paste0("@", fld, " must be a single string."))
@@ -529,6 +541,9 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' @param approved_on Optional date the plan was approved, as a `Date` or an
 #'   ISO string; only with `status = "approved"`. Never defaulted to today.
 #' @param objective Human-facing objective / notes.
+#' @param spend_basis What `planned_spend` measures: free text such as
+#'   `"media_net"`, `"client_net"` or `"gross"`; `""` (default) when
+#'   undeclared. See [MediaPlan].
 #' @param id Optional explicit id; generated when `NULL`.
 #' @param parent_id Optional parent id for lineage.
 #' @return A validated [MediaPlan].
@@ -558,7 +573,7 @@ media_plan_from_df <- function(df, grain, time = NULL, time_basis = NULL,
                                unit_type = NULL,
                                name, nickname = "", advertiser = "",
                                planner = "", status = "", approved_on = NULL,
-                               objective = "", id = NULL,
+                               objective = "", spend_basis = "", id = NULL,
                                parent_id = character(0)) {
   if (missing(name) || !length(name) || is.na(name[1]) || !nzchar(name[1])) {
     stop("`name` is required: every plan carries a formal name. Use ",
@@ -645,8 +660,20 @@ media_plan_from_df <- function(df, grain, time = NULL, time_basis = NULL,
     planner    = planner,
     status     = .normalise_status(status),
     approved_on = .as_approved_on(approved_on),
-    objective  = objective
+    objective  = objective,
+    spend_basis = .as_spend_basis(spend_basis)
   )
+}
+
+# A spend basis as declared: one string, trimmed, "" when none. Bases must
+# match exactly to combine, so stray spaces are not allowed to stop them.
+.as_spend_basis <- function(x) {
+  if (is.null(x) || !length(x)) return("")
+  if (length(x) != 1L || is.na(x)) {
+    stop("`spend_basis` must be a single string, such as \"media_net\".",
+         call. = FALSE)
+  }
+  trimws(as.character(x))
 }
 
 # An approval date as given -- a Date or an ISO string -- as a single Date, or
@@ -737,11 +764,19 @@ roll_up <- function(plan, grain, name = NULL) {
 #' Revise a plan's metadata without changing what it plans
 #'
 #' The metadata-only edit verb. Changes any of `name`, `nickname`,
-#' `advertiser`, `planner`, `status`, `approved_on`, `objective` and
-#' `rationale`, and leaves everything else — `@data`, `@grain`, `@id`, `@parent_id`,
-#' `@subplans`, `@edits` — exactly as it was. `rationale` is here because it
-#' describes the plan, not its spend: an author or a forecast can be added
-#' after the fact. Because `@id` is kept, the result is *the same plan*,
+#' `advertiser`, `planner`, `status`, `approved_on`, `objective`,
+#' `spend_basis` and `rationale`, and leaves everything else — `@data`,
+#' `@grain`, `@id`, `@parent_id`, `@subplans`, `@edits` — exactly as it was.
+#' `rationale` is here because it describes the plan, not its spend: an author
+#' or a forecast can be added after the fact.
+#'
+#' `spend_basis` is here as a **correction to a declaration**, never a
+#' conversion. A plan imported as `"media_net"` whose figures were in fact
+#' client net is corrected with `revise(spend_basis = "client_net")`, and its
+#' numbers do not change. Turning media net into client net means applying a
+#' fee schedule, which is the caller's job.
+#'
+#' Because `@id` is kept, the result is *the same plan*,
 #' revised, rather than a derivative of it; that is the difference from
 #' [build_scenario()], which mints a new id and lineage.
 #'
@@ -760,8 +795,9 @@ roll_up <- function(plan, grain, name = NULL) {
 #' @param plan A [MediaPlan].
 #' @param ... Named metadata fields to change: `name`, `nickname`,
 #'   `advertiser`, `planner`, `status`, `approved_on` (a `Date` or ISO
-#'   string; only on an approved plan), `objective`, `rationale` (see
-#'   [build_scenario()]). At least one.
+#'   string; only on an approved plan), `objective`, `spend_basis` (a
+#'   correction, not a conversion), `rationale` (see [build_scenario()]). At
+#'   least one.
 #' @return The same plan (same `@id`) with the named fields changed.
 #' @examples
 #' p <- media_plan_from_df(
@@ -782,7 +818,7 @@ revise <- function(plan, ...) {
   }
   changes <- list(...)
   allowed <- c("name", "nickname", "advertiser", "planner", "status",
-               "approved_on", "objective", "rationale")
+               "approved_on", "objective", "spend_basis", "rationale")
   if ("revision" %in% names(changes)) {
     stop("`revision` is no longer set by hand: a plan's revision is its place ",
          "among the approved plans in its lineage. Approve it with ",
@@ -815,6 +851,9 @@ revise <- function(plan, ...) {
   }
   if ("approved_on" %in% names(changes)) {
     changes$approved_on <- .as_approved_on(changes$approved_on)
+  }
+  if ("spend_basis" %in% names(changes)) {
+    changes$spend_basis <- .as_spend_basis(changes$spend_basis)
   }
   if ("rationale" %in% names(changes)) {
     changes$rationale <- .as_rationale(changes$rationale)

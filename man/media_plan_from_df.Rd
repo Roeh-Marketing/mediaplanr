@@ -21,6 +21,7 @@ media_plan_from_df(
   status = "",
   approved_on = NULL,
   objective = "",
+  spend_basis = "",
   id = NULL,
   parent_id = character(0)
 )
@@ -85,6 +86,10 @@ case-insensitively) or \code{""} when unset.}
 ISO string; only with \code{status = "approved"}. Never defaulted to today.}
 
 \item{objective}{Human-facing objective / notes.}
+
+\item{spend_basis}{What \code{planned_spend} measures: free text such as
+\code{"media_net"}, \code{"client_net"} or \code{"gross"}; \code{""} (default) when
+undeclared. See \link{MediaPlan}.}
 
 \item{id}{Optional explicit id; generated when \code{NULL}.}
 

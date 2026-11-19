@@ -459,6 +459,11 @@ Listed because earlier revisions of the README named these as future work:
   than one and never breaking the tie by date. `compare_scenarios()` takes
   `against = "base" | "parent" | "current_approved"`. Older JSON carrying
   `revision` reads with it ignored.
+- **Spend basis** — built. `@spend_basis` declares what `planned_spend`
+  measures (`"media_net"`, `"client_net"`, `"gross"`, or anything else; `""`
+  undeclared). Set at import or corrected with `revise()`; carried by
+  scenarios and rollups. Plans combine -- in a `ScenarioSet`, or as a
+  subplan -- only when their bases match exactly, undeclared included.
 
 ---
 
@@ -475,6 +480,11 @@ Listed because earlier revisions of the README named these as future work:
   `pct_delivered`. The rule the package holds: *if a value can change without
   the plan changing, it does not belong on the plan.* This is what keeps the
   flight window legitimate and these out.
+- **Fee schedules and spend-basis conversion.** `@spend_basis` declares
+  what the figures measure; it never converts one basis into another. Turning
+  media net into client net means applying an agency's fee schedule, which
+  differs by contract and by channel. That belongs in the caller, or in a
+  companion package, not in the plan.
 - **Ids as an external join contract.** `@id`, `@parent_id` and `flight_id` are
   opaque, exist for identity and lineage, and are scoped to a derivation tree.
   Do not build an external join on them.

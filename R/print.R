@@ -101,6 +101,7 @@ S7::method(print, MediaPlan) <- function(x, ...) {
   if (nzchar(x@advertiser)) .field("advertiser", x@advertiser)
   if (nzchar(x@planner))    .field("planner", x@planner)
   if (nzchar(x@objective))  .field("objective", .trunc(x@objective, 62))
+  if (nzchar(x@spend_basis)) .field("spend basis", x@spend_basis)
 
   # --- shape ---
   .field("grain", paste(x@grain, collapse = " + "))

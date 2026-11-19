@@ -18,6 +18,7 @@ MediaPlan(
   planner = "",
   status = "",
   objective = "",
+  spend_basis = "",
   approved_on = as.Date(character(0)),
   subplans = list(),
   edits = list(),
@@ -67,6 +68,12 @@ scenarios reads well without renaming the formal plan.}
 unset.}
 
 \item{objective}{Human-facing objective / notes.}
+
+\item{spend_basis}{What \code{planned_spend} measures, as free text: commonly
+\code{"media_net"} (media cost to the agency), \code{"client_net"} (what the client
+pays, fees included) or \code{"gross"}. \code{""} when undeclared. It declares the
+basis and converts nothing. Plans combine -- in a \link{ScenarioSet}, or as a
+subplan -- only when their bases match exactly.}
 
 \item{approved_on}{The date the plan was approved: a single \code{Date}, or
 empty when unset. Only an approved plan may carry one, and even then it

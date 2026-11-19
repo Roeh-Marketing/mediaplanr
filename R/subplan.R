@@ -258,6 +258,14 @@ attach_subplan <- function(parent, subplan) {
          short_id(parent@id), "), which would make the plan its own ",
          "descendant.", call. = FALSE)
   }
+  # The subplan's spend becomes the parent's rows, so both must measure the
+  # same thing.
+  if (!identical(parent@spend_basis, subplan@spend_basis)) {
+    stop("cannot attach: the parent's spend basis is \"", parent@spend_basis,
+         "\" and the subplan's is \"", subplan@spend_basis, "\". If one was ",
+         "declared wrongly, correct it with revise(spend_basis = ).",
+         call. = FALSE)
+  }
   key  <- .subplan_key(parent, subplan)
   rows <- .subplan_rollup(parent, subplan)
   subs <- parent@subplans
