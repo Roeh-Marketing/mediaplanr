@@ -19,6 +19,7 @@ build_scenario(
   planner = NULL,
   status = "in development",
   objective = "",
+  rationale = list(),
   ...
 )
 ```
@@ -61,6 +62,17 @@ build_scenario(
 
   Human-facing objective / notes for the new scenario.
 
+- rationale:
+
+  Optional structured reasons for the derivation, kept as `@rationale`
+  beside the `objective` headline: a named list with any of `author`
+  (`"human"`, `"agent"` or `"optimizer"`), `goal` (text),
+  `constraints_id` (the `@id` of the
+  [PlanConstraints](https://roeh-marketing.github.io/mediaplanr/reference/PlanConstraints.md)
+  it was checked against), `forecast` (a named list of numbers the
+  caller supplies – the package never computes them) and `notes` (text).
+  Never inherited.
+
 - ...:
 
   Unused; for method extension.
@@ -86,7 +98,15 @@ planned_spend allocation in as an absolute `edits` data frame.
 This is the form to drive from a UI or an LLM tool call: the caller
 states the *operation* and the arithmetic happens here, exactly.
 
-Each op is `list(<selection>, <exactly one operation>)`.
+Each op is `list(<exactly one operation>, <selection>)`, a plain list
+that can be written by hand, built by an [op
+constructor](https://roeh-marketing.github.io/mediaplanr/reference/ops.md)
+such as
+[`op_scale()`](https://roeh-marketing.github.io/mediaplanr/reference/ops.md),
+or parsed from an agent's JSON tool call – all three are the same
+object. The constructors check an op where it is written;
+[`plan_ops_schema()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_ops_schema.md)
+gives the same rules as a JSON Schema.
 
 **Selecting rows**
 
@@ -130,6 +150,13 @@ Each op is `list(<selection>, <exactly one operation>)`.
 
   Add to **each** matched cell (may be negative).
 
+- `transfer`:
+
+  Move this amount from the `from` cells to the `to` cells, leaving the
+  plan's total unchanged. Takes `from` and `to` in place of `target`,
+  and `from_during` / `to_during` to window one side. See
+  [`op_transfer()`](https://roeh-marketing.github.io/mediaplanr/reference/op_transfer.md).
+
 Note the deliberate split, and that it runs both ways:
 
 |          |                          |                      |
@@ -143,11 +170,12 @@ up to 50, while `set = 50` puts 50 on every TV row. Likewise
 `delta = -50` takes 50 out of TV altogether, while `delta_each = -50`
 takes 50 out of every TV row — which on a 26-week plan is 1,300.
 
-`delta` is almost always the one you want, and it is the one to reach
-for when a user says "move 50k from TV to Social": two ops,
-`delta = -50000` on TV and `delta = 50000` on Social. Distributing in
-proportion rather than evenly per cell preserves the channel's flighting
-shape, so a flight stays evenly paced through it.
+`delta` is almost always the one you want when the budget itself
+changes: distributing in proportion rather than evenly per cell
+preserves the channel's flighting shape, so a flight stays evenly paced
+through it. When money moves *between* line items – "move 50k from TV to
+Social" – reach for `transfer`. It spreads each side the same way
+`delta` would, and keeps the two halves of the move together as one op.
 
 **Changing which rows there are**
 
@@ -192,6 +220,31 @@ overridden with those absolute values. Natural for optimizer output.
 [`line_item()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item.md),
 e.g. `c("TV" = 100)`. Terse for one or two cells at a simple grain.
 
+## Spend bounds
+
+Rows may carry `min_spend` and `max_spend`
+([`bound_cols()`](https://roeh-marketing.github.io/mediaplanr/reference/bound_cols.md)):
+an upfront commitment, a partner floor, a cap. Every edit respects them.
+
+- `delta`, `total` and `transfer` spread a change across a group, and a
+  row that reaches its bound **stops there** while the rest of the group
+  takes up the slack. A cut to a channel with a committed line comes out
+  of its other lines. Only when the group as a whole cannot absorb the
+  change is the op refused, saying how much it could take.
+
+- `set`, `scale`, `delta_each` and allocation edits name each row's
+  value outright, so a row that would land outside its bounds is
+  refused.
+
+- `drop` refuses a row with a floor. `shift` and `restage` carry each
+  period's bounds with it, and refuse a move that changes a bounded
+  flight's period structure.
+
+Bounds change only through `rebound`
+([`op_rebound()`](https://roeh-marketing.github.io/mediaplanr/reference/op_rebound.md)),
+never as a side effect of moving money: to cut committed spend, lower
+the commitment and then cut, in that order, in one edits list.
+
 ## Metadata on a derived scenario
 
 `advertiser` and `planner` are **inherited** from the parent — they
@@ -212,123 +265,185 @@ backs are read-only, so an edit reaching one — including a whole-plan op
 like `list(total = 200)` — errors naming the subplan to edit instead.
 See
 [`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md).
-`@revision` restarts at 1, since a new id is a new revision history; see
+`@approved_on` is cleared with the status: whether and when the scenario
+is approved is its own business; see
 [`revise()`](https://roeh-marketing.github.io/mediaplanr/reference/revise.md).
+
+`@edits` records exactly what was applied, in a canonical form: the ops
+with their fields in a fixed order and dates as text on the plan's
+clock, or the allocation as given. The scenario is derived by replaying
+that record, so replaying it on the parent reproduces the scenario.
+`@rationale` holds the `rationale` given here. Both belong to this
+derivation and are never inherited;
+[`edit_log()`](https://roeh-marketing.github.io/mediaplanr/reference/edit_log.md)
+lays them out across a set.
 
 ## Examples
 
 ``` r
 base <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search", "Social"),
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search", "Social"),
              planned_spend = c(80, 40, 40)),
-  grain = "channel", name = "base"
+  grain = "channel", time = "week", name = "base"
 )
 
 # "Increase Search by 20%" — the caller states intent, R does the math
-build_scenario(base, edits = list(target = list(channel = "Search"),
-                                  scale = 1.2), name = "Search +20%")
+build_scenario(base, edits = op_scale(1.2, target = list(channel = "Search")),
+               name = "Search +20%")
 #> <MediaPlan> Search +20%  [in development]
-#>   grain       channel
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  3
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       168
-#>   id          plan_6e4a2f   derived from plan_e47766
+#>   id          plan_e52cc9   derived from plan_9ec5c4
 #> 
-#>    channel planned_spend
-#>         TV            80
-#>     Search            48
-#>     Social            40
+#>          week channel planned_spend
+#>    2026-07-06      TV            80
+#>    2026-07-06  Search            48
+#>    2026-07-06  Social            40
+
+# The same op written by hand, as an agent's JSON would arrive
+build_scenario(base, edits = list(scale = 1.2,
+                                  target = list(channel = "Search")),
+               name = "Search +20%, by hand")
+#> <MediaPlan> Search +20%, by hand  [in development]
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  3
+#>     channel   Search, Social, TV
+#>   rows        3
+#>   spend       168
+#>   id          plan_c45205   derived from plan_9ec5c4
+#> 
+#>          week channel planned_spend
+#>    2026-07-06      TV            80
+#>    2026-07-06  Search            48
+#>    2026-07-06  Social            40
 
 # "Set the total budget to 200", holding the current mix
-build_scenario(base, edits = list(total = 200), name = "Budget 200")
+build_scenario(base, edits = op_total(200), name = "Budget 200")
 #> <MediaPlan> Budget 200  [in development]
-#>   grain       channel
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  3
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       200
-#>   id          plan_9ec5c4   derived from plan_e47766
+#>   id          plan_fe3218   derived from plan_9ec5c4
 #> 
-#>    channel planned_spend
-#>         TV           100
-#>     Search            50
-#>     Social            50
+#>          week channel planned_spend
+#>    2026-07-06      TV           100
+#>    2026-07-06  Search            50
+#>    2026-07-06  Social            50
 
-# "Move 10 from TV to Search" — ops apply in order. `delta` moves each
-# group's TOTAL, so this is budget-neutral however many rows they have.
-build_scenario(base, edits = list(
-  list(target = list(channel = "TV"),     delta = -10),
-  list(target = list(channel = "Search"), delta =  10)
-), name = "shift 10")
-#> <MediaPlan> shift 10  [in development]
-#>   grain       channel
+# "Move 10 from TV to Search" — budget-neutral however many rows each has
+build_scenario(base, edits = op_transfer(10, from = list(channel = "TV"),
+                                         to = list(channel = "Search")),
+               name = "move 10")
+#> <MediaPlan> move 10  [in development]
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  3
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       160
-#>   id          plan_e52cc9   derived from plan_e47766
+#>   id          plan_4e104d   derived from plan_9ec5c4
 #> 
-#>    channel planned_spend
-#>         TV            70
-#>     Search            50
-#>     Social            40
+#>          week channel planned_spend
+#>    2026-07-06      TV            70
+#>    2026-07-06  Search            50
+#>    2026-07-06  Social            40
+
+# Ops in a list apply in order
+build_scenario(base, edits = list(
+  op_transfer(10, from = list(channel = "TV"), to = list(channel = "Search")),
+  op_scale(0.5, target = list(channel = "Social"))
+), name = "move 10, halve Social")
+#> <MediaPlan> move 10, halve Social  [in development]
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  3
+#>     channel   Search, Social, TV
+#>   rows        3
+#>   spend       140
+#>   id          plan_81f9be   derived from plan_9ec5c4
+#> 
+#>          week channel planned_spend
+#>    2026-07-06      TV            70
+#>    2026-07-06  Search            50
+#>    2026-07-06  Social            20
 
 # Absolute allocation (e.g. from mrmopt::opt_mix())
 build_scenario(
   base,
-  edits = data.frame(channel = c("TV", "Search"), planned_spend = c(50, 70)),
+  edits = data.frame(week = as.Date("2026-07-06"),
+                     channel = c("TV", "Search"), planned_spend = c(50, 70)),
   name = "Optimized"
 )
 #> <MediaPlan> Optimized  [in development]
-#>   grain       channel
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  3
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       160
-#>   id          plan_c45205   derived from plan_e47766
+#>   id          plan_36adab   derived from plan_9ec5c4
 #> 
-#>    channel planned_spend
-#>         TV            50
-#>     Search            70
-#>     Social            40
+#>          week channel planned_spend
+#>    2026-07-06      TV            50
+#>    2026-07-06  Search            70
+#>    2026-07-06  Social            40
 
-# Terse single-cell override
-build_scenario(base, edits = c("Search" = 120), name = "Search boost")
+# Terse single-cell override, keyed by line_item() at the full grain
+build_scenario(base, edits = c("Search | 2026-07-06" = 120),
+               name = "Search boost")
 #> <MediaPlan> Search boost  [in development]
-#>   grain       channel
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  3
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       240
-#>   id          plan_fe3218   derived from plan_e47766
+#>   id          plan_3d322b   derived from plan_9ec5c4
 #> 
-#>    channel planned_spend
-#>         TV            80
-#>     Search           120
-#>     Social            40
+#>          week channel planned_spend
+#>    2026-07-06      TV            80
+#>    2026-07-06  Search           120
+#>    2026-07-06  Social            40
 
 # A plan can gain and lose line items
-build_scenario(base, edits = list(add = list(channel = "Audio",
-                                             planned_spend = 25)),
+build_scenario(base, edits = op_add(channel = "Audio", week = "2026-07-06",
+                                    planned_spend = 25),
                name = "add audio")
 #> <MediaPlan> add audio  [in development]
-#>   grain       channel
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  4
 #>     channel   Audio, Search, Social, TV
 #>   rows        4
 #>   spend       185
-#>   id          plan_4e104d   derived from plan_e47766
+#>   id          plan_04bdd5   derived from plan_9ec5c4
 #> 
-#>    channel planned_spend
-#>         TV            80
-#>     Search            40
-#>     Social            40
+#>          week channel planned_spend
+#>    2026-07-06      TV            80
+#>    2026-07-06  Search            40
+#>    2026-07-06  Social            40
 #>   ... 1 more row
-build_scenario(base, edits = list(target = list(channel = "TV"), drop = TRUE),
+build_scenario(base, edits = op_drop(target = list(channel = "TV")),
                name = "no TV")
 #> <MediaPlan> no TV  [in development]
-#>   grain       channel
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  2
 #>     channel   Search, Social
 #>   rows        2
 #>   spend       80
-#>   id          plan_81f9be   derived from plan_e47766
+#>   id          plan_2b87bd   derived from plan_9ec5c4
 #> 
-#>    channel planned_spend
-#>     Search            40
-#>     Social            40
+#>          week channel planned_spend
+#>    2026-07-06  Search            40
+#>    2026-07-06  Social            40
 ```

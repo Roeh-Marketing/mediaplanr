@@ -23,7 +23,7 @@ grain_values(plan, col = NULL)
 - col:
 
   Name of a single grain column. `NULL` (the default) returns a named
-  list covering every grain column, including the week.
+  list covering every grain column, including the time column.
 
 ## Value
 
@@ -41,10 +41,11 @@ edit without translation.
 
 ``` r
 p <- media_plan_from_df(
-  data.frame(channel = c("TV", "TV", "Search"),
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "TV", "Search"),
              partner = c("NBC", "ESPN", "Google"),
              planned_spend = c(30, 20, 50)),
-  grain = c("channel", "partner"), name = "Q3 plan"
+  grain = c("channel", "partner"), time = "week", name = "Q3 plan"
 )
 
 grain_values(p, "channel")
@@ -55,5 +56,8 @@ grain_values(p)
 #> 
 #> $partner
 #> [1] "ESPN"   "Google" "NBC"   
+#> 
+#> $week
+#> [1] "2026-07-06"
 #> 
 ```

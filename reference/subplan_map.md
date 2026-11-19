@@ -39,9 +39,9 @@ A data frame with one row per plan in the tree:
 
   Keys from the root joined with `" > "`; `""` for the root.
 
-- `name`, `nickname`, `status`, `revision`, `id`:
+- `name`, `nickname`, `status`, `approved_on`, `id`:
 
-  The plan's own.
+  The plan's own; `approved_on` is `NA` when unset.
 
 - `grain`:
 
@@ -49,7 +49,7 @@ A data frame with one row per plan in the tree:
 
 - `cadence`:
 
-  `"timeless"`, `"weekly"`, `"daily"`, `"monthly"` or `"flighted"`, read
+  `"weekly"`, `"daily"`, `"monthly"`, `"timed"` or `"flighted"`, read
   off the data.
 
 - `line_items`, `rows`, `spend`:
@@ -70,19 +70,21 @@ A data frame with one row per plan in the tree:
 
 ``` r
 topline <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(100, 40)),
-  grain = "channel", name = "Q3 topline"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(100, 40)),
+  grain = "channel", time = "week", name = "Q3 topline"
 )
 tv <- media_plan_from_df(
-  data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+  data.frame(week = as.Date("2026-07-06"),
+             channel = "TV", partner = c("NBC", "ESPN"),
              planned_spend = c(70, 50)),
-  grain = c("channel", "partner"), name = "TV detail"
+  grain = c("channel", "partner"), time = "week", name = "TV detail"
 )
 subplan_map(attach_subplan(topline, tv))
-#>   depth  key path       name nickname             grain  cadence line_items
-#> 1     0 <NA>      Q3 topline                    channel timeless          2
-#> 2     1   TV   TV  TV detail          channel + partner timeless          2
-#>   rows spend subplans revision status                         id
-#> 1    2   160        1        1        plan_20260916002728_c0d89c
-#> 2    2   120        0        1        plan_20260916002728_e03dc7
+#>   depth  key path       name nickname                    grain cadence
+#> 1     0 <NA>      Q3 topline                    channel + week  weekly
+#> 2     1   TV   TV  TV detail          channel + partner + week  weekly
+#>   line_items rows spend subplans status approved_on                         id
+#> 1          2    2   160        1               <NA> plan_20261119173012_283852
+#> 2          2    2   120        0               <NA> plan_20261119173012_5d3793
 ```

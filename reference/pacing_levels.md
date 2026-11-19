@@ -22,11 +22,11 @@ rows actually have rather than remembering whether anyone touched them.
 Two consequences worth knowing:
 
 - Scaling a whole flight, or setting its total, leaves it `"even"` —
-  every week moves in proportion, so only the amount changed, not the
+  every period moves in proportion, so only the amount changed, not the
   shape.
 
-- Editing one week, or adding a flat amount to weeks of unequal length,
-  makes it `"custom"`.
+- Editing one period, or adding a flat amount to periods of unequal
+  length, makes it `"custom"`.
 
 Either way the flight survives: its `flight_id` is never dropped, so a
 hand-shaped buy is still one buy and

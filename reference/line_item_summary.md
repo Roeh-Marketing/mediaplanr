@@ -24,9 +24,12 @@ line_item_summary(plan)
 A data frame: the
 [`line_item_grain()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_grain.md)
 columns, then `line_item` (the key), `planned_spend` (the item's total),
-`n_rows`, and — only when the plan has a time dimension — `flight_start`
-and `flight_end`. The date columns are absent rather than `NA` on a
-timeless plan.
+`n_rows`, `flight_start` and `flight_end` — the item's own window, in
+the time column's type. A plan that records units adds them; one that
+records spend bounds
+([`bound_cols()`](https://roeh-marketing.github.io/mediaplanr/reference/bound_cols.md))
+adds `committed_spend`, the sum of the line's floors — spend no edit can
+take out — and `headroom`, what is left above them.
 
 ## Details
 
@@ -48,7 +51,7 @@ p <- media_plan_from_df(
              channel = c("TV", "Search", "TV"),
              partner = c("NBC", "Google", "NBC"),
              planned_spend = c(30, 20, 35)),
-  grain = c("channel", "partner", "week"), week = "week", name = "Q2 plan"
+  grain = c("channel", "partner"), time = "week", name = "Q2 plan"
 )
 
 line_item_summary(p)

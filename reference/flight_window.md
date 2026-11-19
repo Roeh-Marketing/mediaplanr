@@ -1,9 +1,15 @@
 # The plan's flight window
 
 The first and last dates on which the plan has any line item in market —
-the plan's own **extent**, derived from `@data`. A weekly row runs from
-its week start through the following six days, so a plan whose last week
-begins `2026-04-06` is in market through `2026-04-12`.
+the plan's own **extent**, derived from `@data`. How far a row reaches
+is read from `@time_basis`: a weekly row runs from its week start
+through the following six days, so a plan whose last week begins
+`2026-04-06` is in market through `2026-04-12`, while a daily row covers
+its day and a monthly one its month. On a plan keyed by moments the
+window comes back in `POSIXct` and runs from the first moment planned to
+the end of the last buy: a row's length is its flight's, so a spot at
+20:00 with no flight is an instant and a sponsorship flighted 20:00 to
+20:30 is half an hour.
 
 ## Usage
 
@@ -20,11 +26,10 @@ flight_window(plan)
 
 ## Value
 
-A `Date` vector of length 2, named `start` and `end`. Length 0 when the
-plan has no time dimension, no rows, or no non-missing dates — never
-`NA`, so absence is tested with
-[`length()`](https://rdrr.io/r/base/length.html), exactly as for
-`@week_col`.
+A vector of length 2, named `start` and `end`, in the time column's own
+type (`Date`, or `POSIXct` on a plan keyed by moments). Length 0 when
+the plan has no rows or no non-missing dates — never `NA`, so absence is
+tested with [`length()`](https://rdrr.io/r/base/length.html).
 
 ## Details
 
@@ -48,7 +53,7 @@ p <- media_plan_from_df(
   data.frame(week    = as.Date(c("2026-03-02", "2026-04-06")),
              channel = c("TV", "TV"),
              planned_spend = c(30, 35)),
-  grain = c("channel", "week"), week = "week", name = "Q2 plan"
+  grain = "channel", time = "week", name = "Q2 plan"
 )
 
 flight_window(p)   # ends 2026-04-12: the last week runs a full seven days

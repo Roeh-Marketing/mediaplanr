@@ -2,7 +2,7 @@
 
 The inverse of
 [`media_plan_from_flights()`](https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_flights.md):
-one row per flight, recovered by grouping the weekly rows on
+one row per flight, recovered by grouping the plan's rows on
 `flight_id`.
 
 ## Usage
@@ -22,9 +22,10 @@ flights(plan)
 
 A data frame: the
 [`line_item_grain()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_grain.md)
-columns (excluding the week), `flight_id`, `flight_start`, `flight_end`,
-`period_basis`, `pacing`, `planned_spend` (the flight total) and
-`n_weeks`. Zero rows when the plan records no flights.
+columns, `flight_id`, `flight_start`, `flight_end`, `period_basis`,
+`pacing`, `planned_spend` (the flight total) and `n_periods` — how many
+plan rows the flight occupies. Zero rows when the plan records no
+flights.
 
 ## Details
 
@@ -48,9 +49,9 @@ p <- media_plan_from_flights(buys, grain = "channel", name = "Q2 flights")
 
 flights(p)
 #>   channel              flight_id flight_start flight_end period_basis pacing
-#> 1     OOH fl_20260916002725_f2d6   2026-04-06 2026-05-03       flight   even
-#>   planned_spend n_weeks
-#> 1        120000       4
+#> 1     OOH fl_20261119173007_5f1c   2026-04-06 2026-05-03       flight   even
+#>   planned_spend n_periods
+#> 1        120000         4
 sum(flights(p)$planned_spend) == sum(p@data$planned_spend)
 #> [1] TRUE
 ```

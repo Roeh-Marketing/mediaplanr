@@ -27,9 +27,9 @@ check_coverage(plan, decomp, through = NULL)
 
 - through:
 
-  Optional `Date`. Restricts the check to plan rows in market before
-  that date; see *What `through` compares against*. Without it, or on a
-  plan with no time dimension, the whole plan is considered.
+  Optional `Date` (or `POSIXct`, on a plan keyed by moments). Restricts
+  the check to plan rows in market before it; see *What `through`
+  compares against*. Without it the whole plan is considered.
 
 ## Value
 
@@ -73,8 +73,9 @@ says nothing about *how much* of a buy the decomp measured.
 
 ``` r
 p <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80, 40)),
-  grain = "channel", name = "Q3 plan"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80, 40)),
+  grain = "channel", time = "week", name = "Q3 plan"
 )
 check_coverage(p, data.frame(channel = c("TV", "Search")))
 ```

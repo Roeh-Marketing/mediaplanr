@@ -32,7 +32,8 @@ A character vector of identifiers, length `nrow(df)`.
 
 ## Details
 
-At a weekly grain a row is a line item *for a given week*, so pass
+Every plan is keyed by time, so a row is a line item *for one period* —
+a week, a day, a month, a moment. Pass
 [`line_item_grain()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_grain.md)
 to identify the line item independent of time, or the full `@grain` to
 identify the row.

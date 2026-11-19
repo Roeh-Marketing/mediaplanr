@@ -38,7 +38,7 @@ p <- media_plan_from_df(
     channel       = c("TV", "Search"),
     planned_spend = c(50000, 20000)
   ),
-  grain = c("channel", "week"), week = "week",
+  grain = "channel", time = "week",
   name  = "A plan whose weeks are long past"
 )
 
@@ -49,6 +49,35 @@ build_scenario(p, edits = list(target = list(channel = "TV"), scale = 1.5),
 #> 1 2026-01-05      TV         75000
 #> 2 2026-01-05  Search         20000
 ```
+
+### Credits are not intent
+
+Agency workbooks often carry **negative rows**: a make-good credit, a
+rebate, a partner refunding an under-delivered week. A plan refuses
+them:
+
+``` r
+
+media_plan_from_df(
+  data.frame(week = as.Date("2026-01-05"), channel = c("TV", "TV credit"),
+             planned_spend = c(50000, -4000)),
+  grain = "channel", time = "week", name = "With a credit row"
+)
+#> Error:
+#> ! <mediaplanr::MediaPlan> object is invalid:
+#> - 'planned_spend' must be non-negative.
+```
+
+That is deliberate. A credit is **billing reconciliation**, not
+something anyone planned to buy, so it is not a line item. Decide which
+of two things it is:
+
+- **It changes planned media** — the credit was reinvested, or the line
+  is genuinely buying less. Net it into that line’s `planned_spend`
+  before import, so the plan says what is now intended.
+- **It does not** — the media runs as planned and only the invoice
+  changes. Keep it in a separate adjustments table outside the plan, and
+  reconcile the two where billing is done.
 
 ## A plan is blind to past and future
 
@@ -82,7 +111,7 @@ plan <- media_plan_from_df(
     partner       = c("NBC", "Google", "NBC", "Google"),
     planned_spend = c(30000, 20000, 35000, 25000)
   ),
-  grain = c("channel", "partner", "week"), week = "week",
+  grain = c("channel", "partner"), time = "week",
   name  = "Q2 plan"
 )
 
@@ -175,19 +204,148 @@ it.
 
 That last point about warnings is the one exception to the package’s
 general strictness. Structural problems — negative spend, duplicate
-rows, a week column that is not a `Date` — are hard errors, so an
-invalid plan cannot exist:
+rows, a time column that is neither a `Date` nor a moment — are hard
+errors, so an invalid plan cannot exist:
 
 ``` r
 
 media_plan_from_df(
-  data.frame(channel = c("TV", "TV"), planned_spend = c(1, 2)),
-  grain = "channel", name = "duplicated"
+  data.frame(week = as.Date("2026-07-06"), channel = c("TV", "TV"), planned_spend = c(1, 2)),
+  grain = "channel", time = "week", name = "duplicated"
 )
 #> Error:
 #> ! <mediaplanr::MediaPlan> object is invalid:
-#> - @data has duplicate rows at grain (channel): TV. One row per grain cell is required.
+#> - @data has duplicate rows at grain (channel, week): TV | 2026-07-06. One row per grain cell is required.
 ```
+
+## Time is not optional
+
+Every plan is planned against a calendar, so `@time_col` is
+**required**. Two properties carry the whole time axis:
+
+- `@time_col` names the column a row is dated by.
+- `@time_basis` says what one of its values covers — `"day"`, `"week"`,
+  `"month"`, or `"instant"` for a buy placed at a specific moment.
+
+Everything temporal is derived from those two plus the flight a row
+belongs to: the flight window,
+[`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md)’s
+scope,
+[`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md),
+pacing. Nothing stores a period, so nothing can disagree about one.
+
+The basis is inferred from the column when you do not declare it — month
+starts read as monthly, dates that all fall on one weekday as weekly,
+anything else as daily, and a `POSIXct` column always as moments.
+Declare it when the guess would be wrong: a single month of a monthly
+plan looks exactly like a single week.
+
+``` r
+
+weeks <- media_plan_from_df(
+  data.frame(week = as.Date(c("2026-04-06", "2026-04-13")),
+             channel = "TV", planned_spend = c(30, 30)),
+  grain = "channel", time = "week", name = "Weekly"
+)
+days <- media_plan_from_df(
+  data.frame(day = as.Date(c("2026-04-06", "2026-04-07")),
+             channel = "TV", planned_spend = c(30, 30)),
+  grain = "channel", time = "day", name = "Daily"
+)
+
+c(weekly = weeks@flight_days, daily = days@flight_days)
+#> weekly  daily 
+#>     14      2
+```
+
+Two rows each, the same money, and different extents — because a weekly
+row is seven days of spend and a daily row is one.
+
+A **moment** is the case for buys bought by the slot rather than for a
+period: a 30-second spot, an 8pm takeover, a half-hour sponsorship. The
+moment keys the row; the buy’s own **flight** says how long it runs.
+Author those the way a buyer states them — one row per slot, with a
+start and an end:
+
+``` r
+
+spots <- media_plan_from_flights(
+  data.frame(
+    channel   = "TV",
+    programme = c("Grand Final", "Sunday Sponsorship"),
+    flight_start = as.POSIXct(c("2026-04-06 20:00:00", "2026-04-12 20:00:00"),
+                              tz = "UTC"),
+    flight_end   = as.POSIXct(c("2026-04-06 20:00:30", "2026-04-12 20:30:00"),
+                              tz = "UTC"),
+    planned_spend = c(450000, 250000)
+  ),
+  grain = c("channel", "programme"), basis = "instant", name = "Launch spots"
+)
+
+spots@time_basis
+#> [1] "instant"
+flights(spots)[, c("programme", "flight_start", "flight_end", "n_periods")]
+#>            programme        flight_start          flight_end n_periods
+#> 1        Grand Final 2026-04-06 20:00:00 2026-04-06 20:00:30         1
+#> 2 Sunday Sponsorship 2026-04-12 20:00:00 2026-04-12 20:30:00         1
+```
+
+One row per buy, because there is nothing to spread a slot across. Each
+row’s extent is its own: half a minute for the spot, half an hour for
+the sponsorship, and a bare moment with no flight is a point in time.
+
+``` r
+
+flight_window(spots)
+#>                     start                       end 
+#> "2026-04-06 20:00:00 UTC" "2026-04-12 20:30:00 UTC"
+calendarize(spots, "day")   # onto a calendar by the day each spot airs
+#>   channel          programme        day planned_spend
+#> 1      TV        Grand Final 2026-04-06        450000
+#> 2      TV Sunday Sponsorship 2026-04-12        250000
+```
+
+A moment is only a moment on some clock, so the clock is the **plan’s**:
+`@tz`. Declare it and a time given as a string means that time on the
+plan’s clock, wherever the code runs — 8pm in New York is not 8pm in
+London, and without a stated zone the machine parsing the edit would
+quietly decide which one you meant.
+
+``` r
+
+ny <- media_plan_from_df(
+  data.frame(airs = "2026-02-08 20:00:00", channel = "TV", planned_spend = 1),
+  grain = "channel", time = "airs", tz = "America/New_York", name = "NY spot"
+)
+
+ny@tz
+#> [1] "America/New_York"
+format(ny@data$airs, usetz = TRUE)
+#> [1] "2026-02-08 20:00:00 EST"
+```
+
+It travels with the plan: JSON writes the instant in UTC so it cannot be
+read as a different moment, and `@tz` puts it back on the plan’s clock
+on the way in. A plan keyed by day, week or month has no clock to state,
+so `@tz` has no effect on one.
+
+The time column is part of `@grain`, but you do not name it there: the
+constructors append it, and it always sits last.
+
+``` r
+
+spots@grain
+#> [1] "channel"   "programme" "time"
+line_item_grain(spots)
+#> [1] "channel"   "programme"
+```
+
+That also means
+[`roll_up()`](https://roeh-marketing.github.io/mediaplanr/reference/roll_up.md)
+never drops it. Rolling up aggregates over *dimensions*; aggregating
+over *time* is
+[`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md)’s
+job, and the two compose in either order.
 
 ## Line item, grain, row
 
@@ -197,14 +355,15 @@ A **line item** is a channel / partner / tactic combination: the
 *time-free* identity of something you are buying. It is what a decomp
 constrains and what response models attach to.
 
-The **grain** is the set of columns identifying a **row**. At a weekly
-grain a row is a line item *for one week*.
+The **grain** is the set of columns identifying a **row**. Every plan is
+keyed by time, so a row is a line item *for one period* — a week here, a
+day, a month or a moment elsewhere.
 
 ``` r
 
 plan@grain              # what identifies a row
 #> [1] "channel" "partner" "week"
-line_item_grain(plan)   # what identifies a line item — the grain minus the week
+line_item_grain(plan)   # what identifies a line item — the grain minus time
 #> [1] "channel" "partner"
 
 unique(line_item(plan@data, line_item_grain(plan)))
@@ -280,15 +439,16 @@ rollup the package already does.
 ``` r
 
 tv <- media_plan_from_df(
-  data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+  data.frame(week = as.Date("2026-07-06"), channel = "TV", partner = c("NBC", "ESPN"),
              planned_spend = c(70000, 50000)),
-  grain = c("channel", "partner"), name = "TV detail"
+  grain = c("channel", "partner"), time = "week", name = "TV detail"
 )
 topline <- attach_subplan(roll_up(plan, "channel"), tv)
 topline@data
-#>   channel planned_spend
-#> 1  Search         45000
-#> 2      TV        120000
+#>   channel       week planned_spend
+#> 1  Search 2026-03-02         20000
+#> 2  Search 2026-04-06         25000
+#> 3      TV 2026-07-06        120000
 ```
 
 Attaching **replaces** the parent’s rows for that cell with the
@@ -326,7 +486,7 @@ goes back the other way — and it is **exact, never inferred**:
 weekly <- media_plan_from_df(
   data.frame(week = seq(as.Date("2026-04-06"), by = "week", length.out = 4),
              channel = "TV", planned_spend = rep(30000, 4)),
-  grain = c("channel", "week"), week = "week", name = "Four equal weeks"
+  grain = "channel", time = "week", name = "Four equal weeks"
 )
 
 nrow(flights(weekly))
@@ -456,9 +616,9 @@ the budget was cut. So the rate holds and the units follow:
 ``` r
 
 social <- media_plan_from_df(
-  data.frame(channel = "Social", unit_type = "impression",
+  data.frame(week = as.Date("2026-07-06"), channel = "Social", unit_type = "impression",
              planned_spend = 140000, planned_rate = 5),
-  grain = "channel", name = "Social"
+  grain = "channel", time = "week", name = "Social"
 )
 
 cut <- build_scenario(social, edits = list(delta = -40000), name = "trimmed")
@@ -529,8 +689,8 @@ resets:
 ``` r
 
 approved <- media_plan_from_df(
-  data.frame(channel = "TV", planned_spend = 100000),
-  grain = "channel", name = "Signed off", status = "approved"
+  data.frame(week = as.Date("2026-07-06"), channel = "TV", planned_spend = 100000),
+  grain = "channel", time = "week", name = "Signed off", status = "approved"
 )
 
 child <- build_scenario(approved, edits = list(scale = 1.5), name = "variant")
@@ -541,6 +701,179 @@ c(parent = approved@status, child = child@status)
 
 `advertiser` and `planner` *are* inherited — they describe the
 engagement and the person working, not the individual scenario.
+
+### A revision is a fact about lineage
+
+Planners say *Rev 3*. An earlier version of this package stored that as
+a number on the plan, and it was the wrong thing to store: it had to be
+set by hand, and it restarted at 1 on every derivation, while *Rev 3*
+means “the third version anyone approved” of a plan that may have been
+derived dozens of times in between.
+
+So nothing is stored but the approval itself – `status = "approved"`
+and, optionally, the date it was given. The revision is derived from the
+lineage: an approved plan’s place among the approved plans on its
+branch.
+
+``` r
+
+rev2 <- revise(build_scenario(approved, edits = list(scale = 1.1), name = "Rev 2"),
+               status = "approved", approved_on = "2026-07-20")
+draft <- build_scenario(rev2, edits = list(scale = 0.9), name = "draft")
+
+set <- add_scenario(add_scenario(scenario_set(approved), rev2), draft)
+lineage(set)[, c("scenario", "status", "revision", "current")]
+#>     scenario         status revision current
+#> 1 Signed off       approved        1   FALSE
+#> 2      Rev 2       approved        2    TRUE
+#> 3      draft in development       NA   FALSE
+```
+
+The **current** approved plan is the one nothing approved has been
+derived from since – the one the agency is buying against. Two approvals
+on parallel branches are both current, and the package says so rather
+than guess which one won; an approval date says when someone signed, not
+which plan replaced which.
+
+### A scenario records how it was made
+
+Every derived plan carries the edits that produced it, as `@edits`, and
+optionally why, as `@rationale` – who proposed it (a person, an agent,
+an optimizer), toward what goal, under which constraints.
+
+The record is not a log written beside the edit.
+[`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md)
+first turns whatever it was given into a canonical record – ops with
+their fields in a fixed order and dates as text on the plan’s clock, or
+an allocation as given – and then derives the scenario **by replaying
+that record**. What is stored is, by construction, exactly what was
+applied; replaying it on the parent reproduces the scenario to the last
+cent.
+
+``` r
+
+s3 <- build_scenario(plan, name = "move", edits = op_transfer(
+  10000, from = list(channel = "TV"), to = list(channel = "Search")))
+s3@edits
+#> $form
+#> [1] "ops"
+#> 
+#> $ops
+#> $ops[[1]]
+#> $ops[[1]]$transfer
+#> [1] 10000
+#> 
+#> $ops[[1]]$from
+#> $ops[[1]]$from$channel
+#> [1] "TV"
+#> 
+#> 
+#> $ops[[1]]$to
+#> $ops[[1]]$to$channel
+#> [1] "Search"
+```
+
+That is also why a transfer is one operation rather than two deltas.
+“Move 10k from TV to Search” is one intent; written as a cut and an
+addition, the record would hold two unrelated changes, and nothing would
+say they belonged together.
+
+## Some money cannot move
+
+A real plan is not all free to edit. An upfront commitment is fixed; a
+partner minimum is a floor; some lines are capped. Each row may carry
+`min_spend` and `max_spend` to say so, and every edit respects them:
+
+``` r
+
+held <- media_plan_from_df(
+  data.frame(month = as.Date("2026-10-01"),
+             channel = c("Streaming", "Search", "Social"),
+             planned_spend = c(60000, 20000, 10000),
+             min_spend = c(60000, 15000, NA),
+             max_spend = c(60000, NA, NA)),
+  grain = "channel", time = "month", name = "Held"
+)
+
+build_scenario(held, edits = list(delta = -8000), name = "trim")@data[
+  , c("channel", "planned_spend", "min_spend")]
+#>     channel planned_spend min_spend
+#> 1 Streaming         60000     60000
+#> 2    Search         15000     15000
+#> 3    Social          7000        NA
+```
+
+The cut of 8,000 spread in proportion across the rows that could give,
+until Search reached its floor; Social took the rest, and Streaming –
+committed – did not move. That is what an edit across a group does: rows
+at a bound stop there and the rest take up the slack. An edit that names
+each row’s value outright (`set`, `scale`, `delta_each`, an optimizer’s
+allocation) cannot be redistributed, so a row it would push past a bound
+refuses it instead.
+
+Only the two bounds are stored. Whether a row is **committed** (floor
+and cap both equal its spend), has a **floor**, or is **capped** is
+derived from them every time, for the same reason the flight window is:
+a label stored beside the numbers could disagree with them, and a
+derived one cannot.
+
+Bounds change through one operation, `rebound`, and never as a side
+effect of moving money. To cut committed spend, lower the commitment and
+then cut, in that order, in one edits list – so the record says that
+both happened.
+
+### Rules about one row, rules about many
+
+Spend bounds are rules about **one row**, and they live in the plan
+because an edit can keep them: spreading a cut across a group, it can
+see each row’s floor and stop there.
+
+A rule about **many rows** is different. “Streaming keeps at least 40%
+of the plan” depends on everything else in the plan – a transfer between
+two other channels can break it without touching Streaming at all. No
+single edit can enforce it row by row, so it is not enforced; it is
+checked. Such rules are kept apart, in a `PlanConstraints`, and
+[`check_constraints()`](https://roeh-marketing.github.io/mediaplanr/reference/check_constraints.md)
+measures a plan against them:
+
+``` r
+
+rules <- plan_constraints(list(
+  rule_min_share(0.7, target = list(channel = "Streaming"))
+), name = "share floor")
+
+check_constraints(held, rules)[, c("type", "target", "actual", "limit", "ok")]
+#> Warning: 1 of 2 rule(s) violated: min_share 0.7 on channel Streaming: actual
+#> 0.6667 (slack -0.0333).
+#>         type            target actual limit    ok
+#> 1  min_share channel Streaming 0.6667   0.7 FALSE
+#> 2 row_bounds       (every row) 0.0000   0.0  TRUE
+```
+
+A broken group rule is reported with a warning, never refused: the plan
+is legal, and whoever approves it needs to see what it breaks. Keeping
+the rules in one object, rather than in each caller’s head, is what lets
+an agent checking its own proposal and an optimizer searching for a
+better one hold the plan to the same definition of “allowed”.
+
+## Spend has a basis
+
+The same plan can be stated as media net (what the media costs), client
+net (what the client pays, fees included) or gross. `@spend_basis`
+declares which one the figures are:
+
+``` r
+
+revise(held, spend_basis = "media_net")@spend_basis
+#> [1] "media_net"
+```
+
+It is a declaration, never a conversion. Turning media net into client
+net means applying a fee schedule, and fee schedules differ by contract
+and by channel; that belongs with the caller. What the package does with
+the basis is refuse to combine plans that disagree – a scenario set, or
+a subplan beneath its parent – because comparing media net with client
+net would report the fees as a change in plan.
 
 ## Comparison unions the cells
 
@@ -556,20 +889,20 @@ because then their row sets need not match:
 ``` r
 
 a <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
-  grain = "channel", name = "Plan", nickname = "baseline"
+  data.frame(week = as.Date("2026-07-06"), channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
+  grain = "channel", time = "week", name = "Plan", nickname = "baseline"
 )
 b <- media_plan_from_df(
-  data.frame(channel = "TV", planned_spend = 120000),   # Search dropped entirely
-  grain = "channel", name = "Plan", nickname = "no search"
+  data.frame(week = as.Date("2026-07-06"), channel = "TV", planned_spend = 120000),   # Search dropped entirely
+  grain = "channel", time = "week", name = "Plan", nickname = "no search"
 )
 
 compare_scenarios(add_scenario(scenario_set(a), b), "cell")
-#>    scenario channel planned_spend share_of_total spend_vs_base
-#> 1  baseline      TV         80000      0.6666667             0
-#> 2  baseline  Search         40000      0.3333333             0
-#> 3 no search      TV        120000      1.0000000         40000
-#> 4 no search  Search             0      0.0000000        -40000
+#>    scenario channel       week planned_spend share_of_total spend_vs_base
+#> 1  baseline      TV 2026-07-06         80000      0.6666667             0
+#> 2  baseline  Search 2026-07-06         40000      0.3333333             0
+#> 3 no search      TV 2026-07-06        120000      1.0000000         40000
+#> 4 no search  Search 2026-07-06             0      0.0000000        -40000
 ```
 
 Search appears for `no search` as a **−40,000 delta**, not as a missing
@@ -579,8 +912,8 @@ from nowhere.
 
 ## What lives elsewhere
 
-`mediaplanr` does not fit models, forecast, or optimize, and imports
-nothing but S7.
+`mediaplanr` does not fit models, forecast, or optimize. Its only
+imports are S7 and jsonlite, plus base R’s stats and utils.
 
              mediaplanr                       mrmopt
       ┌────────────────────────┐   ┌──────────────────────────┐

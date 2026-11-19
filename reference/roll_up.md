@@ -22,7 +22,9 @@ roll_up(plan, grain, name = NULL)
 
 - grain:
 
-  Character vector; a subset of `plan@grain` to aggregate to.
+  Character vector; the line item columns to aggregate to, a subset of
+  [`line_item_grain()`](https://roeh-marketing.github.io/mediaplanr/reference/line_item_grain.md).
+  The time column is kept automatically.
 
 - name:
 
@@ -38,21 +40,28 @@ at the coarser grain. Any subplans are dropped: a rollup is a coarser
 
 ## Details
 
-Treat `@grain` as an ordered nesting (channel, then partner, then
-tactic), so "the next coarsest level" means dropping the rightmost
-column.
+Treat the line item columns as an ordered nesting (channel, then
+partner, then tactic), so "the next coarsest level" means dropping the
+rightmost one.
+
+Time is **never** rolled up here: `@time_col` is kept whatever is asked
+for, because a plan without a calendar is not a plan. To aggregate over
+time — to see a weekly plan by month — use
+[`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md),
+the other half of the pair.
 
 ## Examples
 
 ``` r
 p <- media_plan_from_df(
-  data.frame(channel = c("TV", "TV", "Search"),
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "TV", "Search"),
              partner = c("NBC", "ESPN", "Google"),
              planned_spend = c(30, 20, 50)),
-  grain = c("channel", "partner"), name = "Q3 plan"
+  grain = c("channel", "partner"), time = "week", name = "Q3 plan"
 )
 roll_up(p, "channel")@data
-#>   channel planned_spend
-#> 1      TV            50
-#> 2  Search            50
+#>   channel       week planned_spend
+#> 1      TV 2026-07-06            50
+#> 2  Search 2026-07-06            50
 ```

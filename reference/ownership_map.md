@@ -23,8 +23,7 @@ ownership_map(plan)
 
 ## Value
 
-A data frame with the plan's line item columns, its week column when it
-has one, and:
+A data frame with the plan's line item columns, its time column, and:
 
 - `key`:
 
@@ -65,16 +64,18 @@ subplan for its own map.
 
 ``` r
 topline <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(100, 40)),
-  grain = "channel", name = "Q3 topline"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(100, 40)),
+  grain = "channel", time = "week", name = "Q3 topline"
 )
 tv <- media_plan_from_df(
-  data.frame(channel = "TV", partner = c("NBC", "ESPN"),
+  data.frame(week = as.Date("2026-07-06"),
+             channel = "TV", partner = c("NBC", "ESPN"),
              planned_spend = c(70, 50)),
-  grain = c("channel", "partner"), name = "TV detail"
+  grain = c("channel", "partner"), time = "week", name = "TV detail"
 )
 ownership_map(attach_subplan(topline, tv))
-#>   channel    key owner owner_name locked planned_spend
-#> 1  Search Search  <NA>       <NA>  FALSE            40
-#> 2      TV     TV    TV  TV detail   TRUE           120
+#>   channel       week    key owner owner_name locked planned_spend
+#> 1  Search 2026-07-06 Search  <NA>       <NA>  FALSE            40
+#> 2      TV 2026-07-06     TV    TV  TV detail   TRUE           120
 ```

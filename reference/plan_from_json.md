@@ -26,9 +26,11 @@ plan_from_json(txt)
 ## Value
 
 A
-[MediaPlan](https://roeh-marketing.github.io/mediaplanr/reference/MediaPlan.md)
+[MediaPlan](https://roeh-marketing.github.io/mediaplanr/reference/MediaPlan.md),
+a
+[ScenarioSet](https://roeh-marketing.github.io/mediaplanr/reference/ScenarioSet.md)
 or a
-[ScenarioSet](https://roeh-marketing.github.io/mediaplanr/reference/ScenarioSet.md),
+[PlanConstraints](https://roeh-marketing.github.io/mediaplanr/reference/PlanConstraints.md),
 matching what was serialized.
 
 ## Details
@@ -61,22 +63,25 @@ outright: a written tree is always finite, a parsed one need not be.
 
 ``` r
 p <- media_plan_from_df(
-  data.frame(channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
-  grain = "channel", name = "Q3"
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("TV", "Search"), planned_spend = c(80000, 40000)),
+  grain = "channel", time = "week", name = "Q3"
 )
 plan_from_json(plan_to_json(p))
 #> <MediaPlan> Q3
-#>   grain       channel
+#>   grain       channel + week
+#>   flight      2026-07-06 to 2026-07-12  (1 week)
+#>   line items  2
 #>     channel   Search, TV
 #>   rows        2
 #>   spend       120,000
-#>   id          plan_a43108
+#>   id          plan_a0a24d
 #> 
-#>    channel planned_spend
-#>         TV         80000
-#>     Search         40000
+#>          week channel planned_spend
+#>    2026-07-06      TV         80000
+#>    2026-07-06  Search         40000
 plan_from_json(plan_to_json(scenario_set(p)))
-#> <ScenarioSet>  1 scenario at channel
+#> <ScenarioSet>  1 scenario at channel + week
 #> 
 #>     scenario  status    spend  vs base
 #>   * Q3        -       120,000        -

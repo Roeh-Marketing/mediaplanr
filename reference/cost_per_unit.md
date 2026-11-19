@@ -34,11 +34,12 @@ the assumption that you asked for a reason.
 
 ``` r
 p <- media_plan_from_df(
-  data.frame(channel = c("Social", "Search"),
+  data.frame(week = as.Date("2026-07-06"),
+             channel = c("Social", "Search"),
              unit_type = c("impression", "click"),
              planned_spend = c(140000, 95000),
              planned_units = c(28000000, 118750)),
-  grain = "channel", name = "Q3 plan"
+  grain = "channel", time = "week", name = "Q3 plan"
 )
 
 cost_per_unit(p)
