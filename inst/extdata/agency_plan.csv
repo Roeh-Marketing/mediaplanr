@@ -1,0 +1,55 @@
+"month","channel","partner","campaign","tactic","unit_type","planned_spend","planned_rate","min_spend","max_spend"
+"2026-10-01","Online Video","Video A","Brand","Added Value","impression",120,0.05,,
+"2026-11-01","Online Video","Video A","Brand","Added Value","impression",130,0.05,,
+"2026-12-01","Online Video","Video A","Brand","Added Value","impression",100,0.05,,
+"2027-01-01","Online Video","Video A","Brand","Added Value","impression",70,0.05,,
+"2027-02-01","Online Video","Video A","Brand","Added Value","impression",80,0.05,,
+"2027-03-01","Online Video","Video A","Brand","Added Value","impression",100,0.05,,
+"2026-10-01","Online Video","Video A","Brand","Prospecting","impression",42000,15,,60000
+"2026-11-01","Online Video","Video A","Brand","Prospecting","impression",45500,15,,60000
+"2026-12-01","Online Video","Video A","Brand","Prospecting","impression",35000,15,,60000
+"2027-01-01","Online Video","Video A","Brand","Prospecting","impression",24500,15,,60000
+"2027-02-01","Online Video","Video A","Brand","Prospecting","impression",28000,15,,60000
+"2027-03-01","Online Video","Video A","Brand","Prospecting","impression",35000,15,,60000
+"2026-10-01","Online Video","Video B","Promo","Regional","impression",0,12,,
+"2026-11-01","Online Video","Video B","Promo","Regional","impression",0,12,,
+"2026-12-01","Online Video","Video B","Promo","Regional","impression",0,12,,
+"2027-01-01","Online Video","Video B","Promo","Regional","impression",0,12,,
+"2027-02-01","Online Video","Video B","Promo","Regional","impression",0,12,,
+"2027-03-01","Online Video","Video B","Promo","Regional","impression",0,12,,
+"2026-10-01","Programmatic","DSP A","Brand","Prospecting","impression",48000,8,,
+"2026-11-01","Programmatic","DSP A","Brand","Prospecting","impression",52000,8,,
+"2026-12-01","Programmatic","DSP A","Brand","Prospecting","impression",40000,8,,
+"2027-01-01","Programmatic","DSP A","Brand","Prospecting","impression",28000,8,,
+"2027-02-01","Programmatic","DSP A","Brand","Prospecting","impression",32000,8,,
+"2027-03-01","Programmatic","DSP A","Brand","Prospecting","impression",40000,8,,
+"2026-10-01","Programmatic","DSP A","Promo","Retargeting","impression",24000,6,,
+"2026-11-01","Programmatic","DSP A","Promo","Retargeting","impression",26000,6,,
+"2026-12-01","Programmatic","DSP A","Promo","Retargeting","impression",20000,6,,
+"2027-01-01","Programmatic","DSP A","Promo","Retargeting","impression",14000,6,,
+"2027-02-01","Programmatic","DSP A","Promo","Retargeting","impression",16000,6,,
+"2027-03-01","Programmatic","DSP A","Promo","Retargeting","impression",20000,6,,
+"2026-10-01","Programmatic","DSP B","Promo","Prospecting","impression",30000,7,15000,
+"2026-11-01","Programmatic","DSP B","Promo","Prospecting","impression",32500,7,15000,
+"2026-12-01","Programmatic","DSP B","Promo","Prospecting","impression",25000,7,15000,
+"2027-01-01","Programmatic","DSP B","Promo","Prospecting","impression",17500,7,15000,
+"2027-02-01","Programmatic","DSP B","Promo","Prospecting","impression",20000,7,15000,
+"2027-03-01","Programmatic","DSP B","Promo","Prospecting","impression",25000,7,15000,
+"2026-10-01","Streaming","Stream A","Brand","Upfront","impression",72000,30,72000,72000
+"2026-11-01","Streaming","Stream A","Brand","Upfront","impression",78000,30,78000,78000
+"2026-12-01","Streaming","Stream A","Brand","Upfront","impression",60000,30,60000,60000
+"2027-01-01","Streaming","Stream A","Brand","Upfront","impression",42000,30,42000,42000
+"2027-02-01","Streaming","Stream A","Brand","Upfront","impression",48000,30,48000,48000
+"2027-03-01","Streaming","Stream A","Brand","Upfront","impression",60000,30,60000,60000
+"2026-10-01","Streaming","Stream B","Brand","Prospecting","impression",36000,28,,
+"2026-11-01","Streaming","Stream B","Brand","Prospecting","impression",39000,28,,
+"2026-12-01","Streaming","Stream B","Brand","Prospecting","impression",30000,28,,
+"2027-01-01","Streaming","Stream B","Brand","Prospecting","impression",21000,28,,
+"2027-02-01","Streaming","Stream B","Brand","Prospecting","impression",24000,28,,
+"2027-03-01","Streaming","Stream B","Brand","Prospecting","impression",30000,28,,
+"2026-10-01","Streaming","Stream B","Promo","Regional","impression",12000,22,,
+"2026-11-01","Streaming","Stream B","Promo","Regional","impression",13000,22,,
+"2026-12-01","Streaming","Stream B","Promo","Regional","impression",10000,22,,
+"2027-01-01","Streaming","Stream B","Promo","Regional","impression",7000,22,,
+"2027-02-01","Streaming","Stream B","Promo","Regional","impression",8000,22,,
+"2027-03-01","Streaming","Stream B","Promo","Regional","impression",10000,22,,

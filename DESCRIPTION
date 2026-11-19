@@ -1,6 +1,6 @@
 Package: mediaplanr
 Title: Typed Media Plans and Scenario Comparison
-Version: 0.1.0
+Version: 0.2.0
 Authors@R:
     person("Ben Denis", "Shaffer", , "my.blogdown@gmail.com", role = c("aut", "cre"))
 Description: A thin backend that turns an uploaded media plan into a validated,

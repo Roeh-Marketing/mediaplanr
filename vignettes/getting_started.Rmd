@@ -20,6 +20,7 @@ In this vignette you will learn what a MediaPlan and what you can do with it. We
 * Creating a MediaPlan
 * Creating a scenario from a MediaPlan
 * Comparing two MediaPlans
+* An agency plan end to end: commitments, approvals, a change log and a budget check
 
 ## A `MediaPlan`
 
@@ -194,26 +195,31 @@ trim <- build_scenario(
 sum(trim@data$planned_spend)
 ```
 
-Operations apply in order, so a budget-neutral shift is two of them:
+Every operation also has a constructor -- `op_scale()`, `op_transfer()` and
+so on -- that builds exactly the same list and checks it where it is written,
+so a mistyped op fails on the line that wrote it.
+
+Moving money between line items is its own operation, `transfer`. It is
+budget-neutral by construction, and it keeps the two halves of the move
+together as one edit:
 
 ```{r}
 shift <- build_scenario(
   base,
-  edits = list(
-    list(target = list(channel = "TV"),     total = 350000),
-    list(target = list(channel = "Social"), total = 200000)
-  ),
+  edits    = op_transfer(150000, from = list(channel = "TV"),
+                         to = list(channel = "Social")),
   name     = "Q2 2026 Brand Plan — reshaped",
   nickname = "TV→Social"
 )
 
-sum(shift@data$planned_spend)
+sum(shift@data$planned_spend) == sum(base@data$planned_spend)
 ```
 
-The five spend operations, and the distinction that catches people out:
+The spend operations, and the distinction that catches people out:
 
 | Operation | Effect on matched rows |
 |---|---|
+| `transfer` | move an amount from the `from` rows to the `to` rows; the total holds |
 | `total` | rows **sum** to this, holding their current mix |
 | `delta` | rows' **sum** moves by this, holding their mix |
 | `scale` | multiply each row (`1.2` = +20%) |
@@ -229,9 +235,8 @@ The split that catches people out runs both ways:
 
 "Set the TV budget to 350k" is `total`, not `set`. "Take 50k out of TV" is
 `delta`, not `delta_each` — on a 26-week plan `delta_each = -50000` would take
-out 1.3 million, and because the two sides of a transfer often cancel, the plan
-total still reconciles while every channel is wrong. Reach for the left-hand
-column unless you specifically mean "every week".
+out 1.3 million. Reach for the left-hand column unless you specifically mean
+"every week".
 
 A target value that does not exist is an error naming the alternatives — never
 a silent no-op:
@@ -540,12 +545,182 @@ Only the settable slots are written; derived facts — the flight window, pacing
 the week start — are recomputed on load, so a saved plan can never carry a stale
 one.
 
+## An agency plan, end to end
+
+The examples above keep plans small. Here is a plan shaped like a real
+national digital plan: two quarters, monthly, keyed by channel, partner,
+campaign and tactic, bought in impressions at CPM rates -- and, like a real
+plan, not all of it free to move. It ships with the package as a CSV:
+
+```{r}
+agency_df <- read.csv(system.file("extdata", "agency_plan.csv",
+                                  package = "mediaplanr"))
+head(agency_df[, c("month", "partner", "tactic", "planned_spend",
+                   "min_spend", "max_spend")], 3)
+```
+
+`min_spend` and `max_spend` record money that cannot move. The Streaming
+upfront is **committed** -- its floor and cap both equal its spend -- DSP B has
+a **floor** of 15,000 a month, and Video A prospecting is **capped** at 60,000.
+The plan was approved in September, on a media-net basis:
+
+```{r}
+agency <- media_plan_from_df(
+  agency_df,
+  grain       = c("channel", "partner", "campaign", "tactic"),
+  time        = "month",
+  name        = "National digital, Q4 2026 - Q1 2027",
+  nickname    = "Rev 1",
+  spend_basis = "media_net",
+  status      = "approved",
+  approved_on = "2026-09-15"
+)
+agency
+```
+
+How much of each line is promised, and how much could move:
+
+```{r}
+line_item_summary(agency)[, c("partner", "tactic", "planned_spend",
+                              "committed_spend", "headroom")]
+```
+
+### Moving money around commitments
+
+Finance asks for two changes in Q4: 60,000 out of Streaming into DSP A
+prospecting, and 40,000 from DSP B to fund the regional video slot held open
+at zero. Both are transfers, in one scenario:
+
+```{r}
+q4 <- list(from = "2026-10-01", to = "2026-12-31")
+
+rev2 <- build_scenario(
+  agency,
+  name      = "National digital, Q4 2026 - Q1 2027",
+  nickname  = "Rev 2",
+  objective = "Shift Q4 weight into programmatic prospecting",
+  rationale = list(author = "human", goal = "more prospecting reach in Q4"),
+  edits = list(
+    op_transfer(60000, from = list(channel = "Streaming"),
+                to = list(partner = "DSP A", tactic = "Prospecting"),
+                during = q4),
+    op_transfer(40000, from = list(partner = "DSP B"),
+                to = list(partner = "Video B"), during = q4)
+  )
+)
+
+q4_by_partner <- function(plan) {
+  d <- plan@data[plan@data$month <= as.Date("2026-12-01"), ]
+  tapply(d$planned_spend, d$partner, sum)
+}
+cbind(before = q4_by_partner(agency), after = q4_by_partner(rev2))
+```
+
+Neither transfer touched what it could not. The 60,000 out of Streaming came
+entirely from Stream B: Stream A's upfront is committed. DSP B gave in
+proportion until December reached its floor, and October and November gave
+the rest:
+
+```{r}
+rev2@data[rev2@data$partner == "DSP B", c("month", "planned_spend", "min_spend")]
+```
+
+The regional slot planned nothing, so it had no mix to follow; it took the
+40,000 evenly by day across the quarter. A change the bounds cannot absorb
+is refused, saying how much could be:
+
+```{r, error = TRUE}
+build_scenario(agency, op_delta(-300000, target = list(channel = "Streaming")),
+               name = "too deep")
+```
+
+### Approvals and the change log
+
+Rev 2 is approved, and an agent drafts a Rev 3 on top of it:
+
+```{r}
+rev2 <- revise(rev2, status = "approved", approved_on = "2026-10-20")
+
+draft <- build_scenario(
+  rev2,
+  name      = "National digital, Q4 2026 - Q1 2027",
+  nickname  = "Rev 3 draft",
+  edits     = op_scale(0.9, target = list(channel = "Online Video")),
+  rationale = list(author = "agent", goal = "trim online video by 10%")
+)
+
+set <- add_scenario(add_scenario(scenario_set(agency), rev2), draft)
+```
+
+Each scenario recorded exactly what was applied to derive it, and why;
+`edit_log()` lays that out as a change log:
+
+```{r}
+edit_log(set)[, c("scenario", "author", "op", "target", "to", "amount",
+                  "detail", "window")]
+```
+
+A revision number is not something anyone types. It is a plan's place among
+the approved plans in its lineage, and the current one is the latest approval
+nothing has superseded:
+
+```{r}
+lineage(set)[, c("scenario", "status", "approved_on", "revision", "current")]
+```
+
+So a draft can be measured against what the agency is actually buying:
+
+```{r}
+compare_scenarios(set, against = "current_approved")[
+  , c("scenario", "total_planned_spend", "spend_vs_current_approved")]
+```
+
+### Checking the budget
+
+The topline was signed as channel-by-quarter authorisations. Those are a
+budget envelope -- a target the plan should land on -- so they are checked,
+not imposed:
+
+```{r}
+budget <- data.frame(
+  channel = c("Streaming", "Programmatic", "Online Video"),
+  from    = "2026-10-01",
+  to      = "2026-12-31",
+  amount  = c(290000, 300000, 162850)
+)
+check_budget(rev2, budget)
+```
+
+Programmatic is over its authorisation: the 60,000 moved into DSP A
+outweighs the 40,000 taken out of DSP B, and the channel was signed at
+300,000. Streaming and Online Video land exactly. The warning is the cue to
+raise Programmatic's authorisation with finance, or to rebalance the plan --
+it never stops the plan from existing.
+
+### What an agent sees
+
+An agent working on this plan reads it through `describe_plan()`: a compact
+summary that stays the same size however big the plan is. The commitments
+section is what tells it which money it may move:
+
+```{r}
+describe_plan(rev2, top_n = 3, budget = budget)$commitments
+```
+
 ## Where to next
 
 - `vignette("plan_concepts")` — what a plan *is*, why flights are authored but
   weeks are held, why the rate survives an edit, and the boundaries that keep
   the package small.
-- `?build_scenario` — the full edit-form and operation reference.
+- `?build_scenario` — the full edit-form and operation reference; `?ops`,
+  `?op_transfer` and `?op_rebound` for the op constructors, and
+  `?plan_ops_schema` for the JSON Schema an agent's edits are checked against.
+- `?bound_cols` — spend that cannot move, and how every edit respects it.
+- `?describe_plan` — the compact summary an agent reads before it edits.
+- `?edit_log`, `?lineage`, `?current_approved` — what changed, why, and
+  which approved plan is current.
+- `?check_budget` — pairing a plan with the budget envelope it was signed
+  under.
 - `?media_plan_from_flights`, `?flights` — authoring by buy rather than by week.
 - `?plan_to_json`, `?plan_from_json` — persisting a plan or set as JSON.
 - `?check_coverage` — pairing a plan with a decomp, and what `through` compares

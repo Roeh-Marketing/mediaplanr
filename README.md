@@ -90,21 +90,24 @@ list(during = list(from = "2026-04-20", to = "2026-05-31"), scale = 0.5)
 | `MediaPlan` | One plan at a chosen level of granularity, and following a chosen nomenclature. A flat `@data` table of grain columns + `planned_spend`; any other columns ride along untouched|
 | `ScenarioSet` | A base plan plus named scenarios derived from it, all at one grain. The comparison registry. |
 
-Two optional column sets ride along on `@data`, validated but never part of the
-grain: the **flighting** columns (`flight_cols()`) recording the buy a row
-belongs to, and the **unit** columns (`unit_cols()`) recording what it buys.
+Three optional column sets ride along on `@data`, validated but never part of
+the grain: the **flighting** columns (`flight_cols()`) recording the buy a row
+belongs to, the **unit** columns (`unit_cols()`) recording what it buys, and
+the **bound** columns (`bound_cols()`) recording spend that cannot move.
 
 | | |
 |---|---|
 | Build a plan | `media_plan_from_df()`, `media_plan_from_flights()` |
-| Change one | `build_scenario()` (spend), `revise()` (metadata) |
+| Change one | `build_scenario()` (spend), `revise()` (metadata, approval) |
+| Write an edit | `op_transfer()`, `op_scale()`, `op_rebound()` and the other `op_*()`; `plan_ops_schema()` |
+| Describe one to an agent | `describe_plan()` |
 | Nest one | `attach_subplan()`, `detach_subplan()`, `is_topline()` |
-| See the structure | `plan_tree()`, `subplan_map()`, `ownership_map()`, `lineage()`, `plan_mermaid()` |
+| See the structure | `plan_tree()`, `subplan_map()`, `ownership_map()`, `lineage()`, `current_approved()`, `edit_log()`, `plan_mermaid()` |
 | Look at it | `line_item_summary()`, `grain_values()`, `flights()`, `flight_window()`, `week_start()`, `cost_per_unit()`, `cpm()` |
 | Aggregate it | `roll_up()` (dimensions), `calendarize()` (time) |
 | Compare | `scenario_set()`, `add_scenario()`, `compare_scenarios()` |
 | Vocabularies | `status_levels()`, `unit_type_levels()`, `period_basis_levels()`, `pacing_levels()` |
-| Pair with a decomp | `check_coverage()` |
+| Pair with a decomp or a budget | `check_coverage()`, `check_budget()` |
 
 
 ## Learn more

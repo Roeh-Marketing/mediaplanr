@@ -41,20 +41,20 @@ that list the alternatives, lineage and status. An agent cannot corrupt a plan,
 and every proposal it makes is an inspectable scenario rather than an edit in
 place.
 
-What is missing, and planned for 0.2.0–0.3.0:
+What was missing, and its status:
 
 1. **Commitments the edit path respects** — row-level spend bounds, so money
    that cannot move is a fact in the plan rather than something an agent has
-   to be told.
+   to be told. *Built in 0.2.0.*
 2. **A compact, bounded plan summary** for the agent's context —
-   `describe_plan()`.
+   `describe_plan()`. *Built in 0.2.0.*
 3. **A deterministic map from line items to `mrmopt` response models**, which
    may be fitted at a different (and mixed) grain — `model_map()`,
-   `spend_by_model()`.
+   `spend_by_model()`. *Planned for 0.3.0.*
 4. **One constraint object** read by both the agent's self-check and the
-   optimizer — `PlanConstraints`, `check_constraints()`.
+   optimizer — `PlanConstraints`, `check_constraints()`. *Planned for 0.3.0.*
 5. **Structured rationale on each proposal** — who proposed it, toward what
-   goal, under which constraints.
+   goal, under which constraints. *Built in 0.2.0, as `@rationale`.*
 
 The agent loop itself is the app's, not this package's.
 
@@ -283,6 +283,11 @@ weekly rows and nothing else:
 - **Units.** `unit_type`, `planned_units`, `planned_rate`, and the "any two give
   the third" authoring rule at upload.
 - **`calendarize()`.** Monthly and daily views, which is what finance asks for.
+- **Since 0.2.0.** `transfer` and `rebound`; spend bounds and the refusals
+  they produce; `@rationale` (the app should pass `author = "agent"` on
+  scenarios its agent proposes); `@approved_on` in place of `@revision`, and
+  `current_approved()`; `@spend_basis`; `check_budget()`; and the two
+  additions below, both now built.
 
 Two package-side additions would make that integration deterministic rather than
 prose-steered, and belong here because the app's own charter says all plan
@@ -473,6 +478,20 @@ Listed because earlier revisions of the README named these as future work:
   `check_coverage()`. `describe_plan(budget = )` summarises it. The help
   pages contrast an envelope (a target, with tolerance) with a subplan
   (ownership, with equality).
+
+---
+
+## Not yet built
+
+- **The model map and the constraint object** (0.3.0) — items 3 and 4 of the
+  agentic planner's list above.
+- **`mrmopt` reading `PlanConstraints`**, so the optimizer and the agent's
+  self-check enforce the same definition of "allowed". A cross-package step,
+  after 0.3.0.
+- **A spreadsheet importer, as a companion package** (`mediaplanr.io`): a
+  declarative column map plus regex rules that turn an agency workbook into a
+  `MediaPlan` and a lint report. A companion so that `readxl` and the long tail
+  of workbook conventions stay out of this package.
 
 ---
 

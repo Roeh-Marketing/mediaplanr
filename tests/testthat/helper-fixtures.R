@@ -68,51 +68,18 @@ weekly_plan <- function(name = "weekly") {
 #   - Online Video | Video A | Brand | Prospecting is capped at 60,000 a month.
 #
 # 9 line items x 6 months = 54 rows; total planned spend 1,320,600, of which
-# 360,000 is committed and 90,000 is floor.
-fix_agency_lines <- function() {
-  data.frame(
-    channel  = c("Streaming", "Streaming", "Streaming",
-                 "Programmatic", "Programmatic", "Programmatic",
-                 "Online Video", "Online Video", "Online Video"),
-    partner  = c("Stream A", "Stream B", "Stream B",
-                 "DSP A", "DSP A", "DSP B",
-                 "Video A", "Video A", "Video B"),
-    campaign = c("Brand", "Brand", "Promo",
-                 "Brand", "Promo", "Promo",
-                 "Brand", "Brand", "Promo"),
-    tactic   = c("Upfront", "Prospecting", "Regional",
-                 "Prospecting", "Retargeting", "Prospecting",
-                 "Prospecting", "Added Value", "Regional"),
-    monthly  = c(60000, 30000, 10000, 40000, 20000, 25000, 35000, 100, 0),
-    planned_rate = c(30, 28, 22, 8, 6, 7, 15, 0.05, 12),
-    stringsAsFactors = FALSE
-  )
-}
-
+# 360,000 is committed and 90,000 is floor. Spend is heavier into the holidays
+# and lighter after (x1.2, 1.3, 1.0, 0.7, 0.8, 1.0 by month).
+#
+# The table ships with the package as inst/extdata/agency_plan.csv, which the
+# getting-started vignette imports, so the tests and the docs use one plan.
 fix_agency_df <- function() {
-  months <- seq(as.Date("2026-10-01"), by = "month", length.out = 6)
-  # Heavier into the holidays, lighter after.
-  shape  <- c(1.2, 1.3, 1.0, 0.7, 0.8, 1.0)
-  lines  <- fix_agency_lines()
-
-  rows <- merge(lines, data.frame(month = months, shape = shape))
-  rows$planned_spend <- rows$monthly * rows$shape
-  rows$unit_type <- "impression"
-
-  upfront <- rows$tactic == "Upfront"
-  rows$min_spend <- ifelse(upfront, rows$planned_spend,
-                           ifelse(rows$partner == "DSP B", 15000, NA))
-  rows$max_spend <- ifelse(upfront, rows$planned_spend,
-                           ifelse(rows$partner == "Video A" &
-                                    rows$tactic == "Prospecting", 60000, NA))
-
-  out <- rows[order(rows$channel, rows$partner, rows$campaign, rows$tactic,
-                    rows$month),
-              c("month", "channel", "partner", "campaign", "tactic",
-                "unit_type", "planned_spend", "planned_rate",
-                "min_spend", "max_spend")]
-  rownames(out) <- NULL
-  out
+  utils::read.csv(
+    system.file("extdata", "agency_plan.csv", package = "mediaplanr"),
+    stringsAsFactors = FALSE,
+    # Whole-number spends would otherwise read as integers.
+    colClasses = c(planned_spend = "numeric", planned_rate = "numeric",
+                   min_spend = "numeric", max_spend = "numeric"))
 }
 
 fix_agency_plan <- function(name = "agency") {

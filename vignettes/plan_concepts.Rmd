@@ -575,6 +575,109 @@ c(parent = approved@status, child = child@status)
 `advertiser` and `planner` *are* inherited — they describe the engagement and
 the person working, not the individual scenario.
 
+### A revision is a fact about lineage
+
+Planners say *Rev 3*. An earlier version of this package stored that as a
+number on the plan, and it was the wrong thing to store: it had to be set by
+hand, and it restarted at 1 on every derivation, while *Rev 3* means "the
+third version anyone approved" of a plan that may have been derived dozens of
+times in between.
+
+So nothing is stored but the approval itself -- `status = "approved"` and,
+optionally, the date it was given. The revision is derived from the lineage:
+an approved plan's place among the approved plans on its branch.
+
+```{r}
+rev2 <- revise(build_scenario(approved, edits = list(scale = 1.1), name = "Rev 2"),
+               status = "approved", approved_on = "2026-07-20")
+draft <- build_scenario(rev2, edits = list(scale = 0.9), name = "draft")
+
+set <- add_scenario(add_scenario(scenario_set(approved), rev2), draft)
+lineage(set)[, c("scenario", "status", "revision", "current")]
+```
+
+The **current** approved plan is the one nothing approved has been derived
+from since -- the one the agency is buying against. Two approvals on parallel
+branches are both current, and the package says so rather than guess which one
+won; an approval date says when someone signed, not which plan replaced which.
+
+### A scenario records how it was made
+
+Every derived plan carries the edits that produced it, as `@edits`, and
+optionally why, as `@rationale` -- who proposed it (a person, an agent, an
+optimizer), toward what goal, under which constraints.
+
+The record is not a log written beside the edit. `build_scenario()` first
+turns whatever it was given into a canonical record -- ops with their fields
+in a fixed order and dates as text on the plan's clock, or an allocation as
+given -- and then derives the scenario **by replaying that record**. What is
+stored is, by construction, exactly what was applied; replaying it on the
+parent reproduces the scenario to the last cent.
+
+```{r}
+s3 <- build_scenario(plan, name = "move", edits = op_transfer(
+  10000, from = list(channel = "TV"), to = list(channel = "Search")))
+s3@edits
+```
+
+That is also why a transfer is one operation rather than two deltas. "Move
+10k from TV to Search" is one intent; written as a cut and an addition, the
+record would hold two unrelated changes, and nothing would say they belonged
+together.
+
+## Some money cannot move
+
+A real plan is not all free to edit. An upfront commitment is fixed; a
+partner minimum is a floor; some lines are capped. Each row may carry
+`min_spend` and `max_spend` to say so, and every edit respects them:
+
+```{r}
+held <- media_plan_from_df(
+  data.frame(month = as.Date("2026-10-01"),
+             channel = c("Streaming", "Search", "Social"),
+             planned_spend = c(60000, 20000, 10000),
+             min_spend = c(60000, 15000, NA),
+             max_spend = c(60000, NA, NA)),
+  grain = "channel", time = "month", name = "Held"
+)
+
+build_scenario(held, edits = list(delta = -8000), name = "trim")@data[
+  , c("channel", "planned_spend", "min_spend")]
+```
+
+The cut of 8,000 spread in proportion across the rows that could give, until
+Search reached its floor; Social took the rest, and Streaming -- committed --
+did not move. That is what an edit across a group does: rows at a bound stop
+there and the rest take up the slack. An edit that names each row's value
+outright (`set`, `scale`, `delta_each`, an optimizer's allocation) cannot be
+redistributed, so a row it would push past a bound refuses it instead.
+
+Only the two bounds are stored. Whether a row is **committed** (floor and cap
+both equal its spend), has a **floor**, or is **capped** is derived from them
+every time, for the same reason the flight window is: a label stored beside
+the numbers could disagree with them, and a derived one cannot.
+
+Bounds change through one operation, `rebound`, and never as a side effect of
+moving money. To cut committed spend, lower the commitment and then cut, in
+that order, in one edits list -- so the record says that both happened.
+
+## Spend has a basis
+
+The same plan can be stated as media net (what the media costs), client net
+(what the client pays, fees included) or gross. `@spend_basis` declares which
+one the figures are:
+
+```{r}
+revise(held, spend_basis = "media_net")@spend_basis
+```
+
+It is a declaration, never a conversion. Turning media net into client net
+means applying a fee schedule, and fee schedules differ by contract and by
+channel; that belongs with the caller. What the package does with the basis is
+refuse to combine plans that disagree -- a scenario set, or a subplan beneath
+its parent -- because comparing media net with client net would report the
+fees as a change in plan.
+
 ## Comparison unions the cells
 
 `compare_scenarios(level = "cell")` compares over the **union** of grain cells
