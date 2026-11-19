@@ -697,6 +697,36 @@ outweighs the 40,000 taken out of DSP B, and the channel was signed at
 raise Programmatic's authorisation with finance, or to rebalance the plan --
 it never stops the plan from existing.
 
+### Checking the rules
+
+Some limits are about groups of rows rather than single ones: Streaming keeps
+at least 40% of the plan; the upfront totals 360,000 however it is phased;
+Online Video moves no more than 25% from the approved plan. Those are a rule
+set, kept as a sheet beside the plan:
+
+```{r}
+rules <- plan_constraints(
+  read.csv(system.file("extdata", "agency_constraints.csv",
+                       package = "mediaplanr")),
+  name = "Agency guardrails"
+)
+rules
+```
+
+`check_constraints()` measures each rule on a plan. The change rule needs a
+plan to change from -- here, the approved Rev 1:
+
+```{r}
+check_constraints(rev2, rules, reference = agency)[
+  , c("type", "target", "limit", "actual", "slack", "ok")]
+```
+
+Rev 2 keeps every rule, but `slack` shows how close it runs: Streaming is
+less than a point above its 40% floor, and Programmatic is 2,500 under its
+Q4 ceiling. A violation would be reported with a warning, never refused --
+like the budget, the rules are checked, so a planner can see what a proposal
+breaks before deciding.
+
 ### Handing spend to response models
 
 Scoring a plan means running each line item's spend through a response model
@@ -771,6 +801,9 @@ d$models[c("modeled_share", "unmodeled_spend")]
   under.
 - `?model_map`, `?spend_by_model` — which response model scores which spend,
   and the input a forecast needs.
+- `?plan_constraints`, `?rules`, `?check_constraints` — the group rules a plan
+  lives under, and checking a plan against them.
+- `vignette("agentic_planning")` — the same plan, edited by an agent.
 - `?media_plan_from_flights`, `?flights` — authoring by buy rather than by week.
 - `?plan_to_json`, `?plan_from_json` — persisting a plan or set as JSON.
 - `?check_coverage` — pairing a plan with a decomp, and what `through` compares

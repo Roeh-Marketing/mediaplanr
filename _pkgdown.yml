@@ -16,6 +16,8 @@ articles:
   contents: getting_started
 - title: Understand the model
   contents: plan_concepts
+- title: Build an agent on it
+  contents: agentic_planning
 
 reference:
 - title: The plan

@@ -1,3 +1,39 @@
+# mediaplanr 0.3.0
+
+The agent can be scored and checked: its proposals map onto the response
+models that score them, and are checked against one shared definition of
+"allowed".
+
+## New features
+
+* **`model_map()`** assigns every line item exactly one response model from
+  a list fitted at mixed grains: of the models whose named values match, the
+  most specific wins. A tie is an error naming both models; a line item no
+  model covers is warned about, with the unmodeled share. Blank cells in the
+  model list mean "any value".
+* **`spend_by_model()`** sums each model's spend by day, week or month -- the
+  input a response-model forecast needs. Unmodeled spend is kept under
+  `model_id = NA`, so totals always reconcile. Data frames in and out; no
+  dependency on `mrmopt`.
+* **`PlanConstraints`**, built with **`plan_constraints()`** from the
+  **`rule_*()`** constructors or a rules sheet, holds the group rules a plan
+  lives under: minimum and maximum spend or share, a fixed total with free
+  phasing, and maximum change (an amount or a fraction) from a reference
+  plan.
+* **`check_constraints()`** measures a plan against those rules, day by day,
+  reporting each rule's actual, limit, slack and whether it holds. A
+  violation is warned about, never refused. **`constraints_schema()`** gives
+  the rules as a JSON Schema, and `plan_to_json()` / `plan_from_json()`
+  round-trip a `PlanConstraints`.
+* `describe_plan()` gains `models` (coverage, and the largest unmodeled line
+  items) and `constraints` / `reference` (rules broken, and rules holding
+  with no slack left).
+* The agency example ships with its response models and rules:
+  `agency_models.csv` and `agency_constraints.csv` in `extdata`.
+* New `vignette("agentic_planning")`: one turn of an agent's loop on the
+  agency plan -- describe, propose, a refusal and a retry, score, check, and
+  hand to a person to approve.
+
 # mediaplanr 0.2.0
 
 The agent can act safely: a plan can be inspected compactly, edited only

@@ -325,12 +325,12 @@ describe_plan <- function(plan, top_n = 10, budget = NULL, models = NULL,
 
   as_rows <- function(x) {
     x <- utils::head(x, top_n)
-    data.frame(
-      rule   = paste0(x$type, " ", x$limit, " on ", x$target,
-                      ifelse(is.na(x$window), "", paste0(", ", x$window))),
-      actual = x$actual, limit = x$limit, slack = x$slack,
-      stringsAsFactors = FALSE
-    )
+    # paste0() would turn no rows into one string of separators.
+    rule <- if (!nrow(x)) character(0) else
+      paste0(x$type, " ", x$limit, " on ", x$target,
+             ifelse(is.na(x$window), "", paste0(", ", x$window)))
+    data.frame(rule = rule, actual = x$actual, limit = x$limit,
+               slack = x$slack, stringsAsFactors = FALSE)
   }
   broken  <- rules[!rules$ok, , drop = FALSE]
   binding <- rules[rules$ok & rules$slack <= 0, , drop = FALSE]

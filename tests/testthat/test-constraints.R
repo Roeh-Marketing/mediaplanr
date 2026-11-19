@@ -221,3 +221,12 @@ test_that("describe_plan() summarises the check: broken and binding rules", {
   # the upfront's fixed total holds with no slack to spare
   expect_match(section$binding$rule, "^fixed_total 360000 on partner Stream A")
 })
+
+test_that("describe_plan() reports a plan that keeps every rule", {
+  a <- fix_agency_plan()
+  section <- describe_plan(a, constraints = fix_agency_constraints(),
+                           reference = a)$constraints
+  expect_identical(section$n_ok, 5L)
+  expect_identical(nrow(section$violated), 0L)
+  expect_identical(names(section$violated), c("rule", "actual", "limit", "slack"))
+})

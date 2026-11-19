@@ -556,6 +556,9 @@ check_constraints <- function(plan, constraints, reference = NULL) {
                   max   = rule$value - actual,
                   equal = -abs(actual - rule$value))
   digits <- if (spec$measure %in% c("spend", "change_abs")) 2 else 4
+  ok <- slack >= -tol
+  # -abs(0) is negative zero, which JSON writes as -0.
+  slack <- round(slack, digits) + 0
 
   data.frame(
     rule   = i,
@@ -565,8 +568,8 @@ check_constraints <- function(plan, constraints, reference = NULL) {
       .window_text(rule$during),
     limit  = rule$value,
     actual = round(actual, digits),
-    slack  = round(slack, digits),
-    ok     = slack >= -tol,
+    slack  = slack,
+    ok     = ok,
     note   = rule$note,
     stringsAsFactors = FALSE
   )

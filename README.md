@@ -108,6 +108,8 @@ the **bound** columns (`bound_cols()`) recording spend that cannot move.
 | Compare | `scenario_set()`, `add_scenario()`, `compare_scenarios()` |
 | Vocabularies | `status_levels()`, `unit_type_levels()`, `period_basis_levels()`, `pacing_levels()` |
 | Pair with a decomp or a budget | `check_coverage()`, `check_budget()` |
+| Hand spend to response models | `model_map()`, `spend_by_model()` |
+| Rules a plan must keep | `plan_constraints()`, `rule_min_share()` and the other `rule_*()`, `check_constraints()`, `constraints_schema()` |
 
 
 ## Learn more
@@ -119,6 +121,10 @@ the **bound** columns (`bound_cols()`) recording spend that cannot move.
   — what a plan *is*, why it is blind to past and future, how scenarios and
   lineage work, and which boundaries keep the package small. Read this before
   extending it.
+- **[Agentic planning](https://roeh-marketing.github.io/mediaplanr/articles/agentic_planning.html)**
+  — one turn of an agent's loop on a real-shaped plan: what it reads, what it
+  may send, what is refused and why, and how a proposal is scored, checked and
+  handed to a person to approve.
 
 Two ideas the rest of the design hangs on, in one line each:
 

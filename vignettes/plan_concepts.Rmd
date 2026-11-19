@@ -661,6 +661,33 @@ Bounds change through one operation, `rebound`, and never as a side effect of
 moving money. To cut committed spend, lower the commitment and then cut, in
 that order, in one edits list -- so the record says that both happened.
 
+### Rules about one row, rules about many
+
+Spend bounds are rules about **one row**, and they live in the plan because
+an edit can keep them: spreading a cut across a group, it can see each row's
+floor and stop there.
+
+A rule about **many rows** is different. "Streaming keeps at least 40% of the
+plan" depends on everything else in the plan -- a transfer between two other
+channels can break it without touching Streaming at all. No single edit can
+enforce it row by row, so it is not enforced; it is checked. Such rules are
+kept apart, in a `PlanConstraints`, and `check_constraints()` measures a plan
+against them:
+
+```{r}
+rules <- plan_constraints(list(
+  rule_min_share(0.7, target = list(channel = "Streaming"))
+), name = "share floor")
+
+check_constraints(held, rules)[, c("type", "target", "actual", "limit", "ok")]
+```
+
+A broken group rule is reported with a warning, never refused: the plan is
+legal, and whoever approves it needs to see what it breaks. Keeping the rules
+in one object, rather than in each caller's head, is what lets an agent
+checking its own proposal and an optimizer searching for a better one hold
+the plan to the same definition of "allowed".
+
 ## Spend has a basis
 
 The same plan can be stated as media net (what the media costs), client net
