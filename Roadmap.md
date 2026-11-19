@@ -50,7 +50,7 @@ What was missing, and its status:
    `describe_plan()`. *Built in 0.2.0.*
 3. **A deterministic map from line items to `mrmopt` response models**, which
    may be fitted at a different (and mixed) grain — `model_map()`,
-   `spend_by_model()`. *Planned for 0.3.0.*
+   `spend_by_model()`. *Built for 0.3.0.*
 4. **One constraint object** read by both the agent's self-check and the
    optimizer — `PlanConstraints`, `check_constraints()`. *Planned for 0.3.0.*
 5. **Structured rationale on each proposal** — who proposed it, toward what
@@ -478,13 +478,21 @@ Listed because earlier revisions of the README named these as future work:
   `check_coverage()`. `describe_plan(budget = )` summarises it. The help
   pages contrast an envelope (a target, with tolerance) with a subplan
   (ownership, with equality).
+- **The model map** — built, for 0.3.0. `model_map()` assigns every line
+  item exactly one response model from a list fitted at mixed grains: of the
+  models whose named values all match, the most specific wins; a tie is an
+  error naming both, a gap is a warning with the unmodeled share.
+  `spend_by_model()` sums each model's spend by period through
+  `calendarize()`, keeping unmodeled spend under `model_id = NA` so totals
+  reconcile. Data frames in and out; no dependency on `mrmopt`.
+  `describe_plan(models = )` reports coverage.
 
 ---
 
 ## Not yet built
 
-- **The model map and the constraint object** (0.3.0) — items 3 and 4 of the
-  agentic planner's list above.
+- **The constraint object** (0.3.0) — item 4 of the agentic planner's list
+  above.
 - **`mrmopt` reading `PlanConstraints`**, so the optimizer and the agent's
   self-check enforce the same definition of "allowed". A cross-package step,
   after 0.3.0.

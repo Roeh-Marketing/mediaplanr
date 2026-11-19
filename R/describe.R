@@ -61,6 +61,10 @@
 #'     `n_within`, and the envelopes `off` it, worst first (`envelope`,
 #'     `amount`, `planned`, `variance`, `in_plan`), capped at `top_n` with
 #'     `n_more_off` for the rest.}
+#'   \item{`models`}{Only when `models` is given: how much of the plan its
+#'     response models cover, from [model_map()] -- `modeled_share`,
+#'     `unmodeled_spend`, `n_models_used`, and the largest `unmodeled` line
+#'     items, capped at `top_n` with `n_more_unmodeled` for the rest.}
 #' }
 #'
 #' @param plan A [MediaPlan].
@@ -68,6 +72,8 @@
 #'   summarised. A whole number, 1 or more.
 #' @param budget Optional budget envelope, as [check_budget()] takes it. Adds
 #'   a `budget` section.
+#' @param models Optional fitted response models, as [model_map()] takes
+#'   them. Adds a `models` section.
 #' @param as_json `FALSE` (default) returns the nested list; `TRUE` returns it
 #'   as JSON text.
 #' @return A named list with the sections above, or a `json` string when
@@ -90,7 +96,8 @@
 #'
 #' cat(describe_plan(plan, as_json = TRUE))
 #' @export
-describe_plan <- function(plan, top_n = 10, budget = NULL, as_json = FALSE) {
+describe_plan <- function(plan, top_n = 10, budget = NULL, models = NULL,
+                          as_json = FALSE) {
   if (!S7::S7_inherits(plan, MediaPlan)) {
     stop("`plan` must be a MediaPlan.", call. = FALSE)
   }
@@ -109,6 +116,7 @@ describe_plan <- function(plan, top_n = 10, budget = NULL, as_json = FALSE) {
   )
   # Pairings with something outside the plan appear only when it is given.
   if (!is.null(budget)) out$budget <- .describe_budget(plan, budget, top_n)
+  if (!is.null(models)) out$models <- .describe_models(plan, models, top_n)
   if (!as_json) return(out)
   jsonlite::toJSON(out, auto_unbox = TRUE, pretty = TRUE, dataframe = "rows",
                    na = "null", digits = NA)
@@ -269,6 +277,28 @@ describe_plan <- function(plan, top_n = 10, budget = NULL, as_json = FALSE) {
       stringsAsFactors = FALSE
     ),
     n_more_off = nrow(off) - nrow(shown)
+  )
+}
+
+# How much of the plan its response models cover (see model_map()): the share
+# of spend with a model, how many models are used, and the largest line items
+# without one -- the spend an agent cannot have scored. model_map()'s warning
+# is what this section reports, so it is not raised again here.
+.describe_models <- function(plan, models, top_n) {
+  map <- suppressWarnings(model_map(plan, models))
+  total <- sum(map$planned_spend)
+  gap <- map[is.na(map$model_id), , drop = FALSE]
+  shown <- utils::head(gap, top_n)       # already ordered by spend, largest first
+
+  list(
+    modeled_share   = if (total > 0) round(1 - sum(gap$planned_spend) / total, 4)
+                      else NA_real_,
+    unmodeled_spend = round(sum(gap$planned_spend), 2),
+    n_models_used   = length(unique(stats::na.omit(map$model_id))),
+    unmodeled = data.frame(line_item = shown$line_item,
+                           planned_spend = round(shown$planned_spend, 2),
+                           stringsAsFactors = FALSE),
+    n_more_unmodeled = nrow(gap) - nrow(shown)
   )
 }
 

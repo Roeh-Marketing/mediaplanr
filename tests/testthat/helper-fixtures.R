@@ -82,6 +82,20 @@ fix_agency_df <- function() {
                    min_spend = "numeric", max_spend = "numeric"))
 }
 
+# Response models for the agency plan, fitted at mixed grains -- shipped as
+# inst/extdata/agency_models.csv, blank cells meaning "any value":
+#
+#   Streaming      one model per partner; Stream B's covers its Brand campaign
+#                  only, so Stream B | Promo | Regional (60,000) has none
+#   Programmatic   a channel model, and a partner model for DSP A that takes
+#                  precedence over it; DSP B falls back to the channel's
+#   Online Video   a channel model, and one for Video A prospecting
+fix_agency_models <- function() {
+  utils::read.csv(
+    system.file("extdata", "agency_models.csv", package = "mediaplanr"),
+    stringsAsFactors = FALSE)
+}
+
 fix_agency_plan <- function(name = "agency") {
   media_plan_from_df(fix_agency_df(),
                      grain = c("channel", "partner", "campaign", "tactic"),

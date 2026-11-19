@@ -4,7 +4,7 @@
 \alias{describe_plan}
 \title{A compact description of a plan, for an agent's context}
 \usage{
-describe_plan(plan, top_n = 10, budget = NULL, as_json = FALSE)
+describe_plan(plan, top_n = 10, budget = NULL, models = NULL, as_json = FALSE)
 }
 \arguments{
 \item{plan}{A \link{MediaPlan}.}
@@ -14,6 +14,9 @@ summarised. A whole number, 1 or more.}
 
 \item{budget}{Optional budget envelope, as \code{\link[=check_budget]{check_budget()}} takes it. Adds
 a \code{budget} section.}
+
+\item{models}{Optional fitted response models, as \code{\link[=model_map]{model_map()}} takes
+them. Adds a \code{models} section.}
 
 \item{as_json}{\code{FALSE} (default) returns the nested list; \code{TRUE} returns it
 as JSON text.}
@@ -72,6 +75,10 @@ it, from \code{\link[=check_budget]{check_budget()}} at its default tolerance --
 \code{n_within}, and the envelopes \code{off} it, worst first (\code{envelope},
 \code{amount}, \code{planned}, \code{variance}, \code{in_plan}), capped at \code{top_n} with
 \code{n_more_off} for the rest.}
+\item{\code{models}}{Only when \code{models} is given: how much of the plan its
+response models cover, from \code{\link[=model_map]{model_map()}} -- \code{modeled_share},
+\code{unmodeled_spend}, \code{n_models_used}, and the largest \code{unmodeled} line
+items, capped at \code{top_n} with \code{n_more_unmodeled} for the rest.}
 }
 }
 

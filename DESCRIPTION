@@ -42,6 +42,7 @@ Collate:
     'verbs.R'
     'provenance.R'
     'budget.R'
+    'models.R'
     'describe.R'
     'subplan.R'
     'scenario-set.R'

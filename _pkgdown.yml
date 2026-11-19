@@ -159,6 +159,16 @@ reference:
   - check_coverage
   - check_budget
 
+- title: Handing spend to response models
+  desc: >
+    Response models are fitted at whatever grain the data supported, often not
+    the plan's, and sometimes several at once. Map each line item to exactly
+    one model -- the most specific that matches -- and sum its spend by
+    period: the input a forecast needs. Unmodeled spend is kept, and said.
+  contents:
+  - model_map
+  - spend_by_model
+
 - title: Saving and reloading
   desc: >
     Persist a plan or a whole scenario set as JSON and rebuild it. The rebuild

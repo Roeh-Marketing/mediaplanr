@@ -697,14 +697,62 @@ outweighs the 40,000 taken out of DSP B, and the channel was signed at
 raise Programmatic's authorisation with finance, or to rebalance the plan --
 it never stops the plan from existing.
 
+### Handing spend to response models
+
+Scoring a plan means running each line item's spend through a response model
+-- and the models were fitted at whatever grain the data supported, not the
+plan's. Here, Streaming is modelled by partner, Programmatic by channel with
+its own model for DSP A, and Online Video by channel with one for Video A
+prospecting. A blank cell means "any value":
+
+```{r}
+models <- read.csv(system.file("extdata", "agency_models.csv",
+                               package = "mediaplanr"))
+models
+```
+
+`model_map()` assigns every line item exactly one model: of the models that
+match it, the most specific. DSP A takes its own model; DSP B falls back to
+Programmatic's. A line no model covers is left unmodeled, out loud:
+
+```{r}
+model_map(rev2, models)[, c("line_item", "model_id", "match_level",
+                            "planned_spend")]
+```
+
+`spend_by_model()` then gives each model its spend, period by period -- the
+input a forecast needs. Unmodeled spend stays in, under `model_id = NA`, so
+the totals still reconcile to the plan:
+
+```{r, warning = FALSE}
+weekly <- spend_by_model(rev2, models, basis = "week")
+head(weekly, 3)
+all.equal(sum(weekly$planned_spend), sum(rev2@data$planned_spend))
+```
+
+The hand-off itself is the caller's. With `fits`, a list of models from
+`mrmopt::fit_response()` named by `model_id`, scoring the plan is one
+response function per model:
+
+```{r, eval = FALSE}
+scored <- split(weekly, weekly$model_id)          # the NA bucket has no model
+kpi <- vapply(names(scored), function(id) {
+  f <- mrmopt::mrm_response_function(fits[[id]])
+  sum(f(scored[[id]]$planned_spend))
+}, numeric(1))
+```
+
 ### What an agent sees
 
 An agent working on this plan reads it through `describe_plan()`: a compact
 summary that stays the same size however big the plan is. The commitments
-section is what tells it which money it may move:
+section tells it which money it may move, and given the models, it also
+learns which spend it cannot have scored:
 
 ```{r}
-describe_plan(rev2, top_n = 3, budget = budget)$commitments
+d <- describe_plan(rev2, top_n = 3, budget = budget, models = models)
+d$commitments
+d$models[c("modeled_share", "unmodeled_spend")]
 ```
 
 ## Where to next
@@ -721,6 +769,8 @@ describe_plan(rev2, top_n = 3, budget = budget)$commitments
   which approved plan is current.
 - `?check_budget` — pairing a plan with the budget envelope it was signed
   under.
+- `?model_map`, `?spend_by_model` — which response model scores which spend,
+  and the input a forecast needs.
 - `?media_plan_from_flights`, `?flights` — authoring by buy rather than by week.
 - `?plan_to_json`, `?plan_from_json` — persisting a plan or set as JSON.
 - `?check_coverage` — pairing a plan with a decomp, and what `through` compares
