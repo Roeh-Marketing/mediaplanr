@@ -294,6 +294,8 @@ semantics live in `mediaplanr`:
   `lineage()` and `plan_mermaid()`: projections the package owns so a renderer
   cannot drift. Anything that needs a graphics dependency belongs in the
   companion, `mediaplanr.viz`, which draws only from these projections.
+  *Built* — capped rather than a full roster, so it fits an agent's context
+  at any plan size; see *Already grown*. The app has not adopted it yet.
 - **`plan_ops_schema()`** → the JSON Schema for the operations array. The app
   passes ops to the model as an unschema'd JSON *string*, because `ellmer`'s
   typed arguments cannot express the recursive shape, so a malformed op is
@@ -437,6 +439,13 @@ Listed because earlier revisions of the README named these as future work:
   reason. Roots and rollups record none, nothing inherits it, `revise()` may
   set a rationale. `edit_log()` reads a set's records as a change log. JSON
   went to schema 4.
+- **`describe_plan()`** — built. The agent's view of a plan: identity and
+  provenance, shape, spend by each line item column, commitments, units,
+  spend by month, and what an op may target. Every list is capped at
+  `top_n` values plus a counted remainder, so the description stays a few
+  kilobytes at any number of rows (only the by-month section grows, with the
+  plan's duration), and every number reconciles to `@data`. Later phases add
+  their facts to it.
 
 ---
 

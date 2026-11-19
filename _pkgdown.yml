@@ -75,6 +75,14 @@ reference:
   - compare_scenarios
   - ScenarioSet
 
+- title: Describing a plan to an agent
+  desc: >
+    A compact, capped summary of a plan -- what it spends and on what, what
+    cannot move, when it spends, what an op may target -- that stays the same
+    size however big the plan is, and reconciles to its rows.
+  contents:
+  - describe_plan
+
 - title: Edit operations
   desc: >
     The operations build_scenario() applies, as constructors and as one JSON
