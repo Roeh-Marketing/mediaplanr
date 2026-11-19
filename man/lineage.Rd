@@ -15,7 +15,13 @@ A data frame with one row per scenario:
 \item{\code{scenario}, \code{id}, \code{parent_id}}{Its label and identity.}
 \item{\code{parent}}{The label of its parent in the set; \code{NA} for a root.}
 \item{\code{depth}}{0 for a root, parent's depth + 1 otherwise.}
-\item{\code{status}, \code{revision}, \code{spend}}{The scenario's own.}
+\item{\code{status}, \code{approved_on}}{The scenario's own; \code{approved_on} is
+\code{NA} when unset.}
+\item{\code{revision}}{Its place among the approved plans on its branch:
+1 for the first approved, 2 for the next. \code{NA} unless approved.}
+\item{\code{current}}{\code{TRUE} for an approved scenario with no approved
+descendant in the set.}
+\item{\code{spend}}{Its total planned spend.}
 \item{\code{spend_vs_parent}, \code{spend_pct_vs_parent}}{Against its parent;
 \code{NA} for a root.}
 }
@@ -34,6 +40,21 @@ actually came from. On a set built by deriving from the base they agree; on
 a chain — base, a scenario from it, a scenario from \emph{that} — they do not,
 and this is the one that reads as a tree.
 }
+\section{Revisions and the current approved plan}{
+
+Planners say \emph{Rev 3} meaning "the third approved version". That is a fact
+about a plan's lineage, not about the plan, so it is derived here rather
+than stored: an approved scenario's \code{revision} is how many approved plans
+lie on the path from its root to it, itself included. Plans that were
+drafted or sent back in between do not count.
+
+The \code{current} approved plan is the one the agency is buying against: an
+approved scenario with no approved scenario derived from it in the set.
+When approvals happened on parallel branches, more than one can be current;
+the set does not say which one won, and dates are not used to guess. See
+\code{\link[=current_approved]{current_approved()}}.
+}
+
 \examples{
 base <- media_plan_from_df(
   data.frame(week = as.Date("2026-07-06"),

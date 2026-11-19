@@ -794,8 +794,8 @@
 #' `@subplans` **carry**: the scenario is still a topline. Rows a subplan
 #' backs are read-only, so an edit reaching one — including a whole-plan op
 #' like `list(total = 200)` — errors naming the subplan to edit instead. See
-#' [attach_subplan()]. `@revision` restarts at 1, since a new id is a new
-#' revision history; see [revise()].
+#' [attach_subplan()]. `@approved_on` is cleared with the status: whether and
+#' when the scenario is approved is its own business; see [revise()].
 #'
 #' `@edits` records exactly what was applied, in a canonical form: the ops
 #' with their fields in a fixed order and dates as text on the plan's clock,
@@ -906,13 +906,13 @@ S7::method(build_scenario, MediaPlan) <- function(plan, edits, name,
     # Inherited: these describe the engagement, not the scenario.
     advertiser = advertiser %||% plan@advertiser,
     planner    = planner %||% plan@planner,
-    # NOT inherited: a derivative of an approved plan is not itself approved.
-    status     = .normalise_status(status),
+    # NOT inherited: a derivative of an approved plan is not itself approved,
+    # and has no approval date.
+    status      = .normalise_status(status),
+    approved_on = as.Date(character(0)),
     objective  = objective,
     # Provenance: this scenario's own edits and reasons, never the parent's.
     edits      = record,
-    rationale  = .as_rationale(rationale),
-    # A new id is a new revision history.
-    revision   = 1L
+    rationale  = .as_rationale(rationale)
   )
 }

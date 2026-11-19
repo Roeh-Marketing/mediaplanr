@@ -25,9 +25,9 @@ test_that("attach replaces the cell with the rollup and leaves the rest alone", 
   expect_equal(nrow(d), 3)
   expect_identical(names(p@subplans), "TV")
   expect_true(S7::S7_inherits(p@subplans$TV, MediaPlan))
-  # attaching is not a derivation: same plan, same revision
+  # attaching is not a derivation: same plan, same approval
   expect_identical(p@id, top@id)
-  expect_identical(p@revision, top@revision)
+  expect_identical(p@approved_on, top@approved_on)
   # the subplan itself is untouched
   expect_identical(p@subplans$TV@parent_id, character(0))
 })

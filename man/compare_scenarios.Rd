@@ -4,12 +4,20 @@
 \alias{compare_scenarios}
 \title{Compare the scenarios in a set}
 \usage{
-compare_scenarios(set, level = c("summary", "cell", "flight"))
+compare_scenarios(
+  set,
+  level = c("summary", "cell", "flight"),
+  against = c("base", "parent", "current_approved")
+)
 }
 \arguments{
 \item{set}{A \link{ScenarioSet}.}
 
 \item{level}{One of \code{"summary"}, \code{"cell"} or \code{"flight"}.}
+
+\item{against}{What each scenario is compared against: \code{"base"},
+\code{"parent"} or \code{"current_approved"}. See \emph{What each scenario is compared
+against}.}
 }
 \value{
 A data frame.
@@ -58,6 +66,24 @@ match across independently-authored plans — which would report one buy as two.
 When the set shares no flight ids at all, this warns rather than returning a
 table of spurious adds and drops. A set whose plans record no flights returns
 no rows, the same way \code{\link[=flights]{flights()}} does.
+}
+
+\section{What each scenario is compared against}{
+
+\code{against} chooses the reference every delta is measured from:
+\itemize{
+\item \code{"base"} (default) -- the set's baseline, for every scenario.
+\item \code{"parent"} -- each scenario's own parent in the set, the way \code{\link[=lineage]{lineage()}}
+reads it. A root has no parent here, so its deltas are \code{NA}.
+\item \code{"current_approved"} -- the plan the set is currently buying against;
+see \code{\link[=current_approved]{current_approved()}}. It must be exactly one plan, or this errors:
+with none there is nothing to compare to, and with several the reference
+would be a guess.
+}
+
+The delta columns are named for the reference: \code{spend_vs_base},
+\code{spend_vs_parent} or \code{spend_vs_current_approved} (and the matching
+\verb{spend_pct_vs_*} at summary level).
 }
 
 \examples{

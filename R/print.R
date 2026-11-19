@@ -20,6 +20,14 @@
   ifelse(nchar(s) > n, paste0(substr(s, 1, n - 3), "..."), s)
 }
 
+# A plan's status as a header shows it, with the approval date when there is
+# one: "approved 2026-10-29", "approved", "to review", or "" when unset.
+.status_text <- function(plan) {
+  s <- if (length(plan@status)) plan@status else ""
+  if (length(plan@approved_on)) s <- paste(s, format(plan@approved_on))
+  s
+}
+
 # A labelled line in the uniform label column. Nested lines pass a deeper
 # `indent` and a correspondingly narrower `width` so their values still land in
 # the same column as the fields above them.
@@ -86,10 +94,7 @@ S7::method(print, MediaPlan) <- function(x, ...) {
     hdr <- paste0(hdr, ' ("', x@nickname, '")')
   }
   hdr <- paste0("<MediaPlan> ", .trunc(hdr, 56))
-  if (x@revision > 1L) hdr <- paste0(hdr, "  Rev ", x@revision)
-  if (length(x@status) && nzchar(x@status)) {
-    hdr <- paste0(hdr, "  [", x@status, "]")
-  }
+  if (nzchar(.status_text(x))) hdr <- paste0(hdr, "  [", .status_text(x), "]")
   cat(hdr, "\n", sep = "")
 
   # --- who / what (omitted entirely when unset) ---

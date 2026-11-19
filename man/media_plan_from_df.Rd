@@ -19,10 +19,10 @@ media_plan_from_df(
   advertiser = "",
   planner = "",
   status = "",
+  approved_on = NULL,
   objective = "",
   id = NULL,
-  parent_id = character(0),
-  revision = 1L
+  parent_id = character(0)
 )
 }
 \arguments{
@@ -81,13 +81,14 @@ when labelling scenarios.}
 \item{status}{Optional workflow state; one of \code{\link[=status_levels]{status_levels()}} (matched
 case-insensitively) or \code{""} when unset.}
 
+\item{approved_on}{Optional date the plan was approved, as a \code{Date} or an
+ISO string; only with \code{status = "approved"}. Never defaulted to today.}
+
 \item{objective}{Human-facing objective / notes.}
 
 \item{id}{Optional explicit id; generated when \code{NULL}.}
 
 \item{parent_id}{Optional parent id for lineage.}
-
-\item{revision}{Integer revision number; default \code{1}. See \code{\link[=revise]{revise()}}.}
 }
 \value{
 A validated \link{MediaPlan}.

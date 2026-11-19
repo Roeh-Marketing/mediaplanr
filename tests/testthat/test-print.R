@@ -94,11 +94,12 @@ test_that("a derived plan shows its lineage", {
   expect_match(out, short_id(p@id))
 })
 
-test_that("the revision shows in the header only once above 1", {
+test_that("the approval date shows in the header beside the status", {
   p <- std_plan(name = "Base")
-  expect_false(grepl("Rev", grab(p)))
-  out <- grab(revise(p, revision = 2, status = "approved"))
-  expect_match(out, "<MediaPlan> Base  Rev 2  \\[approved\\]")
+  expect_match(grab(revise(p, status = "approved")),
+               "<MediaPlan> Base  \\[approved\\]")
+  out <- grab(revise(p, status = "approved", approved_on = "2026-10-29"))
+  expect_match(out, "<MediaPlan> Base  \\[approved 2026-10-29\\]")
 })
 
 test_that("a topline lists its subplans; a flat plan has no such line", {

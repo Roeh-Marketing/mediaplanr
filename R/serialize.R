@@ -9,7 +9,9 @@
 # file has neither and reads exactly as it did. v3 renames `week_col` to
 # `time_col` and adds `time_basis`; a v1 or v2 file names a week column, which
 # reads as a weekly plan. v4 adds `edits` and `rationale`, the provenance of a
-# derived plan; a v1-v3 file has neither and reads as a plan with none.
+# derived plan, and `approved_on`, and drops `revision` -- a lineage fact now,
+# not a stored one. A v1-v3 file reads as a plan with no provenance and no
+# approval date, its `revision` ignored.
 .plan_schema_version <- 4L
 
 # A written tree came through attach_subplan() and is finite. A PARSED file is
@@ -87,9 +89,7 @@
   id_v <- if (!is.null(x$id) && length(x$id) &&
               nzchar(as.character(x$id)[1])) as.character(x$id)[1] else NULL
 
-  rev  <- if (!is.null(x$revision) && length(x$revision) &&
-              !is.na(x$revision[1])) x$revision[1] else 1L
-
+  # An older file's `revision` is not read: it is derived from lineage now.
   plan <- media_plan_from_df(
     df, grain = grain, time = tc, time_basis = tb, tz = tz,
     planned_units = if ("planned_units" %in% uc) "planned_units" else NULL,
@@ -100,10 +100,10 @@
     advertiser = scal(x$advertiser),
     planner    = scal(x$planner),
     status     = scal(x$status),
+    approved_on = .as_approved_on(unlist(x$approved_on)),
     objective  = scal(x$objective),
     id         = id_v,
-    parent_id  = as.character(if (is.null(x$parent_id)) character(0) else x$parent_id),
-    revision   = rev
+    parent_id  = as.character(if (is.null(x$parent_id)) character(0) else x$parent_id)
   )
 
   # The written key is informative only; attach_subplan() re-derives the cell
@@ -149,7 +149,8 @@
 #' ignores `subplans` still gets the right totals. Schema version 2 added
 #' `revision` and `subplans`; version 3 renamed `week_col` to `time_col` and
 #' added `time_basis`, and still reads a v1 or v2 file as the weekly plan it
-#' was.
+#' was. Version 4 adds `edits`, `rationale` and `approved_on` and drops
+#' `revision`, which an older file may still carry and is ignored.
 #'
 #' @param x A [MediaPlan] or [ScenarioSet].
 #' @param path Optional file path. When supplied, the JSON is written there and

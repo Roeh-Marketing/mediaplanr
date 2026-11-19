@@ -31,7 +31,8 @@
 #' @section Sections:
 #' \describe{
 #'   \item{`identity`}{`name`, `nickname`, `id` and `parent_id` (short ids),
-#'     `status`, `objective`, the rationale's `author`, and `edits` -- the ops
+#'     `status`, `approved_on`, `objective`, the rationale's `author`, and
+#'     `edits` -- the ops
 #'     that derived it from its parent, in order (`"allocation"` for an
 #'     allocation edit; empty for a root).}
 #'   \item{`shape`}{`grain` (coarsest first, time last), `time_col`,
@@ -125,6 +126,8 @@ describe_plan <- function(plan, top_n = 10, as_json = FALSE) {
     id        = short_id(plan@id),
     parent_id = if (has_parent) short_id(plan@parent_id) else NA_character_,
     status    = plan@status,
+    approved_on = if (length(plan@approved_on)) format(plan@approved_on) else
+      NA_character_,
     objective = plan@objective,
     author    = plan@rationale[["author"]] %||% NA_character_,
     edits     = I(ops)

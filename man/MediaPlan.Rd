@@ -18,7 +18,7 @@ MediaPlan(
   planner = "",
   status = "",
   objective = "",
-  revision = 1L,
+  approved_on = as.Date(character(0)),
   subplans = list(),
   edits = list(),
   rationale = list()
@@ -68,8 +68,11 @@ unset.}
 
 \item{objective}{Human-facing objective / notes.}
 
-\item{revision}{Integer revision number, default \code{1}. Set by \code{\link[=revise]{revise()}};
-never bumped automatically. Printed as \verb{Rev 2} when above 1.}
+\item{approved_on}{The date the plan was approved: a single \code{Date}, or
+empty when unset. Only an approved plan may carry one, and even then it
+is optional -- it is never defaulted to today. A plan's \emph{revision} is not
+stored: it is its place among the approved plans in its lineage; see
+\code{\link[=lineage]{lineage()}}.}
 
 \item{subplans}{Named list of \code{MediaPlan}s, one per parent line item they
 back. Populate through \code{\link[=attach_subplan]{attach_subplan()}}, not by hand: attaching

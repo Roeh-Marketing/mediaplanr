@@ -56,7 +56,8 @@
 #'     \item{`key`}{The parent cell this plan backs (`"TV"`, `"TV | NBC"`);
 #'       `NA` for the root.}
 #'     \item{`path`}{Keys from the root joined with `" > "`; `""` for the root.}
-#'     \item{`name`, `nickname`, `status`, `revision`, `id`}{The plan's own.}
+#'     \item{`name`, `nickname`, `status`, `approved_on`, `id`}{The plan's
+#'       own; `approved_on` is `NA` when unset.}
 #'     \item{`grain`}{Its grain columns joined with `" + "`.}
 #'     \item{`cadence`}{`"weekly"`, `"daily"`, `"monthly"`, `"timed"` or
 #'       `"flighted"`, read off the data.}
@@ -100,8 +101,8 @@ subplan_map <- function(plan) {
     rows       = nrow(plan@data),
     spend      = sum(plan@data[["planned_spend"]]),
     subplans   = length(plan@subplans),
-    revision   = plan@revision,
     status     = plan@status,
+    approved_on = if (length(plan@approved_on)) plan@approved_on else as.Date(NA),
     id         = plan@id,
     stringsAsFactors = FALSE
   )
@@ -168,8 +169,7 @@ plan_tree <- function(plan) {
   hdr <- if (root) {
     h <- plan@name
     if (nzchar(plan@nickname)) h <- paste0(h, ' ("', plan@nickname, '")')
-    if (plan@revision > 1L) h <- paste0(h, "  Rev ", plan@revision)
-    if (nzchar(plan@status)) h <- paste0(h, "  [", plan@status, "]")
+    if (nzchar(.status_text(plan))) h <- paste0(h, "  [", .status_text(plan), "]")
     h
   } else {
     paste0(prefix, if (last) .box$end else .box$tee, key)
@@ -297,13 +297,32 @@ ownership_map <- function(plan) {
 #' a chain — base, a scenario from it, a scenario from *that* — they do not,
 #' and this is the one that reads as a tree.
 #'
+#' @section Revisions and the current approved plan:
+#' Planners say *Rev 3* meaning "the third approved version". That is a fact
+#' about a plan's lineage, not about the plan, so it is derived here rather
+#' than stored: an approved scenario's `revision` is how many approved plans
+#' lie on the path from its root to it, itself included. Plans that were
+#' drafted or sent back in between do not count.
+#'
+#' The `current` approved plan is the one the agency is buying against: an
+#' approved scenario with no approved scenario derived from it in the set.
+#' When approvals happened on parallel branches, more than one can be current;
+#' the set does not say which one won, and dates are not used to guess. See
+#' [current_approved()].
+#'
 #' @param set A [ScenarioSet].
 #' @return A data frame with one row per scenario:
 #'   \describe{
 #'     \item{`scenario`, `id`, `parent_id`}{Its label and identity.}
 #'     \item{`parent`}{The label of its parent in the set; `NA` for a root.}
 #'     \item{`depth`}{0 for a root, parent's depth + 1 otherwise.}
-#'     \item{`status`, `revision`, `spend`}{The scenario's own.}
+#'     \item{`status`, `approved_on`}{The scenario's own; `approved_on` is
+#'       `NA` when unset.}
+#'     \item{`revision`}{Its place among the approved plans on its branch:
+#'       1 for the first approved, 2 for the next. `NA` unless approved.}
+#'     \item{`current`}{`TRUE` for an approved scenario with no approved
+#'       descendant in the set.}
+#'     \item{`spend`}{Its total planned spend.}
 #'     \item{`spend_vs_parent`, `spend_pct_vs_parent`}{Against its parent;
 #'       `NA` for a root.}
 #'   }
@@ -346,14 +365,28 @@ lineage <- function(set) {
     depth[i] <- pd[i] + 1L
   }
 
+  # Approvals, read along each scenario's ancestry within the set.
+  status   <- vapply(scen, function(p) p@status, character(1))
+  approved <- status == "approved"
+  ancestry <- .ancestry(match(parent, nms))
+  revision <- vapply(seq_along(nms), function(i) {
+    if (approved[i]) sum(approved[ancestry[[i]]]) else NA_integer_
+  }, integer(1))
+  has_approved_descendant <- vapply(seq_along(nms), function(i) {
+    descendants <- which(vapply(ancestry, function(a) i %in% a[-1], logical(1)))
+    any(approved[descendants])
+  }, logical(1))
+
   out <- data.frame(
     scenario  = nms,
     id        = unname(ids),
     parent_id = unname(pids),
     parent    = parent,
     depth     = depth,
-    status    = vapply(scen, function(p) p@status, character(1)),
-    revision  = vapply(scen, function(p) p@revision, integer(1)),
+    status    = unname(status),
+    approved_on = .approval_dates(scen),
+    revision  = revision,
+    current   = unname(approved & !has_approved_descendant),
     spend     = unname(spend),
     spend_vs_parent = unname(spend - pspend),
     stringsAsFactors = FALSE
@@ -362,6 +395,76 @@ lineage <- function(set) {
                                     out$spend_vs_parent / pspend, NA_real_)
   rownames(out) <- NULL
   out
+}
+
+# Each scenario's ancestry within the set, as positions: itself first, then
+# its parent, then its parent's parent, up to a root. `parent_pos` is each
+# scenario's parent's position, NA for a root.
+.ancestry <- function(parent_pos) {
+  lapply(seq_along(parent_pos), function(i) {
+    path <- i
+    while (!is.na(parent_pos[path[length(path)]])) {
+      path <- c(path, parent_pos[path[length(path)]])
+    }
+    path
+  })
+}
+
+# Each scenario's approval date, NA where it has none, as one Date vector.
+.approval_dates <- function(scen) {
+  dates <- vapply(scen, function(p) {
+    if (length(p@approved_on)) format(p@approved_on) else NA_character_
+  }, character(1))
+  as.Date(unname(dates))
+}
+
+#' The approved plan a set is currently buying against
+#'
+#' Of the approved scenarios in a set, the ones nothing approved has been
+#' derived from since: the latest approval on each branch of the lineage. On a
+#' chain of approvals -- Rev 1, Rev 2, Rev 3 -- that is one plan.
+#'
+#' It is not always one. With no approved scenario in the set there is none,
+#' and this returns `character(0)` with a message. When plans were approved on
+#' parallel branches, each is current on its own branch; the set does not
+#' record which one superseded the other, so all of them are returned with a
+#' warning. Approval dates are never used to break the tie -- a date says when
+#' someone signed, not which plan replaced which.
+#'
+#' @param set A [ScenarioSet].
+#' @return The scenario name(s) of the current approved plan(s).
+#' @seealso [lineage()], where the same plans are flagged `current` and every
+#'   approved plan carries its `revision`.
+#' @examples
+#' base <- media_plan_from_df(
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "Search"), planned_spend = c(80, 40)),
+#'   grain = "channel", time = "week", name = "base",
+#'   status = "approved", approved_on = "2026-06-01"
+#' )
+#' rev2 <- revise(build_scenario(base, op_scale(1.1), name = "Rev 2"),
+#'                status = "approved", approved_on = "2026-06-20")
+#' draft <- build_scenario(rev2, op_scale(0.9), name = "Draft cut")
+#' set <- add_scenario(add_scenario(scenario_set(base), rev2), draft)
+#'
+#' current_approved(set)
+#' lineage(set)[, c("scenario", "status", "revision", "current")]
+#' @export
+current_approved <- function(set) {
+  if (!S7::S7_inherits(set, ScenarioSet)) {
+    stop("`set` must be a ScenarioSet.", call. = FALSE)
+  }
+  lin <- lineage(set)
+  current <- lin$scenario[lin$current]
+  if (!length(current)) {
+    message("no scenario in the set is approved.")
+  } else if (length(current) > 1L) {
+    warning("approved plans on parallel branches: ",
+            paste(current, collapse = ", "), ". Each is the latest approval ",
+            "on its own branch; the set does not record which one replaced ",
+            "the other, and dates are not used to guess.", call. = FALSE)
+  }
+  current
 }
 
 # ---- plan_mermaid ------------------------------------------------------------

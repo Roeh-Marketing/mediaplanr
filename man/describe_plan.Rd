@@ -39,7 +39,8 @@ it stands.
 
 \describe{
 \item{\code{identity}}{\code{name}, \code{nickname}, \code{id} and \code{parent_id} (short ids),
-\code{status}, \code{objective}, the rationale's \code{author}, and \code{edits} -- the ops
+\code{status}, \code{approved_on}, \code{objective}, the rationale's \code{author}, and
+\code{edits} -- the ops
 that derived it from its parent, in order (\code{"allocation"} for an
 allocation edit; empty for a root).}
 \item{\code{shape}}{\code{grain} (coarsest first, time last), \code{time_col},

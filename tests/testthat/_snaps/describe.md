@@ -10,6 +10,7 @@
           "id": "plan_agency",
           "parent_id": null,
           "status": "",
+          "approved_on": null,
           "objective": "",
           "author": null,
           "edits": []
@@ -199,6 +200,7 @@
           "id": "plan_s1",
           "parent_id": "plan_agency",
           "status": "in development",
+          "approved_on": null,
           "objective": "Shift programmatic to regional streaming",
           "author": "agent",
           "edits": ["transfer", "scale"]

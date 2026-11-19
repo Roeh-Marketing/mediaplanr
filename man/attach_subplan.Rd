@@ -57,7 +57,7 @@ is not a calendar to gather anything onto.
 
 \section{What attaching changes}{
 
-Only the parent. It keeps its \verb{@id} and \verb{@revision}; its rows at the cell
+Only the parent. It keeps its \verb{@id} and its approval; its rows at the cell
 are replaced — weeks the subplan does not plan disappear, weeks it adds
 appear — and the subplan is held in \verb{@subplans} under the cell's key. The
 subplan itself is untouched, \verb{@parent_id} included: lineage records what a

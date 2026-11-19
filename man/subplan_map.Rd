@@ -16,7 +16,8 @@ A data frame with one row per plan in the tree:
 \item{\code{key}}{The parent cell this plan backs (\code{"TV"}, \code{"TV | NBC"});
 \code{NA} for the root.}
 \item{\code{path}}{Keys from the root joined with \code{" > "}; \code{""} for the root.}
-\item{\code{name}, \code{nickname}, \code{status}, \code{revision}, \code{id}}{The plan's own.}
+\item{\code{name}, \code{nickname}, \code{status}, \code{approved_on}, \code{id}}{The plan's
+own; \code{approved_on} is \code{NA} when unset.}
 \item{\code{grain}}{Its grain columns joined with \code{" + "}.}
 \item{\code{cadence}}{\code{"weekly"}, \code{"daily"}, \code{"monthly"}, \code{"timed"} or
 \code{"flighted"}, read off the data.}

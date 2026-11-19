@@ -213,10 +213,12 @@ cadence, so the subplan reconciles to the single parent cell it backs. The one
 rule is that everything in the subplan must roll up to that cell — refining a
 cell, never spanning several.
 
-**Revisions.** Planners say *Rev 2*, so the slot is `@revision` (integer,
-default 1). It composes with what exists: `@parent_id` gives lineage, `@status`
-gives workflow, and a `ScenarioSet` is already a registry, so a subplan's
-revision history is a `ScenarioSet` if a team wants one.
+**Revisions.** *Superseded — see Already grown, Approvals.* Planners say
+*Rev 2*, so the slot was `@revision` (integer, default 1), set by hand. It
+turned out to be the opposite of what a planner means: it reset to 1 on every
+derivation, while "Rev 2" means "the second approved version" of a plan that
+was derived many times. The slot was removed; a revision is now derived by
+`lineage()` from approvals along the branch.
 
 ### `revise()` landed with it
 
@@ -234,8 +236,9 @@ carried by default and dropped only on purpose. `roll_up()` drops subplans
 (a coarser view owns nothing); `build_scenario()` carries them. The three
 constructor sites that used to name every slot by hand now go through it.
 
-`@revision` is manual. `revise()` sets it; nothing bumps it; anything minting
-a new id — a scenario, a rollup — starts again at 1.
+`revise()` now sets approval (`status` and `approved_on`) rather than a
+revision number. Note for the app: `set_status_tool` names slots by hand and
+may still name `revision`, which no longer exists; it should call `revise()`.
 
 ---
 
@@ -446,6 +449,16 @@ Listed because earlier revisions of the README named these as future work:
   kilobytes at any number of rows (only the by-month section grows, with the
   plan's duration), and every number reconciles to `@data`. Later phases add
   their facts to it.
+- **Approvals** — built. `@revision` is gone. A plan carries its approval as
+  `@status = "approved"` and an optional `@approved_on` date (never defaulted
+  from today; cleared when the status moves on; never inherited by a derived
+  scenario or a rollup). `lineage()` derives each approved plan's `revision`
+  -- its place among the approved plans on its branch -- and flags the
+  `current` one: approved, with nothing approved derived from it.
+  `current_approved()` returns it, warning when parallel branches leave more
+  than one and never breaking the tie by date. `compare_scenarios()` takes
+  `against = "base" | "parent" | "current_approved"`. Older JSON carrying
+  `revision` reads with it ignored.
 
 ---
 

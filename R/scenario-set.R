@@ -175,8 +175,26 @@ add_scenario <- function(set, plan, name = NULL) {
 #' table of spurious adds and drops. A set whose plans record no flights returns
 #' no rows, the same way [flights()] does.
 #'
+#' @section What each scenario is compared against:
+#' `against` chooses the reference every delta is measured from:
+#'
+#' - `"base"` (default) -- the set's baseline, for every scenario.
+#' - `"parent"` -- each scenario's own parent in the set, the way [lineage()]
+#'   reads it. A root has no parent here, so its deltas are `NA`.
+#' - `"current_approved"` -- the plan the set is currently buying against;
+#'   see [current_approved()]. It must be exactly one plan, or this errors:
+#'   with none there is nothing to compare to, and with several the reference
+#'   would be a guess.
+#'
+#' The delta columns are named for the reference: `spend_vs_base`,
+#' `spend_vs_parent` or `spend_vs_current_approved` (and the matching
+#' `spend_pct_vs_*` at summary level).
+#'
 #' @param set A [ScenarioSet].
 #' @param level One of `"summary"`, `"cell"` or `"flight"`.
+#' @param against What each scenario is compared against: `"base"`,
+#'   `"parent"` or `"current_approved"`. See *What each scenario is compared
+#'   against*.
 #' @return A data frame.
 #' @examples
 #' base <- media_plan_from_df(
@@ -191,16 +209,22 @@ add_scenario <- function(set, plan, name = NULL) {
 #' compare_scenarios(set)
 #' compare_scenarios(set, "cell")
 #' @export
-compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
-  level <- match.arg(level)
+compare_scenarios <- function(set, level = c("summary", "cell", "flight"),
+                              against = c("base", "parent",
+                                          "current_approved")) {
+  level   <- match.arg(level)
+  against <- match.arg(against)
   if (!S7::S7_inherits(set, ScenarioSet)) {
     stop("`set` must be a ScenarioSet.", call. = FALSE)
   }
   scen <- set@scenarios
   nms <- names(scen)
   g <- set@grain
+  # The scenario each one is measured from, by name (NA: none).
+  ref <- .reference_names(set, against)
+  delta_col <- paste0("spend_vs_", against)
 
-  if (level == "flight") return(.compare_flights(set))
+  if (level == "flight") return(.compare_flights(set, ref, delta_col))
 
   if (level == "summary") {
     rows <- lapply(nms, function(nm) {
@@ -214,13 +238,11 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
       )
     })
     out <- do.call(rbind, rows)
-    base_spd <- out$total_planned_spend[out$scenario == set@base_name][1]
-    out$spend_vs_base <- out$total_planned_spend - base_spd
-    out$spend_pct_vs_base <- if (isTRUE(base_spd != 0)) {
-      out$spend_vs_base / base_spd
-    } else {
-      rep(NA_real_, nrow(out))
-    }
+    ref_spend <- out$total_planned_spend[match(ref, out$scenario)]
+    out[[delta_col]] <- out$total_planned_spend - ref_spend
+    out[[paste0("spend_pct_vs_", against)]] <-
+      ifelse(!is.na(ref_spend) & ref_spend != 0, out[[delta_col]] / ref_spend,
+             NA_real_)
     rownames(out) <- NULL
     return(out)
   }
@@ -248,21 +270,22 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
   spine <- spine[match(all_keys, spine_keys), , drop = FALSE]
   rownames(spine) <- NULL
 
-  base_by_cell <- stats::setNames(
-    scen[[set@base_name]]@data[["planned_spend"]], keys[[set@base_name]]
-  )
-  base_vec <- as.numeric(base_by_cell[all_keys])
-  base_vec[is.na(base_vec)] <- 0
-
-  rows <- lapply(nms, function(nm) {
+  # A scenario's spend on every union cell, zero where it plans nothing.
+  spend_on_cells <- function(nm) {
     d <- scen[[nm]]@data
     sp <- as.numeric(stats::setNames(d[["planned_spend"]], keys[[nm]])[all_keys])
     sp[is.na(sp)] <- 0
+    sp
+  }
+
+  rows <- lapply(nms, function(nm) {
+    sp  <- spend_on_cells(nm)
     tot <- sum(sp)
     out <- cbind(data.frame(scenario = nm, stringsAsFactors = FALSE), spine)
     out[["planned_spend"]] <- sp
     out$share_of_total <- if (isTRUE(tot != 0)) sp / tot else NA_real_
-    out$spend_vs_base <- sp - base_vec
+    out[[delta_col]] <- if (is.na(ref[[nm]])) NA_real_ else
+      sp - spend_on_cells(ref[[nm]])
     out
   })
   out <- do.call(rbind, rows)
@@ -270,12 +293,40 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
   out
 }
 
+# The scenario each scenario is compared against, by name; NA where there is
+# none (a root, compared against its parent).
+.reference_names <- function(set, against) {
+  nms <- names(set@scenarios)
+  ref <- switch(
+    against,
+    base = rep(set@base_name, length(nms)),
+    parent = lineage(set)$parent,
+    current_approved = {
+      current <- lineage(set)
+      current <- current$scenario[current$current]
+      if (length(current) != 1L) {
+        stop("`against = \"current_approved\"` needs exactly one current ",
+             "approved plan; the set has ",
+             if (!length(current)) "none" else
+               paste0(length(current), " (", paste(current, collapse = ", "),
+                      ")"),
+             ". See current_approved().", call. = FALSE)
+      }
+      rep(current, length(nms))
+    }
+  )
+  stats::setNames(ref, nms)
+}
+
 # level = "flight": one row per scenario per flight, joined on flight_id.
 #
 # Cell-level comparison already reads a moved flight correctly -- money leaves
 # one week and arrives in another -- but it cannot say that a single buy moved.
 # This can, because flight_id survives a derivation.
-.compare_flights <- function(set) {
+#
+# `ref` names the scenario each one is compared against (see
+# .reference_names()); `delta_col` names the spend delta for it.
+.compare_flights <- function(set, ref, delta_col) {
   scen <- set@scenarios
   nms  <- names(scen)
   base <- set@base_name
@@ -287,7 +338,7 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
                        use.names = FALSE))
   ids <- ids[!is.na(ids)]
   if (!length(ids)) {
-    return(.empty_flight_cmp(scen[[base]], lg))
+    return(.empty_flight_cmp(scen[[base]], lg, delta_col))
   }
   shared <- length(nms) < 2L ||
     any(vapply(ids, function(id) {
@@ -305,13 +356,18 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
                                                    drop = FALSE]))
   spine <- spine[match(ids, spine[["flight_id"]]), , drop = FALSE]
 
-  b <- fl[[base]]
-  bi <- match(ids, b[["flight_id"]])
-
   rows <- lapply(nms, function(nm) {
     f <- fl[[nm]]
     i <- match(ids, f[["flight_id"]])
     here <- !is.na(i)
+
+    # The reference scenario's flights. With no reference (a root compared
+    # against its parent) there is nothing to measure from, so every
+    # comparison column is NA.
+    r <- ref[[nm]]
+    has_ref <- !is.na(r)
+    b  <- if (has_ref) fl[[r]] else f[0, , drop = FALSE]
+    bi <- match(ids, b[["flight_id"]])
 
     spend <- ifelse(here, f[["planned_spend"]][i], 0)
     b_spend <- ifelse(!is.na(bi), b[["planned_spend"]][bi], 0)
@@ -330,9 +386,13 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
     out[["planned_spend"]] <- spend
     out[["n_periods"]]     <- ifelse(here, f[["n_periods"]][i], 0L)
     out[["pacing"]]        <- ifelse(here, f[["pacing"]][i], NA_character_)
-    out[["spend_vs_base"]] <- spend - b_spend
+    out[[delta_col]] <- if (has_ref) spend - b_spend else NA_real_
     out[["start_shift_days"]] <- as.integer(.to_date(start) - .to_date(b_start))
-    out[["change"]] <- .flight_change(nm, base, here, !is.na(bi), f, b, i, bi)
+    out[["change"]] <- if (has_ref) {
+      .flight_change(nm, r, here, !is.na(bi), f, b, i, bi)
+    } else {
+      NA_character_
+    }
     out
   })
   out <- do.call(rbind, rows)
@@ -340,7 +400,9 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
   out
 }
 
-# What happened to this flight, in one word.
+# What happened to this flight, in one word. `base` names the scenario this
+# one is compared against -- the baseline, its parent, or the current approved
+# plan -- and `b` / `bi` are that scenario's flights.
 .flight_change <- function(nm, base, here, in_base, f, b, i, bi) {
   if (identical(nm, base)) {
     # A flight some other scenario adds is not "dropped" from the baseline's
@@ -364,7 +426,7 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
   out
 }
 
-.empty_flight_cmp <- function(plan, lg) {
+.empty_flight_cmp <- function(plan, lg, delta_col = "spend_vs_base") {
   out <- plan@data[0, lg, drop = FALSE]
   out <- cbind(data.frame(scenario = character(0), stringsAsFactors = FALSE), out)
   out[["flight_id"]]     <- character(0)
@@ -373,7 +435,7 @@ compare_scenarios <- function(set, level = c("summary", "cell", "flight")) {
   out[["planned_spend"]] <- numeric(0)
   out[["n_periods"]]     <- integer(0)
   out[["pacing"]]        <- character(0)
-  out[["spend_vs_base"]] <- numeric(0)
+  out[[delta_col]]       <- numeric(0)
   out[["start_shift_days"]] <- integer(0)
   out[["change"]]        <- character(0)
   rownames(out) <- NULL

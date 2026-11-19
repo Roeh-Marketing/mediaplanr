@@ -42,7 +42,8 @@ unchanged. The parent's \verb{@data} is still written in full, so a reader that
 ignores \code{subplans} still gets the right totals. Schema version 2 added
 \code{revision} and \code{subplans}; version 3 renamed \code{week_col} to \code{time_col} and
 added \code{time_basis}, and still reads a v1 or v2 file as the weekly plan it
-was.
+was. Version 4 adds \code{edits}, \code{rationale} and \code{approved_on} and drops
+\code{revision}, which an older file may still carry and is ignored.
 }
 \examples{
 p <- media_plan_from_df(

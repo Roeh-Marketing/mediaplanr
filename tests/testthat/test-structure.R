@@ -76,10 +76,11 @@ test_that("plan_tree draws the tree and an editable line under each topline", {
 })
 
 test_that("plan_tree on a flat plan is one line with the header facts", {
-  p <- revise(std_plan(name = "Base"), revision = 2, status = "approved")
+  p <- revise(std_plan(name = "Base"), status = "approved",
+              approved_on = "2026-10-29")
   out <- utils::capture.output(plan_tree(p))
   expect_equal(length(out), 1)
-  expect_match(out, "^Base  Rev 2  \\[approved\\] +160$")
+  expect_match(out, "^Base  \\[approved 2026-10-29\\] +160$")
   expect_false(grepl("editable", out))
 })
 

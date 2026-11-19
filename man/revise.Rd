@@ -10,16 +10,17 @@ revise(plan, ...)
 \item{plan}{A \link{MediaPlan}.}
 
 \item{...}{Named metadata fields to change: \code{name}, \code{nickname},
-\code{advertiser}, \code{planner}, \code{status}, \code{objective}, \code{rationale} (see
-\code{\link[=build_scenario]{build_scenario()}}), \code{revision}. At least one.}
+\code{advertiser}, \code{planner}, \code{status}, \code{approved_on} (a \code{Date} or ISO
+string; only on an approved plan), \code{objective}, \code{rationale} (see
+\code{\link[=build_scenario]{build_scenario()}}). At least one.}
 }
 \value{
 The same plan (same \verb{@id}) with the named fields changed.
 }
 \description{
 The metadata-only edit verb. Changes any of \code{name}, \code{nickname},
-\code{advertiser}, \code{planner}, \code{status}, \code{objective}, \code{rationale} and \code{revision},
-and leaves everything else — \verb{@data}, \verb{@grain}, \verb{@id}, \verb{@parent_id},
+\code{advertiser}, \code{planner}, \code{status}, \code{approved_on}, \code{objective} and
+\code{rationale}, and leaves everything else — \verb{@data}, \verb{@grain}, \verb{@id}, \verb{@parent_id},
 \verb{@subplans}, \verb{@edits} — exactly as it was. \code{rationale} is here because it
 describes the plan, not its spend: an author or a forecast can be added
 after the fact. Because \verb{@id} is kept, the result is \emph{the same plan},
@@ -32,8 +33,11 @@ slots by hand — the habit that silently drops any slot added later. Use
 \code{revise()} for metadata, \code{\link[=build_scenario]{build_scenario()}} for spend, and
 \code{\link[=attach_subplan]{attach_subplan()}} / \code{\link[=detach_subplan]{detach_subplan()}} for structure.
 
-\verb{@revision} is never bumped automatically. Planners say \emph{Rev 2} when they
-mean it, so it is set here explicitly. It prints in the header once above 1.
+Approval is set here: \code{revise(status = "approved", approved_on = "2026-10-29")}. The date is optional and never defaulted to today, and
+moving the status off \code{"approved"} clears it. There is no revision number
+to set: planners say \emph{Rev 3} meaning "the third approved version", which is
+a fact about the plan's lineage rather than the plan, so \code{\link[=lineage]{lineage()}}
+derives it, and \code{\link[=current_approved]{current_approved()}} finds the latest.
 }
 \examples{
 p <- media_plan_from_df(
@@ -41,7 +45,10 @@ p <- media_plan_from_df(
              channel = c("TV", "Search"), planned_spend = c(80, 40)),
   grain = "channel", time = "week", name = "Q3 plan"
 )
-q <- revise(p, status = "approved", revision = 2)
+q <- revise(p, status = "approved", approved_on = "2026-10-29")
 identical(q@id, p@id)
-q@revision
+q@approved_on
+
+# sending it back for review withdraws the approval and its date
+revise(q, status = "to review")@approved_on
 }

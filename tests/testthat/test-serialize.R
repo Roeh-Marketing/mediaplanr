@@ -113,7 +113,7 @@ test_that("a v1 file, with neither revision nor subplans, still reads", {
   p <- plan_from_json(v1)
   expect_identical(p@time_col, "week")
   expect_identical(p@time_basis, "week")
-  expect_identical(p@revision, 1L)
+  expect_identical(p@approved_on, as.Date(character(0)))
   expect_identical(p@subplans, list())
   expect_identical(p@id, "plan_1_abc")
   expect_equal(sum(p@data$planned_spend), 120)
@@ -133,7 +133,7 @@ test_that("non-plan JSON and non-plan input error clearly", {
   expect_error(plan_to_json(list(a = 1)), "must be a MediaPlan")
 })
 
-# ---- revision and subplans ---------------------------------------------------
+# ---- approval and subplans ---------------------------------------------------
 
 sub_tv <- function() {
   media_plan_from_df(
@@ -142,9 +142,20 @@ sub_tv <- function() {
     grain = c("channel", "partner"), time = "week", name = "TV detail")
 }
 
-test_that("revision survives the trip", {
-  q <- rt(revise(std_plan(), revision = 3))
-  expect_identical(q@revision, 3L)
+test_that("an approval date survives the trip", {
+  q <- rt(revise(std_plan(), status = "approved", approved_on = "2026-10-29"))
+  expect_identical(q@approved_on, as.Date("2026-10-29"))
+  expect_identical(rt(std_plan())@approved_on, as.Date(character(0)))
+})
+
+test_that("an older file's stored revision is read and ignored", {
+  js <- jsonlite::fromJSON(plan_to_json(std_plan()), simplifyVector = FALSE)
+  js$revision <- 3L
+  js$approved_on <- NULL
+  js$schema_version <- 3L
+  old <- plan_from_json(jsonlite::toJSON(js, auto_unbox = TRUE, null = "null"))
+  expect_equal(sum(old@data$planned_spend), 160)
+  expect_identical(old@approved_on, as.Date(character(0)))
 })
 
 test_that("a flat plan writes no subplans key", {

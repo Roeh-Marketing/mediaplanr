@@ -132,8 +132,11 @@ status_levels <- function() {
 #' @param status Optional workflow state; one of [status_levels()], or `""` when
 #'   unset.
 #' @param objective Human-facing objective / notes.
-#' @param revision Integer revision number, default `1`. Set by [revise()];
-#'   never bumped automatically. Printed as `Rev 2` when above 1.
+#' @param approved_on The date the plan was approved: a single `Date`, or
+#'   empty when unset. Only an approved plan may carry one, and even then it
+#'   is optional -- it is never defaulted to today. A plan's *revision* is not
+#'   stored: it is its place among the approved plans in its lineage; see
+#'   [lineage()].
 #' @param subplans Named list of `MediaPlan`s, one per parent line item they
 #'   back. Populate through [attach_subplan()], not by hand: attaching
 #'   recomputes the parent's rows for that cell and the validator refuses a
@@ -172,9 +175,12 @@ MediaPlan <- S7::new_class(
     status     = S7::new_property(S7::class_character, default = ""),
     objective  = S7::new_property(S7::class_character, default = ""),
 
-    # Planners say "Rev 2". Manual, never auto-bumped: revise() sets it, and
-    # anything that mints a new @id starts again at 1.
-    revision   = S7::new_property(S7::class_integer, default = 1L),
+    # The date the plan was approved, when it is and someone said when. Empty
+    # otherwise -- never defaulted from Sys.Date(). "Rev 2" is not stored: a
+    # plan's revision is its place among the approved plans in its lineage,
+    # which lineage() derives.
+    approved_on = S7::new_property(S7::class_Date,
+                                   default = quote(as.Date(character(0)))),
 
     # Subplans: a named list of MediaPlans, keyed by the parent line item each
     # one backs (line_item(@data, line_item_grain(self)) -- "TV", "TV | NBC").
@@ -333,9 +339,17 @@ MediaPlan <- S7::new_class(
                              " (or \"\" for unset)."))
     }
 
-    if (length(self@revision) != 1 || is.na(self@revision) ||
-        self@revision < 1L) {
-      errs <- c(errs, "@revision must be a single positive integer.")
+    # Only an approved plan has an approval date. revise() clears it when the
+    # status moves on; this is the backstop.
+    a <- self@approved_on
+    if (length(a) > 1L || anyNA(a)) {
+      errs <- c(errs, "@approved_on must be a single date, or empty when unset.")
+    } else if (length(a) == 1L && !identical(self@status, "approved")) {
+      errs <- c(errs, paste0(
+        "@approved_on is set but @status is \"", self@status, "\": only an ",
+        "approved plan has an approval date. Use revise(status = \"approved\", ",
+        "approved_on = ).")
+      )
     }
 
     errs <- c(errs, .validate_edits(self@edits, self@parent_id),
@@ -512,10 +526,11 @@ check_coverage <- function(plan, decomp, through = NULL) {
 #' @param planner Optional person responsible.
 #' @param status Optional workflow state; one of [status_levels()] (matched
 #'   case-insensitively) or `""` when unset.
+#' @param approved_on Optional date the plan was approved, as a `Date` or an
+#'   ISO string; only with `status = "approved"`. Never defaulted to today.
 #' @param objective Human-facing objective / notes.
 #' @param id Optional explicit id; generated when `NULL`.
 #' @param parent_id Optional parent id for lineage.
-#' @param revision Integer revision number; default `1`. See [revise()].
 #' @return A validated [MediaPlan].
 #' @examples
 #' df <- data.frame(
@@ -542,9 +557,9 @@ media_plan_from_df <- function(df, grain, time = NULL, time_basis = NULL,
                                planned_units = NULL, planned_rate = NULL,
                                unit_type = NULL,
                                name, nickname = "", advertiser = "",
-                               planner = "", status = "", objective = "",
-                               id = NULL, parent_id = character(0),
-                               revision = 1L) {
+                               planner = "", status = "", approved_on = NULL,
+                               objective = "", id = NULL,
+                               parent_id = character(0)) {
   if (missing(name) || !length(name) || is.na(name[1]) || !nzchar(name[1])) {
     stop("`name` is required: every plan carries a formal name. Use ",
          "`nickname` for a short working handle.", call. = FALSE)
@@ -629,18 +644,23 @@ media_plan_from_df <- function(df, grain, time = NULL, time_basis = NULL,
     advertiser = advertiser,
     planner    = planner,
     status     = .normalise_status(status),
-    objective  = objective,
-    revision   = .as_revision(revision)
+    approved_on = .as_approved_on(approved_on),
+    objective  = objective
   )
 }
 
-# Coerce a user-supplied revision to a single integer, or error.
-.as_revision <- function(revision) {
-  r <- suppressWarnings(as.integer(revision))
-  if (length(r) != 1L || is.na(r) || r < 1L || !isTRUE(all.equal(r, revision))) {
-    stop("`revision` must be a single positive whole number.", call. = FALSE)
+# An approval date as given -- a Date or an ISO string -- as a single Date, or
+# the empty Date when none was given.
+.as_approved_on <- function(x) {
+  if (is.null(x) || !length(x)) return(as.Date(character(0)))
+  d <- if (inherits(x, "Date")) x else
+    suppressWarnings(tryCatch(as.Date(as.character(unlist(x))),
+                              error = function(e) as.Date(NA)))
+  if (length(d) != 1L || is.na(d)) {
+    stop("`approved_on` must be a single date: a Date or an ISO string such ",
+         "as \"2026-10-29\".", call. = FALSE)
   }
-  r
+  d
 }
 
 #' Roll a plan up to a coarser grain
@@ -696,28 +716,29 @@ roll_up <- function(plan, grain, name = NULL) {
   out <- .aggregate_to(plan@data, grain)
 
   # A rollup is a coarser VIEW, so it drops the subplans: the cells they back
-  # may not exist at the new grain, and a view does not own anything. A new id
-  # starts the revision count over. It records no edits and no rationale: it
-  # changed nothing, and the source's edits would not replay at this grain.
+  # may not exist at the new grain, and a view does not own anything. It
+  # records no edits and no rationale: it changed nothing, and the source's
+  # edits would not replay at this grain. Nobody approved the view itself, so
+  # it carries no approval date.
   .copy_plan(
     plan,
-    data      = out,
-    grain     = grain,
-    id        = new_id("plan"),
-    parent_id = plan@id,
-    name      = name %||% plan@name,
-    revision  = 1L,
-    subplans  = list(),
-    edits     = list(),
-    rationale = list()
+    data        = out,
+    grain       = grain,
+    id          = new_id("plan"),
+    parent_id   = plan@id,
+    name        = name %||% plan@name,
+    subplans    = list(),
+    edits       = list(),
+    rationale   = list(),
+    approved_on = as.Date(character(0))
   )
 }
 
 #' Revise a plan's metadata without changing what it plans
 #'
 #' The metadata-only edit verb. Changes any of `name`, `nickname`,
-#' `advertiser`, `planner`, `status`, `objective`, `rationale` and `revision`,
-#' and leaves everything else — `@data`, `@grain`, `@id`, `@parent_id`,
+#' `advertiser`, `planner`, `status`, `approved_on`, `objective` and
+#' `rationale`, and leaves everything else — `@data`, `@grain`, `@id`, `@parent_id`,
 #' `@subplans`, `@edits` — exactly as it was. `rationale` is here because it
 #' describes the plan, not its spend: an author or a forecast can be added
 #' after the fact. Because `@id` is kept, the result is *the same plan*,
@@ -729,13 +750,18 @@ roll_up <- function(plan, grain, name = NULL) {
 #' `revise()` for metadata, [build_scenario()] for spend, and
 #' [attach_subplan()] / [detach_subplan()] for structure.
 #'
-#' `@revision` is never bumped automatically. Planners say *Rev 2* when they
-#' mean it, so it is set here explicitly. It prints in the header once above 1.
+#' Approval is set here: `revise(status = "approved", approved_on =
+#' "2026-10-29")`. The date is optional and never defaulted to today, and
+#' moving the status off `"approved"` clears it. There is no revision number
+#' to set: planners say *Rev 3* meaning "the third approved version", which is
+#' a fact about the plan's lineage rather than the plan, so [lineage()]
+#' derives it, and [current_approved()] finds the latest.
 #'
 #' @param plan A [MediaPlan].
 #' @param ... Named metadata fields to change: `name`, `nickname`,
-#'   `advertiser`, `planner`, `status`, `objective`, `rationale` (see
-#'   [build_scenario()]), `revision`. At least one.
+#'   `advertiser`, `planner`, `status`, `approved_on` (a `Date` or ISO
+#'   string; only on an approved plan), `objective`, `rationale` (see
+#'   [build_scenario()]). At least one.
 #' @return The same plan (same `@id`) with the named fields changed.
 #' @examples
 #' p <- media_plan_from_df(
@@ -743,9 +769,12 @@ roll_up <- function(plan, grain, name = NULL) {
 #'              channel = c("TV", "Search"), planned_spend = c(80, 40)),
 #'   grain = "channel", time = "week", name = "Q3 plan"
 #' )
-#' q <- revise(p, status = "approved", revision = 2)
+#' q <- revise(p, status = "approved", approved_on = "2026-10-29")
 #' identical(q@id, p@id)
-#' q@revision
+#' q@approved_on
+#'
+#' # sending it back for review withdraws the approval and its date
+#' revise(q, status = "to review")@approved_on
 #' @export
 revise <- function(plan, ...) {
   if (!S7::S7_inherits(plan, MediaPlan)) {
@@ -753,7 +782,13 @@ revise <- function(plan, ...) {
   }
   changes <- list(...)
   allowed <- c("name", "nickname", "advertiser", "planner", "status",
-               "objective", "rationale", "revision")
+               "approved_on", "objective", "rationale")
+  if ("revision" %in% names(changes)) {
+    stop("`revision` is no longer set by hand: a plan's revision is its place ",
+         "among the approved plans in its lineage. Approve it with ",
+         "revise(status = \"approved\", approved_on = ) and read the revision ",
+         "from lineage().", call. = FALSE)
+  }
   if (!length(changes)) {
     stop("nothing to revise: name at least one of ",
          paste(allowed, collapse = ", "), ".", call. = FALSE)
@@ -770,8 +805,17 @@ revise <- function(plan, ...) {
          "spend and attach_subplan() / detach_subplan() to change structure.",
          call. = FALSE)
   }
-  if ("status"   %in% names(changes)) changes$status   <- .normalise_status(changes$status)
-  if ("revision" %in% names(changes)) changes$revision <- .as_revision(changes$revision)
+  if ("status" %in% names(changes)) {
+    changes$status <- .normalise_status(changes$status)
+    # Leaving "approved" withdraws the approval, and its date with it.
+    if (!identical(changes$status, "approved") &&
+        !"approved_on" %in% names(changes)) {
+      changes$approved_on <- as.Date(character(0))
+    }
+  }
+  if ("approved_on" %in% names(changes)) {
+    changes$approved_on <- .as_approved_on(changes$approved_on)
+  }
   if ("rationale" %in% names(changes)) {
     changes$rationale <- .as_rationale(changes$rationale)
   }

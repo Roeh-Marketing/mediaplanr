@@ -191,8 +191,8 @@ otherwise.
 \verb{@subplans} \strong{carry}: the scenario is still a topline. Rows a subplan
 backs are read-only, so an edit reaching one — including a whole-plan op
 like \code{list(total = 200)} — errors naming the subplan to edit instead. See
-\code{\link[=attach_subplan]{attach_subplan()}}. \verb{@revision} restarts at 1, since a new id is a new
-revision history; see \code{\link[=revise]{revise()}}.
+\code{\link[=attach_subplan]{attach_subplan()}}. \verb{@approved_on} is cleared with the status: whether and
+when the scenario is approved is its own business; see \code{\link[=revise]{revise()}}.
 
 \verb{@edits} records exactly what was applied, in a canonical form: the ops
 with their fields in a fixed order and dates as text on the plan's clock,
