@@ -56,11 +56,18 @@
 #'     column, its `top` values by spend and `n_more`; for the time column,
 #'     the `first` and `last` value and how many there are. The full lists
 #'     are in [plan_ops_schema()] for the plan.}
+#'   \item{`budget`}{Only when `budget` is given: how the plan sits against
+#'     it, from [check_budget()] at its default tolerance -- `n_rows`,
+#'     `n_within`, and the envelopes `off` it, worst first (`envelope`,
+#'     `amount`, `planned`, `variance`, `in_plan`), capped at `top_n` with
+#'     `n_more_off` for the rest.}
 #' }
 #'
 #' @param plan A [MediaPlan].
 #' @param top_n How many values to list for each column before the rest are
 #'   summarised. A whole number, 1 or more.
+#' @param budget Optional budget envelope, as [check_budget()] takes it. Adds
+#'   a `budget` section.
 #' @param as_json `FALSE` (default) returns the nested list; `TRUE` returns it
 #'   as JSON text.
 #' @return A named list with the sections above, or a `json` string when
@@ -83,7 +90,7 @@
 #'
 #' cat(describe_plan(plan, as_json = TRUE))
 #' @export
-describe_plan <- function(plan, top_n = 10, as_json = FALSE) {
+describe_plan <- function(plan, top_n = 10, budget = NULL, as_json = FALSE) {
   if (!S7::S7_inherits(plan, MediaPlan)) {
     stop("`plan` must be a MediaPlan.", call. = FALSE)
   }
@@ -100,6 +107,8 @@ describe_plan <- function(plan, top_n = 10, as_json = FALSE) {
     time        = .describe_time(plan),
     targetable  = .describe_targetable(plan, top_n)
   )
+  # Pairings with something outside the plan appear only when it is given.
+  if (!is.null(budget)) out$budget <- .describe_budget(plan, budget, top_n)
   if (!as_json) return(out)
   jsonlite::toJSON(out, auto_unbox = TRUE, pretty = TRUE, dataframe = "rows",
                    na = "null", digits = NA)
@@ -233,6 +242,34 @@ describe_plan <- function(plan, top_n = 10, as_json = FALSE) {
   by  <- tapply(cal[["planned_spend"]], format(cal[["month"]], "%Y-%m"), sum)
   data.frame(month = names(by), spend = round(as.numeric(by), 2),
              stringsAsFactors = FALSE)
+}
+
+# How the plan sits against a budget envelope (see check_budget()): how many
+# rows are within tolerance, and the ones furthest off, worst first. The
+# warning check_budget() raises is the point of this section, so it is not
+# raised again here.
+.describe_budget <- function(plan, budget, top_n) {
+  checked <- suppressWarnings(check_budget(plan, budget))
+  cols <- intersect(line_item_grain(plan), names(checked))
+  off <- checked[!checked$within, , drop = FALSE]
+  off <- off[order(-abs(off$variance)), , drop = FALSE]
+  shown <- utils::head(off, top_n)
+
+  list(
+    n_rows   = nrow(checked),
+    n_within = sum(checked$within),
+    off = data.frame(
+      envelope = vapply(seq_len(nrow(shown)), function(i) {
+        .budget_label(shown[i, , drop = FALSE], cols)
+      }, character(1)),
+      amount   = shown$amount,
+      planned  = shown$planned,
+      variance = shown$variance,
+      in_plan  = shown$in_plan,
+      stringsAsFactors = FALSE
+    ),
+    n_more_off = nrow(off) - nrow(shown)
+  )
 }
 
 # What an op's target may name. Line item columns: their values by spend, the

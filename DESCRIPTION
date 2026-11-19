@@ -41,6 +41,7 @@ Collate:
     'ops.R'
     'verbs.R'
     'provenance.R'
+    'budget.R'
     'describe.R'
     'subplan.R'
     'scenario-set.R'

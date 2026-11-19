@@ -148,13 +148,16 @@ reference:
   contents:
   - status_levels
 
-- title: Pairing a plan with a decomp
+- title: Pairing a plan with a decomp or a budget
   desc: >
-    A plan alone is blind to past and future. Pair it with a decomp -- which
-    reports actuals through a date -- and questions about history become
-    answerable.
+    A plan alone is blind to past and future, and to what it was authorised to
+    spend. Pair it with a decomp -- which reports actuals through a date -- and
+    questions about history become answerable; pair it with a budget envelope
+    and it can be checked against its signed limits. Both warn rather than
+    error: each artifact is valid, it is the pairing that disagrees.
   contents:
   - check_coverage
+  - check_budget
 
 - title: Saving and reloading
   desc: >

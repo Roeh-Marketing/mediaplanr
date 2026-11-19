@@ -4,13 +4,16 @@
 \alias{describe_plan}
 \title{A compact description of a plan, for an agent's context}
 \usage{
-describe_plan(plan, top_n = 10, as_json = FALSE)
+describe_plan(plan, top_n = 10, budget = NULL, as_json = FALSE)
 }
 \arguments{
 \item{plan}{A \link{MediaPlan}.}
 
 \item{top_n}{How many values to list for each column before the rest are
 summarised. A whole number, 1 or more.}
+
+\item{budget}{Optional budget envelope, as \code{\link[=check_budget]{check_budget()}} takes it. Adds
+a \code{budget} section.}
 
 \item{as_json}{\code{FALSE} (default) returns the nested list; \code{TRUE} returns it
 as JSON text.}
@@ -64,6 +67,11 @@ impressions).}
 column, its \code{top} values by spend and \code{n_more}; for the time column,
 the \code{first} and \code{last} value and how many there are. The full lists
 are in \code{\link[=plan_ops_schema]{plan_ops_schema()}} for the plan.}
+\item{\code{budget}}{Only when \code{budget} is given: how the plan sits against
+it, from \code{\link[=check_budget]{check_budget()}} at its default tolerance -- \code{n_rows},
+\code{n_within}, and the envelopes \code{off} it, worst first (\code{envelope},
+\code{amount}, \code{planned}, \code{variance}, \code{in_plan}), capped at \code{top_n} with
+\code{n_more_off} for the rest.}
 }
 }
 

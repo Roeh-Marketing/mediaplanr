@@ -185,6 +185,14 @@
 #' total, change the TV plan and attach it again; re-attaching **is** the
 #' reconcile.
 #'
+#' @section A subplan is not a budget envelope:
+#' A subplan is **ownership**: the cell's rows *are* the subplan's rollup,
+#' exactly, and cannot be edited around it. A signed authorisation -- "TV may
+#' spend 1.2m in Q4" -- is not ownership but a **target**, which the plan is
+#' checked against with a tolerance and may miss. That is
+#' [check_budget()], and it is the common case; reach for a subplan only when
+#' another team genuinely plans the cell's detail.
+#'
 #' @section Which cell:
 #' The subplan says which cell it backs through its **data**, not through an
 #' argument. Its [line_item_grain()] must *contain* the parent's — the same

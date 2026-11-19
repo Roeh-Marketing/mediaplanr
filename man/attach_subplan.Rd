@@ -36,6 +36,16 @@ become read-only, so there is one number with one owner. To change TV's
 total, change the TV plan and attach it again; re-attaching \strong{is} the
 reconcile.
 }
+\section{A subplan is not a budget envelope}{
+
+A subplan is \strong{ownership}: the cell's rows \emph{are} the subplan's rollup,
+exactly, and cannot be edited around it. A signed authorisation -- "TV may
+spend 1.2m in Q4" -- is not ownership but a \strong{target}, which the plan is
+checked against with a tolerance and may miss. That is
+\code{\link[=check_budget]{check_budget()}}, and it is the common case; reach for a subplan only when
+another team genuinely plans the cell's detail.
+}
+
 \section{Which cell}{
 
 The subplan says which cell it backs through its \strong{data}, not through an

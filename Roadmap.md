@@ -106,7 +106,7 @@ argued, not assumed.
 depth testing, no staleness detection — and not exposed in the app until a
 real multi-owner engagement needs it. The common case that *looks* like a
 subplan is a signed budget envelope (channel × quarter authorizations checked
-with a tolerated variance); that is `check_budget()` (planned for 0.2.0), not
+with a tolerated variance); that is `check_budget()`, not
 ownership.
 
 Known gaps, left as part of the hold: the validator's subplan invariant
@@ -464,6 +464,15 @@ Listed because earlier revisions of the README named these as future work:
   undeclared). Set at import or corrected with `revise()`; carried by
   scenarios and rollups. Plans combine -- in a `ScenarioSet`, or as a
   subplan -- only when their bases match exactly, undeclared included.
+- **`check_budget()`** — built. The envelope check: a budget table of
+  windows and amounts, each naming any subset of the line item columns (or
+  none), compared with the plan's spend measured day by day through
+  `calendarize()`, so a window may cut a week or month anywhere. Reports
+  planned, variance and whether each row is within tolerance; a value the
+  plan lacks reads as absent, not as an underspend. Warns, never errors, like
+  `check_coverage()`. `describe_plan(budget = )` summarises it. The help
+  pages contrast an envelope (a target, with tolerance) with a subplan
+  (ownership, with equality).
 
 ---
 
