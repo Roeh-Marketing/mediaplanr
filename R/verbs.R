@@ -817,9 +817,9 @@
 #' @param rationale Optional structured reasons for the derivation, kept as
 #'   `@rationale` beside the `objective` headline: a named list with any of
 #'   `author` (`"human"`, `"agent"` or `"optimizer"`), `goal` (text),
-#'   `constraints_id` (the id of the constraints it was checked against),
-#'   `forecast` (a named list of numbers the caller supplies -- the package
-#'   never computes them) and `notes` (text). Never inherited.
+#'   `constraints_id` (the `@id` of the [PlanConstraints] it was checked
+#'   against), `forecast` (a named list of numbers the caller supplies -- the
+#'   package never computes them) and `notes` (text). Never inherited.
 #' @param ... Unused; for method extension.
 #' @return A new [MediaPlan] at the base plan's grain, with `@parent_id` set.
 #' @examples

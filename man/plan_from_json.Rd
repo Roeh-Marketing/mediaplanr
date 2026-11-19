@@ -11,7 +11,8 @@ plan_from_json(txt)
 containing one.}
 }
 \value{
-A \link{MediaPlan} or a \link{ScenarioSet}, matching what was serialized.
+A \link{MediaPlan}, a \link{ScenarioSet} or a \link{PlanConstraints}, matching
+what was serialized.
 }
 \description{
 Inverse of \code{\link[=plan_to_json]{plan_to_json()}}. A plan is reconstructed through

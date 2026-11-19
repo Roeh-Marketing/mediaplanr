@@ -1,0 +1,6 @@
+"type","value","from","to","note","channel","partner"
+"min_share",0.4,"","","Streaming holds at least 40% of the plan","Streaming",""
+"fixed_total",360000,"","","Upfront: total fixed, phasing free","","Stream A"
+"max_spend",320000,"2026-10-01","2026-12-31","Programmatic Q4 authorisation","Programmatic",""
+"max_share",0.25,"","","Online Video at most a quarter of the plan","Online Video",""
+"max_change_pct",0.25,"","","Online Video moves at most 25% from the approved plan","Online Video",""

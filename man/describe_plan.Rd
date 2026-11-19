@@ -4,7 +4,15 @@
 \alias{describe_plan}
 \title{A compact description of a plan, for an agent's context}
 \usage{
-describe_plan(plan, top_n = 10, budget = NULL, models = NULL, as_json = FALSE)
+describe_plan(
+  plan,
+  top_n = 10,
+  budget = NULL,
+  models = NULL,
+  constraints = NULL,
+  reference = NULL,
+  as_json = FALSE
+)
 }
 \arguments{
 \item{plan}{A \link{MediaPlan}.}
@@ -17,6 +25,12 @@ a \code{budget} section.}
 
 \item{models}{Optional fitted response models, as \code{\link[=model_map]{model_map()}} takes
 them. Adds a \code{models} section.}
+
+\item{constraints}{Optional \link{PlanConstraints}. Adds a \code{constraints}
+section.}
+
+\item{reference}{The plan change rules in \code{constraints} are measured
+against; see \code{\link[=check_constraints]{check_constraints()}}.}
 
 \item{as_json}{\code{FALSE} (default) returns the nested list; \code{TRUE} returns it
 as JSON text.}
@@ -79,6 +93,11 @@ it, from \code{\link[=check_budget]{check_budget()}} at its default tolerance --
 response models cover, from \code{\link[=model_map]{model_map()}} -- \code{modeled_share},
 \code{unmodeled_spend}, \code{n_models_used}, and the largest \code{unmodeled} line
 items, capped at \code{top_n} with \code{n_more_unmodeled} for the rest.}
+\item{\code{constraints}}{Only when \code{constraints} is given: how the plan
+stands against them, from \code{\link[=check_constraints]{check_constraints()}} -- the rule set's
+\code{id}, \code{n_rules}, \code{n_ok}, the \code{violated} rules (worst first) and the
+\code{binding} ones, which hold with no slack to spare, so the next edit
+that pushes on them breaks them. Each capped at \code{top_n}.}
 }
 }
 

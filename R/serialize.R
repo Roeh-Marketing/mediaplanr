@@ -127,8 +127,8 @@
 
 #' Serialize a media plan or scenario set to JSON
 #'
-#' Writes a [MediaPlan] or a [ScenarioSet] to JSON that [plan_from_json()] can
-#' rebuild faithfully. For a plan, only its *settable* slots are written —
+#' Writes a [MediaPlan], a [ScenarioSet] or a [PlanConstraints] to JSON that
+#' [plan_from_json()] can rebuild faithfully. For a plan, only its *settable* slots are written —
 #' `@data`, `@grain`, `@time_col`, `@time_basis`, `@tz`, `@id`, `@parent_id`,
 #' and the metadata scalars
 #' — plus an `object` tag and a `schema_version`. Derived facts
@@ -153,7 +153,10 @@
 #' was. Version 4 adds `edits`, `rationale`, `approved_on` and `spend_basis`
 #' and drops `revision`, which an older file may still carry and is ignored.
 #'
-#' @param x A [MediaPlan] or [ScenarioSet].
+#' A [PlanConstraints] writes its `@id`, `@name` and its rules, each as the
+#' plain list [plan_constraints()] takes.
+#'
+#' @param x A [MediaPlan], [ScenarioSet] or [PlanConstraints].
 #' @param path Optional file path. When supplied, the JSON is written there and
 #'   `path` is returned invisibly; otherwise the JSON string is returned.
 #' @param pretty Whether to pretty-print. Defaults to `TRUE`.
@@ -185,8 +188,22 @@ plan_to_json <- function(x, path = NULL, pretty = TRUE) {
       id             = x@id,
       scenarios      = lapply(x@scenarios, .plan_payload)
     )
+  } else if (S7::S7_inherits(x, PlanConstraints)) {
+    # Rules go out as the plain lists they are built from, a window left out
+    # where a rule has none.
+    rules <- lapply(seq_len(nrow(x@rules)), function(i) {
+      Filter(Negate(is.null), .rule_at(x@rules, i))
+    })
+    payload <- list(
+      object         = "PlanConstraints",
+      schema_version = .plan_schema_version,
+      id             = x@id,
+      name           = x@name,
+      rules          = rules
+    )
   } else {
-    stop("`x` must be a MediaPlan or a ScenarioSet.", call. = FALSE)
+    stop("`x` must be a MediaPlan, a ScenarioSet or a PlanConstraints.",
+         call. = FALSE)
   }
 
   js <- jsonlite::toJSON(payload, dataframe = "rows", Date = "ISO8601",
@@ -227,7 +244,8 @@ plan_to_json <- function(x, path = NULL, pretty = TRUE) {
 #'
 #' @param txt A JSON string produced by [plan_to_json()], or a path to a file
 #'   containing one.
-#' @return A [MediaPlan] or a [ScenarioSet], matching what was serialized.
+#' @return A [MediaPlan], a [ScenarioSet] or a [PlanConstraints], matching
+#'   what was serialized.
 #' @seealso [plan_to_json()]
 #' @examples
 #' p <- media_plan_from_df(
@@ -273,6 +291,12 @@ plan_from_json <- function(txt) {
       base_name = as.character(x$base_name)[1],
       id        = as.character(x$id)[1]
     )
+  } else if (identical(obj, "PlanConstraints")) {
+    # Rules come from the raw parse, where a target's array stays an array;
+    # plan_constraints() makes them canonical again.
+    plan_constraints(raw$rules %||% list(),
+                     name = as.character(unlist(raw$name))[1] %||% "",
+                     id   = as.character(unlist(raw$id))[1])
   } else {
     .plan_from_payload(x, raw = raw)
   }

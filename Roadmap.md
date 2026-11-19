@@ -52,7 +52,7 @@ What was missing, and its status:
    may be fitted at a different (and mixed) grain — `model_map()`,
    `spend_by_model()`. *Built for 0.3.0.*
 4. **One constraint object** read by both the agent's self-check and the
-   optimizer — `PlanConstraints`, `check_constraints()`. *Planned for 0.3.0.*
+   optimizer — `PlanConstraints`, `check_constraints()`. *Built for 0.3.0.*
 5. **Structured rationale on each proposal** — who proposed it, toward what
    goal, under which constraints. *Built in 0.2.0, as `@rationale`.*
 
@@ -486,16 +486,27 @@ Listed because earlier revisions of the README named these as future work:
   `calendarize()`, keeping unmodeled spend under `model_id = NA` so totals
   reconcile. Data frames in and out; no dependency on `mrmopt`.
   `describe_plan(models = )` reports coverage.
+- **The constraint object** — built, for 0.3.0. `PlanConstraints` holds the
+  group rules a plan lives under -- min/max spend, min/max share, a fixed
+  total with free phasing, max change (absolute or %) from a reference plan
+  -- built from `rule_*()` constructors or a rules sheet, kept one canonical
+  way, with a `constraints_schema()` for agents and a JSON round trip. Row
+  rules stay spend bounds on the plan. `check_constraints()` measures each
+  rule day by day (like `check_budget()`) and reports actual, limit, slack
+  and ok, warning on a violation and never refusing one; change rules need a
+  reference. `describe_plan(constraints = )` reports the broken and the
+  binding rules, and a scenario's `rationale$constraints_id` names the rule
+  set it was checked against.
 
 ---
 
 ## Not yet built
 
-- **The constraint object** (0.3.0) — item 4 of the agentic planner's list
-  above.
-- **`mrmopt` reading `PlanConstraints`**, so the optimizer and the agent's
-  self-check enforce the same definition of "allowed". A cross-package step,
-  after 0.3.0.
+- **`mrmopt` reading `PlanConstraints`** — the next cross-package step, so
+  the optimizer and the agent's self-check enforce the same definition of
+  "allowed". `check_constraints()` documents the semantics it must match:
+  spend measured day by day inside each rule's window, shares against the
+  whole plan in the same window. Not started here; `mrmopt` is untouched.
 - **A spreadsheet importer, as a companion package** (`mediaplanr.io`): a
   declarative column map plus regex rules that turn an agency workbook into a
   `MediaPlan` and a lint report. A companion so that `readxl` and the long tail

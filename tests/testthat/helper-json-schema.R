@@ -12,7 +12,7 @@ schema_keywords <- c(
   # annotations, ignored
   "$schema", "title", "description",
   # checked
-  "type", "const", "enum", "pattern", "minimum", "exclusiveMinimum",
+  "type", "const", "enum", "pattern", "minimum", "exclusiveMinimum", "maximum",
   "minItems", "items", "properties", "minProperties", "required",
   "additionalProperties", "dependentRequired", "anyOf", "oneOf", "not"
 )
@@ -66,6 +66,10 @@ schema_problems <- function(x, schema, path = "$") {
   if (!is.null(schema[["minimum"]]) && is.numeric(x) &&
       x < schema[["minimum"]]) {
     found(x, " is below the minimum of ", schema[["minimum"]])
+  }
+  if (!is.null(schema[["maximum"]]) && is.numeric(x) &&
+      x > schema[["maximum"]]) {
+    found(x, " is above the maximum of ", schema[["maximum"]])
   }
   if (!is.null(schema[["exclusiveMinimum"]]) && is.numeric(x) &&
       x <= schema[["exclusiveMinimum"]]) {

@@ -65,6 +65,11 @@
 #'     response models cover, from [model_map()] -- `modeled_share`,
 #'     `unmodeled_spend`, `n_models_used`, and the largest `unmodeled` line
 #'     items, capped at `top_n` with `n_more_unmodeled` for the rest.}
+#'   \item{`constraints`}{Only when `constraints` is given: how the plan
+#'     stands against them, from [check_constraints()] -- the rule set's
+#'     `id`, `n_rules`, `n_ok`, the `violated` rules (worst first) and the
+#'     `binding` ones, which hold with no slack to spare, so the next edit
+#'     that pushes on them breaks them. Each capped at `top_n`.}
 #' }
 #'
 #' @param plan A [MediaPlan].
@@ -74,6 +79,10 @@
 #'   a `budget` section.
 #' @param models Optional fitted response models, as [model_map()] takes
 #'   them. Adds a `models` section.
+#' @param constraints Optional [PlanConstraints]. Adds a `constraints`
+#'   section.
+#' @param reference The plan change rules in `constraints` are measured
+#'   against; see [check_constraints()].
 #' @param as_json `FALSE` (default) returns the nested list; `TRUE` returns it
 #'   as JSON text.
 #' @return A named list with the sections above, or a `json` string when
@@ -97,6 +106,7 @@
 #' cat(describe_plan(plan, as_json = TRUE))
 #' @export
 describe_plan <- function(plan, top_n = 10, budget = NULL, models = NULL,
+                          constraints = NULL, reference = NULL,
                           as_json = FALSE) {
   if (!S7::S7_inherits(plan, MediaPlan)) {
     stop("`plan` must be a MediaPlan.", call. = FALSE)
@@ -117,6 +127,9 @@ describe_plan <- function(plan, top_n = 10, budget = NULL, models = NULL,
   # Pairings with something outside the plan appear only when it is given.
   if (!is.null(budget)) out$budget <- .describe_budget(plan, budget, top_n)
   if (!is.null(models)) out$models <- .describe_models(plan, models, top_n)
+  if (!is.null(constraints)) {
+    out$constraints <- .describe_constraints(plan, constraints, reference, top_n)
+  }
   if (!as_json) return(out)
   jsonlite::toJSON(out, auto_unbox = TRUE, pretty = TRUE, dataframe = "rows",
                    na = "null", digits = NA)
@@ -299,6 +312,35 @@ describe_plan <- function(plan, top_n = 10, budget = NULL, models = NULL,
                            planned_spend = round(shown$planned_spend, 2),
                            stringsAsFactors = FALSE),
     n_more_unmodeled = nrow(gap) - nrow(shown)
+  )
+}
+
+# How the plan stands against its rules (see check_constraints()): how many
+# hold, which are broken, and which hold only just -- a rule at its limit
+# (slack 0) is the next one an edit will break. The warning is what this
+# section reports, so it is not raised again here.
+.describe_constraints <- function(plan, constraints, reference, top_n) {
+  checked <- suppressWarnings(check_constraints(plan, constraints, reference))
+  rules <- checked[checked$type != "row_bounds", , drop = FALSE]
+
+  as_rows <- function(x) {
+    x <- utils::head(x, top_n)
+    data.frame(
+      rule   = paste0(x$type, " ", x$limit, " on ", x$target,
+                      ifelse(is.na(x$window), "", paste0(", ", x$window))),
+      actual = x$actual, limit = x$limit, slack = x$slack,
+      stringsAsFactors = FALSE
+    )
+  }
+  broken  <- rules[!rules$ok, , drop = FALSE]
+  binding <- rules[rules$ok & rules$slack <= 0, , drop = FALSE]
+
+  list(
+    id       = constraints@id,
+    n_rules  = nrow(rules),
+    n_ok     = sum(rules$ok),
+    violated = as_rows(broken[order(broken$slack), , drop = FALSE]),
+    binding  = as_rows(binding)
   )
 }
 

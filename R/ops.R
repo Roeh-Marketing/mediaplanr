@@ -787,8 +787,9 @@ plan_ops_schema <- function(plan = NULL, as_json = FALSE) {
 
 # A target: grain column -> one value or an array of values. On a plan, only
 # its grain columns, and only the values present -- compared as text, exactly
-# as .match_target() compares them.
-.target_schema <- function(plan = NULL) {
+# as .match_target() compares them. `cols` narrows the columns a target may
+# name: a plan rule names line item columns only.
+.target_schema <- function(plan = NULL, cols = plan@grain) {
   if (is.null(plan)) {
     scalar <- list(type = I(c("string", "number")))
     return(list(
@@ -799,14 +800,14 @@ plan_ops_schema <- function(plan = NULL, as_json = FALSE) {
       ))
     ))
   }
-  per_column <- lapply(plan@grain, function(col) {
+  per_column <- lapply(cols, function(col) {
     values <- I(as.character(grain_values(plan, col)))
     list(anyOf = list(
       list(enum = values),
       list(type = "array", items = list(enum = values), minItems = 1L)
     ))
   })
-  names(per_column) <- plan@grain
+  names(per_column) <- cols
   list(type = "object", properties = per_column, additionalProperties = FALSE)
 }
 

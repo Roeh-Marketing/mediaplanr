@@ -169,6 +169,20 @@ reference:
   - model_map
   - spend_by_model
 
+- title: Rules a plan must keep
+  desc: >
+    The group rules a plan lives under -- a share floor, a fixed upfront
+    total, a cap on how far a channel may move from the approved plan --
+    written once, so the agent checking its own proposal and the optimizer
+    read the same definition of "allowed". A violation is reported, never
+    refused.
+  contents:
+  - plan_constraints
+  - rules
+  - check_constraints
+  - constraints_schema
+  - PlanConstraints
+
 - title: Saving and reloading
   desc: >
     Persist a plan or a whole scenario set as JSON and rebuild it. The rebuild

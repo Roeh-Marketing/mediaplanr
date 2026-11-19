@@ -7,7 +7,7 @@
 plan_to_json(x, path = NULL, pretty = TRUE)
 }
 \arguments{
-\item{x}{A \link{MediaPlan} or \link{ScenarioSet}.}
+\item{x}{A \link{MediaPlan}, \link{ScenarioSet} or \link{PlanConstraints}.}
 
 \item{path}{Optional file path. When supplied, the JSON is written there and
 \code{path} is returned invisibly; otherwise the JSON string is returned.}
@@ -18,8 +18,8 @@ plan_to_json(x, path = NULL, pretty = TRUE)
 A JSON string (class \code{json}), or \code{path} invisibly when writing a file.
 }
 \description{
-Writes a \link{MediaPlan} or a \link{ScenarioSet} to JSON that \code{\link[=plan_from_json]{plan_from_json()}} can
-rebuild faithfully. For a plan, only its \emph{settable} slots are written —
+Writes a \link{MediaPlan}, a \link{ScenarioSet} or a \link{PlanConstraints} to JSON that
+\code{\link[=plan_from_json]{plan_from_json()}} can rebuild faithfully. For a plan, only its \emph{settable} slots are written —
 \verb{@data}, \verb{@grain}, \verb{@time_col}, \verb{@time_basis}, \verb{@tz}, \verb{@id}, \verb{@parent_id},
 and the metadata scalars
 — plus an \code{object} tag and a \code{schema_version}. Derived facts
@@ -44,6 +44,9 @@ ignores \code{subplans} still gets the right totals. Schema version 2 added
 added \code{time_basis}, and still reads a v1 or v2 file as the weekly plan it
 was. Version 4 adds \code{edits}, \code{rationale}, \code{approved_on} and \code{spend_basis}
 and drops \code{revision}, which an older file may still carry and is ignored.
+
+A \link{PlanConstraints} writes its \verb{@id}, \verb{@name} and its rules, each as the
+plain list \code{\link[=plan_constraints]{plan_constraints()}} takes.
 }
 \examples{
 p <- media_plan_from_df(

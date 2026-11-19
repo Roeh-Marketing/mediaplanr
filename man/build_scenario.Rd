@@ -39,9 +39,9 @@ labelling the scenario in a \link{ScenarioSet}.}
 \item{rationale}{Optional structured reasons for the derivation, kept as
 \verb{@rationale} beside the \code{objective} headline: a named list with any of
 \code{author} (\code{"human"}, \code{"agent"} or \code{"optimizer"}), \code{goal} (text),
-\code{constraints_id} (the id of the constraints it was checked against),
-\code{forecast} (a named list of numbers the caller supplies -- the package
-never computes them) and \code{notes} (text). Never inherited.}
+\code{constraints_id} (the \verb{@id} of the \link{PlanConstraints} it was checked
+against), \code{forecast} (a named list of numbers the caller supplies -- the
+package never computes them) and \code{notes} (text). Never inherited.}
 
 \item{...}{Unused; for method extension.}
 }

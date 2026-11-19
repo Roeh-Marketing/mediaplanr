@@ -96,6 +96,22 @@ fix_agency_models <- function() {
     stringsAsFactors = FALSE)
 }
 
+# Group rules for the agency plan, as a rules sheet would hold them --
+# shipped as inst/extdata/agency_constraints.csv. All five hold on the plan as
+# shipped (the change rule against itself):
+#
+#   min_share       Streaming >= 40% of the plan        (45.4%)
+#   fixed_total     Stream A totals exactly 360,000     (the upfront)
+#   max_spend       Programmatic <= 320,000 in Q4       (297,500)
+#   max_share       Online Video <= 25% of the plan     (15.9%)
+#   max_change_pct  Online Video moves <= 25% from the reference
+fix_agency_constraints <- function() {
+  sheet <- utils::read.csv(
+    system.file("extdata", "agency_constraints.csv", package = "mediaplanr"),
+    stringsAsFactors = FALSE)
+  plan_constraints(sheet, name = "agency guardrails", id = "constraints_agency")
+}
+
 fix_agency_plan <- function(name = "agency") {
   media_plan_from_df(fix_agency_df(),
                      grain = c("channel", "partner", "campaign", "tactic"),

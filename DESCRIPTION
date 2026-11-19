@@ -43,6 +43,7 @@ Collate:
     'provenance.R'
     'budget.R'
     'models.R'
+    'constraints.R'
     'describe.R'
     'subplan.R'
     'scenario-set.R'
