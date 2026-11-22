@@ -61,6 +61,33 @@ The agent loop itself is the app's, not this package's;
 
 ---
 
+## Sections and scopes
+
+Built in 0.4.0. A client keeps **one master plan per fiscal year**, worked
+on by several planners at once. The client's organization -- brand and
+performance, lines of business, channels -- is a tree of **sections**, and
+each planner is **scoped** to some of them.
+
+### Decided
+
+- **A section is a target**: the same named list of grain columns and values
+  an op, a `check_budget()` row and a `PlanConstraints` rule already use. A
+  **scope** is a list of targets. A section's envelope is a `check_budget()`
+  row. Nothing new is stored.
+- **A draft is a scenario** under a base revision. It is approved by
+  replaying its `@edits` on the *current* revision, so approved revisions
+  stay one chain and `current_approved()` returns one plan. `rebase_check()`
+  says whether the replay does what the draft did.
+- **Every organization level is a grain column**, because a target may only
+  name grain columns. A grouping the plan lacks (funnel over `channel`) is
+  added with `regrain()`, which keeps the plan's id, lineage and approval.
+- **The app does not match rows itself.** `match_rows()`, `ops_within()` and
+  the rest resolve rows through the matcher the edits use, so a scope check
+  cannot disagree with what an edit would touch. They read: they do not
+  refuse subplan-owned rows the way every edit door still does.
+
+---
+
 ## API style
 
 ### Decided
@@ -289,6 +316,10 @@ weekly rows and nothing else:
   scenarios its agent proposes); `@approved_on` in place of `@revision`, and
   `current_approved()`; `@spend_basis`; `check_budget()`; and the two
   additions below, both now built.
+- **Since 0.4.0.** The master-plan verbs: `match_rows()` in place of any
+  row matching of its own, `assign_sections()` for the organization tree,
+  `ops_within()` to enforce a planner's scope before building, and
+  `rebase_check()` before replaying a draft onto the current revision.
 
 Two package-side additions would make that integration deterministic rather than
 prose-steered, and belong here because the app's own charter says all plan
@@ -499,6 +530,16 @@ Listed because earlier revisions of the README named these as future work:
   binding rules, and a scenario's `rationale$constraints_id` names the rule
   set it was checked against.
 
+- **Sections and scopes** -- built (0.4.0). `match_rows()` is the public
+  face of the edit path's matcher: one target or a list of targets, `during`,
+  strict or lenient. `assign_sections()` places line items in an
+  organization tree's leaves, reporting overlaps and gaps without refusing
+  them. `ops_within()` checks a list of ops against a scope in order, so an
+  `add` creates rows a later op may target. `rebase_check()` compares the
+  rows a draft touches on its base and on the current revision. `regrain()`
+  adds an organization level as a grain column. The reasoning is above,
+  under *Sections and scopes*.
+
 ---
 
 ## Not yet built
@@ -508,6 +549,10 @@ Listed because earlier revisions of the README named these as future work:
   "allowed". `check_constraints()` documents the semantics it must match:
   spend measured day by day inside each rule's window, shares against the
   whole plan in the same window. Not started here; `mrmopt` is untouched.
+- **`regrain()` beyond one flat plan.** It takes one plan: a set of
+  revisions and drafts is regrained plan by plan with the same arguments
+  (ids, and so lineage, are unchanged), and a topline is refused because its
+  subplans would need the column too.
 - **A spreadsheet importer, as a companion package** (`mediaplanr.io`): a
   declarative column map plus regex rules that turn an agency workbook into a
   `MediaPlan` and a lint report. A companion so that `readxl` and the long tail

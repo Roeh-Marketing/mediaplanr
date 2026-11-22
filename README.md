@@ -110,6 +110,7 @@ the **bound** columns (`bound_cols()`) recording spend that cannot move.
 | Pair with a decomp or a budget | `check_coverage()`, `check_budget()` |
 | Hand spend to response models | `model_map()`, `spend_by_model()` |
 | Rules a plan must keep | `plan_constraints()`, `rule_min_share()` and the other `rule_*()`, `check_constraints()`, `constraints_schema()` |
+| Sections and scopes | `match_rows()`, `assign_sections()`, `ops_within()`, `rebase_check()`, `regrain()` |
 
 
 ## Learn more
