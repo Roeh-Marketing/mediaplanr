@@ -231,3 +231,161 @@ print.section_assignment <- function(x, ...) {
   }
   invisible(x)
 }
+
+# ---- Ops, however written ----------------------------------------------------------
+
+# `ops` as the canonical op list build_scenario() would apply: a list of ops, a
+# single op, constructor-built or JSON-parsed -- or a stored `@edits` record,
+# so a draft's own record can be checked. An allocation names its rows
+# outright and is not an op list; `fn` names the caller in the refusal.
+.as_op_list <- function(plan, ops, fn) {
+  form <- if (is.list(ops) && !is.data.frame(ops)) ops[["form"]]
+  if (identical(form, "ops")) ops <- ops[["ops"]]
+  if (identical(form, "allocation") || is.data.frame(ops) ||
+      (is.numeric(ops) && !is.null(names(ops)))) {
+    stop(fn, " checks operations. An allocation names its rows outright: ",
+         "read them with match_rows().", call. = FALSE)
+  }
+  .record_edits(plan, ops)$ops
+}
+
+# The row selections an op makes, each with the target and window that make
+# it, named by side: `from` and `to` for a transfer, `target` otherwise. `add`
+# selects nothing -- it creates rows -- and is handled by its callers.
+.op_sides <- function(op, key) {
+  if (identical(key, "transfer")) {
+    return(list(
+      from = list(target = op[["from"]], during = op[["from_during"]] %||% op[["during"]]),
+      to   = list(target = op[["to"]],   during = op[["to_during"]]   %||% op[["during"]])
+    ))
+  }
+  list(target = list(target = op[["target"]], during = op[["during"]]))
+}
+
+# The error prefix .apply_op() gives a side, so a selection made here fails
+# with the words the edit itself would use.
+.side_where <- function(i, key, side) {
+  where <- paste0("edit op ", i, ": ")
+  if (identical(key, "transfer")) paste0(where, "`", side, "`: ") else where
+}
+
+# Rows in `after` that are not in `before`, by their full grain key: what an
+# `add` created.
+.added_rows <- function(before, after, plan) {
+  after[!line_item(after, plan@grain) %in% line_item(before, plan@grain), ,
+        drop = FALSE]
+}
+
+# ---- ops_within ------------------------------------------------------------------
+
+#' Do these ops stay inside a scope?
+#'
+#' Checks that every row a list of ops would touch lies inside a planner's
+#' scope -- a list of targets, such as the sections they own. The answer is
+#' one row per op side that reaches outside it, so zero rows means every op
+#' stays inside.
+#'
+#' Rows are resolved exactly as [build_scenario()] resolves them, **in
+#' order**: an `add` earlier in the list creates rows a later op may target,
+#' and a `drop` removes rows a later op can no longer reach. `during`, and a
+#' transfer's `from_during` / `to_during`, narrow each side as they do when
+#' the op is applied. An `add` is outside when the line item it creates does
+#' not match the scope.
+#'
+#' A target that does not exist is refused here with the error
+#' [build_scenario()] gives. Ops that change which rows exist, when they run,
+#' or how they are bound (`add`, `drop`, `shift`, `restage`, `rebound`) are
+#' applied as they go, and refused as they would be there. Ops that only move
+#' money are not applied: they cannot change what a later op selects, and
+#' whether the money can move -- past a floor, say -- is [build_scenario()]'s
+#' question, whose answer must not hide this one. The scope is read leniently
+#' ([match_rows()] with `strict = FALSE`): it may name values the plan no
+#' longer has.
+#'
+#' @param plan The [MediaPlan] the ops would be applied to.
+#' @param ops The ops, in any form [build_scenario()] takes them: a list of
+#'   ops or a single op -- plain lists, [op constructors][ops], or parsed from
+#'   JSON -- or a scenario's `@edits` record.
+#' @param scope The scope: a target, or a list of targets. Empty is the whole
+#'   plan.
+#' @return A data frame with one row per op side that selects rows outside
+#'   `scope`:
+#'   \describe{
+#'     \item{`op`}{The op's position in `ops`.}
+#'     \item{`side`}{`"target"`, `"from"`, `"to"` or `"add"`.}
+#'     \item{`line_items`}{A list column: the line items ([line_item()] at
+#'       [line_item_grain()]) that side reaches outside the scope.}
+#'   }
+#' @examples
+#' plan <- media_plan_from_df(
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "TV", "Search", "Social"),
+#'              partner = c("NBC", "ESPN", "Google", "Meta"),
+#'              planned_spend = c(50, 30, 40, 40)),
+#'   grain = c("channel", "partner"), time = "week", name = "Q3"
+#' )
+#' video <- list(channel = "TV")
+#'
+#' # inside: money moves between two TV partners
+#' ops_within(plan, op_transfer(10, from = list(partner = "NBC"),
+#'                              to = list(partner = "ESPN")), video)
+#'
+#' # outside: the money comes from Search
+#' ops_within(plan, op_transfer(10, from = list(channel = "Search"),
+#'                              to = list(partner = "ESPN")), video)
+#' @seealso [match_rows()], [rebase_check()]
+#' @export
+ops_within <- function(plan, ops, scope) {
+  .stop_if_not_plan(plan)
+  if (missing(scope)) {
+    stop("`scope` is required: a target, or a list of targets. Pass list() ",
+         "for the whole plan.", call. = FALSE)
+  }
+  targets <- .as_targets(scope, "scope")
+  ops     <- .as_op_list(plan, ops, "ops_within()")
+  lg      <- line_item_grain(plan)
+
+  in_scope <- function(rows) {
+    .match_targets(rows, plan, targets, strict = FALSE, where = "`scope`: ")
+  }
+  found <- list()
+  outside <- function(i, side, rows) {
+    if (!nrow(rows)) return(NULL)
+    list(list(op = i, side = side, line_items = unique(line_item(rows, lg))))
+  }
+
+  d <- plan@data
+  for (i in seq_along(ops)) {
+    op  <- ops[[i]]
+    key <- .op_key(op)
+    if (identical(key, "add")) {
+      after <- .apply_op(d, plan, op, i)
+      new   <- .added_rows(d, after, plan)
+      found <- c(found, outside(i, "add", new[!in_scope(new), , drop = FALSE]))
+    } else {
+      inside <- in_scope(d)
+      sides  <- .op_sides(op, key)
+      for (side in names(sides)) {
+        sel <- .find_rows(d, plan, sides[[side]]$target, sides[[side]]$during,
+                          .side_where(i, key, side))
+        found <- c(found, outside(i, side, d[sel & !inside, , drop = FALSE]))
+      }
+      # An op that only moves money cannot change which rows a later op
+      # selects, so it is not applied: whether the money can move is
+      # build_scenario()'s question, and its answer must not hide this one.
+      # Ops that change which rows exist, when they run, or how they are
+      # bound (a later drop may need an earlier rebound) are applied.
+      after <- if (identical(.op_registry[[key]]$family, "value")) d else
+        .apply_op(d, plan, op, i)
+    }
+    d <- after
+  }
+
+  out <- data.frame(
+    op   = vapply(found, function(f) f$op, integer(1)),
+    side = vapply(found, function(f) f$side, character(1)),
+    stringsAsFactors = FALSE
+  )
+  out$line_items <- lapply(found, function(f) f$line_items)
+  out
+}

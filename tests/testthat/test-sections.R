@@ -206,3 +206,155 @@ test_that("assign_sections refuses a malformed tree, and a column not in the gra
   expect_error(assign_sections(p, list(Brand = list(funnel = "Brand"))),
                "section 'Brand': `target` may only name grain columns")
 })
+
+# ---- ops_within ------------------------------------------------------------------
+
+brand <- function() list(channel = c("Streaming", "Online Video"))
+dsp_a_items <- function() c("Programmatic | DSP A | Brand | Prospecting",
+                            "Programmatic | DSP A | Promo | Retargeting")
+
+test_that("each one-target op is inside or outside its scope", {
+  p <- fix_agency_plan()
+  makers <- list(
+    set        = function(t) op_set(1000, target = t),
+    scale      = function(t) op_scale(1.1, target = t),
+    delta      = function(t) op_delta(-1000, target = t),
+    delta_each = function(t) op_delta_each(-10, target = t),
+    total      = function(t) op_total(50000, target = t),
+    rebound    = function(t) op_rebound(max = 1e6, target = t),
+    drop       = function(t) op_drop(target = t)
+  )
+  for (key in names(makers)) {
+    inside <- ops_within(p, makers[[key]](list(partner = "Stream B")), brand())
+    expect_equal(nrow(inside), 0, info = key)
+    expect_named(inside, c("op", "side", "line_items"))
+
+    out <- ops_within(p, makers[[key]](list(partner = "DSP A")), brand())
+    expect_equal(nrow(out), 1, info = key)
+    expect_equal(out$op, 1L, info = key)
+    expect_equal(out$side, "target", info = key)
+    expect_equal(out$line_items[[1]], dsp_a_items(), info = key)
+  }
+})
+
+test_that("an op with no target reaches the whole plan", {
+  p <- fix_agency_plan()
+  # build_scenario() would refuse this at the committed upfront; the scope
+  # answer is given regardless
+  out <- ops_within(p, op_scale(1.05), brand())
+  expect_equal(out$side, "target")
+  expect_length(out$line_items[[1]], 3)   # the three Programmatic line items
+})
+
+test_that("shift and restage are inside or outside their scope", {
+  buys <- data.frame(
+    channel = c("TV", "Search"), partner = c("NBC", "Google"),
+    flight_start = as.Date(c("2026-07-06", "2026-07-06")),
+    flight_end   = as.Date(c("2026-07-26", "2026-07-26")),
+    planned_spend = c(300, 90))
+  p <- media_plan_from_flights(buys, grain = c("channel", "partner"),
+                               name = "flights")
+  tv <- list(channel = "TV")
+  expect_equal(nrow(ops_within(p, op_shift(7, list(channel = "TV")), tv)), 0)
+  expect_equal(ops_within(p, op_shift(7, list(channel = "Search")), tv)$side,
+               "target")
+  expect_equal(nrow(ops_within(p, op_restage("2026-08-03", "2026-08-23",
+                                             list(partner = "NBC")), tv)), 0)
+  out <- ops_within(p, op_restage("2026-08-03", "2026-08-23",
+                                  list(partner = "Google")), tv)
+  expect_equal(out$line_items[[1]], "Search | Google")
+})
+
+test_that("a transfer with one side outside reports that side only", {
+  p <- fix_agency_plan()
+  inside <- op_transfer(5000, from = list(partner = "Stream B"),
+                        to = list(partner = "Video A", tactic = "Prospecting"))
+  expect_equal(nrow(ops_within(p, inside, brand())), 0)
+
+  raid <- op_transfer(5000, from = list(partner = "DSP A"),
+                      to = list(partner = "Stream B"))
+  out <- ops_within(p, raid, brand())
+  expect_equal(out$side, "from")
+  expect_equal(out$line_items[[1]], dsp_a_items())
+
+  give <- op_transfer(5000, from = list(partner = "Stream B"),
+                      to = list(channel = "Programmatic"))
+  expect_equal(ops_within(p, give, brand())$side, "to")
+})
+
+test_that("an add outside the scope is reported", {
+  p <- fix_agency_plan()
+  audio <- op_add(channel = "Audio", partner = "Pod A", campaign = "Brand",
+                  tactic = "Prospecting", month = "2027-01-01",
+                  planned_spend = 5000)
+  out <- ops_within(p, audio, brand())
+  expect_equal(out$side, "add")
+  expect_equal(out$line_items[[1]], "Audio | Pod A | Brand | Prospecting")
+  # the same line item, inside a scope that names a channel the plan lacks
+  expect_equal(nrow(ops_within(p, audio, list(channel = c("Streaming", "Audio")))), 0)
+})
+
+test_that("an add then an op on the added row is inside", {
+  p <- fix_agency_plan()
+  ops <- list(
+    op_add(channel = "Streaming", partner = "Stream C", campaign = "Brand",
+           tactic = "Prospecting", month = "2027-01-01", planned_spend = 0),
+    op_transfer(5000, from = list(partner = "Stream B"),
+                to = list(partner = "Stream C"))
+  )
+  expect_equal(nrow(ops_within(p, ops, brand())), 0)
+  # out of order, the second op names a partner that does not exist yet
+  expect_error(ops_within(p, rev(ops), brand()),
+               "edit op 1: `to`: no such value\\(s\\) in 'partner': Stream C")
+})
+
+test_that("a drop after the rebound that frees it is applied in order", {
+  p <- fix_agency_plan()
+  ops <- list(op_rebound(min = NA, target = list(partner = "DSP B")),
+              op_drop(target = list(partner = "DSP B")))
+  perf <- list(channel = "Programmatic")
+  expect_equal(nrow(ops_within(p, ops, perf)), 0)
+  expect_error(ops_within(p, ops[2], perf), "would remove row\\(s\\) with a floor")
+})
+
+test_that("from_during narrows the source side", {
+  p <- fix_agency_plan()
+  # Brand is scoped by channel and Q1; Q4 rows are outside it
+  scope <- list(channel = c("Streaming", "Online Video"),
+                month = c("2027-01-01", "2027-02-01", "2027-03-01"))
+  ok <- op_transfer(5000, from = list(partner = "Stream B"),
+                    to = list(partner = "Video A", tactic = "Prospecting"),
+                    during = q1())
+  expect_equal(nrow(ops_within(p, ok, scope)), 0)
+
+  early <- op_transfer(5000, from = list(partner = "Stream B"),
+                       to = list(partner = "Video A", tactic = "Prospecting"),
+                       from_during = list(from = "2026-12-01", to = "2026-12-31"),
+                       to_during = q1())
+  out <- ops_within(p, early, scope)
+  expect_equal(out$side, "from")
+  expect_equal(out$line_items[[1]], c("Streaming | Stream B | Brand | Prospecting",
+                                      "Streaming | Stream B | Promo | Regional"))
+})
+
+test_that("ops_within takes ops from JSON and from a stored record", {
+  p <- fix_agency_plan()
+  json <- jsonlite::fromJSON(
+    '[{"transfer": 5000, "from": {"partner": "DSP A"}, "to": {"partner": "Stream B"}},
+      {"scale": 1.1, "target": {"partner": ["Stream B"]}}]',
+    simplifyVector = FALSE)
+  out <- ops_within(p, json, brand())
+  expect_equal(out$op, 1L)
+  expect_equal(out$side, "from")
+
+  s <- build_scenario(p, json, name = "draft")
+  expect_equal(ops_within(p, s@edits, brand()), out)
+})
+
+test_that("ops_within refuses an allocation and a missing scope", {
+  p <- fix_agency_plan()
+  expect_error(ops_within(p, c("x" = 1), brand()), "checks operations")
+  expect_error(ops_within(p, op_scale(2)), "`scope` is required")
+  expect_error(ops_within(p, op_scale(2), list(funnel = "Brand")),
+               "`scope`: `target` may only name grain columns")
+})
