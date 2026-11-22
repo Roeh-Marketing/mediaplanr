@@ -82,7 +82,7 @@ jsonlite::toJSON(description[c("commitments", "constraints", "models")],
 #>     "n_bounded_line_items": 3
 #>   },
 #>   "constraints": {
-#>     "id": "constraints_20261119173014_cb283f",
+#>     "id": "constraints_20261122212521_cb283f",
 #>     "n_rules": 5,
 #>     "n_ok": 5,
 #>     "violated": [],
@@ -305,6 +305,233 @@ record, so it cannot have drifted from it. Approval is the person’s:
 [`current_approved()`](https://roeh-marketing.github.io/mediaplanr/reference/current_approved.md)
 names the new plan and the next loop starts from it.
 
+## One master plan, several planners
+
+So far one agent edited one plan. In practice a client keeps **one
+master plan per fiscal year**, and several planners – people or agents –
+work on it at once, each over their own part of the organization. That
+needs no new object, only four ideas the package already has:
+
+- A **section** of the organization is a target: the named list of grain
+  columns and values an op already uses.
+- A planner’s **scope** is a list of targets: the sections they own.
+- A **draft** is a scenario under the revision it was written against.
+  It is approved by replaying its ops on the *current* revision, so the
+  approved revisions stay one chain.
+- Every level of the organization is a grain column, because a target
+  may only name grain columns.
+
+### Every level is a column
+
+The organization here splits Brand from Performance above the channels.
+The plan has no such column, so it gets one, read off `channel`:
+
+``` r
+
+master <- regrain(plan, "funnel", from = "channel",
+                  groups = list(Brand = c("Streaming", "Online Video"),
+                                Performance = "Programmatic"))
+master <- revise(master, nickname = "Rev 1")
+master@grain
+#> [1] "funnel"   "channel"  "partner"  "campaign" "tactic"   "month"
+```
+
+It is the same plan – same id, same approval – keyed one level deeper.
+The sections are the leaves of the organization tree, and
+[`assign_sections()`](https://roeh-marketing.github.io/mediaplanr/reference/assign_sections.md)
+says where each line item falls; a line item in two leaves, or in none,
+would be listed under the table, not refused:
+
+``` r
+
+sections <- list(
+  Streaming    = list(funnel = "Brand", channel = "Streaming"),
+  Video        = list(funnel = "Brand", channel = "Online Video"),
+  Programmatic = list(funnel = "Performance", channel = "Programmatic")
+)
+assign_sections(master, sections)
+#>                                                  line_item      section
+#> 1     Brand | Online Video | Video A | Brand | Added Value        Video
+#> 2     Brand | Online Video | Video A | Brand | Prospecting        Video
+#> 3        Brand | Online Video | Video B | Promo | Regional        Video
+#> 4 Performance | Programmatic | DSP A | Brand | Prospecting Programmatic
+#> 5 Performance | Programmatic | DSP A | Promo | Retargeting Programmatic
+#> 6 Performance | Programmatic | DSP B | Promo | Prospecting Programmatic
+#> 7           Brand | Streaming | Stream A | Brand | Upfront    Streaming
+#> 8       Brand | Streaming | Stream B | Brand | Prospecting    Streaming
+#> 9          Brand | Streaming | Stream B | Promo | Regional    Streaming
+#>   n_matches
+#> 1         1
+#> 2         1
+#> 3         1
+#> 4         1
+#> 5         1
+#> 6         1
+#> 7         1
+#> 8         1
+#> 9         1
+#> Every line item is in exactly one section.
+```
+
+### A draft in each scope
+
+The Brand planner owns two sections, and the Performance planner owns
+one:
+
+``` r
+
+brand_scope <- sections[c("Streaming", "Video")]
+perf_scope  <- sections["Programmatic"]
+```
+
+The app asks
+[`ops_within()`](https://roeh-marketing.github.io/mediaplanr/reference/ops_within.md)
+before it builds anything. It resolves each op’s rows exactly as
+[`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md)
+would, so the answer cannot disagree with the edit. The Brand planner’s
+move stays inside their scope:
+
+``` r
+
+q1 <- list(from = "2027-01-01", to = "2027-03-31")
+brand_ops <- list(op_transfer(10000, from = list(partner = "Stream B"),
+                              to = list(partner = "Video A",
+                                        tactic = "Prospecting"),
+                              during = q1))
+ops_within(master, brand_ops, brand_scope)
+#> [1] op         side       line_items
+#> <0 rows> (or 0-length row.names)
+brand_draft <- build_scenario(master, brand_ops, name = "Brand draft")
+```
+
+The Performance planner’s second op takes money out of Streaming, which
+they do not own:
+
+``` r
+
+perf_ops <- list(
+  op_transfer(5000, from = list(partner = "DSP B"),
+              to = list(partner = "DSP A", tactic = "Prospecting"), during = q1),
+  op_transfer(5000, from = list(partner = "Stream B"),
+              to = list(partner = "DSP A", tactic = "Prospecting"), during = q1)
+)
+outside <- ops_within(master, perf_ops, perf_scope)
+outside
+#>   op side
+#> 1  2 from
+#>                                                                                            line_items
+#> 1 Brand | Streaming | Stream B | Brand | Prospecting, Brand | Streaming | Stream B | Promo | Regional
+```
+
+The app refuses that op, and the draft is built from the rest:
+
+``` r
+
+perf_draft <- build_scenario(master, perf_ops[-outside$op],
+                             name = "Performance draft")
+set <- add_scenario(add_scenario(scenario_set(master), brand_draft),
+                    perf_draft)
+current_approved(set)
+#> [1] "Rev 1"
+```
+
+### Approving a draft is replaying it
+
+Both drafts were written under Rev 1. Approving one means replaying its
+ops on whatever revision is current, which is Rev 1 for the first
+approval:
+
+``` r
+
+approve <- function(set, draft, nickname, on) {
+  current <- set@scenarios[[current_approved(set)]]
+  rev <- build_scenario(current, draft@edits$ops, name = master@name,
+                        nickname = nickname)
+  add_scenario(set, revise(rev, status = "approved", approved_on = on))
+}
+set <- approve(set, brand_draft, "Rev 2", "2026-10-01")
+current_approved(set)
+#> [1] "Rev 2"
+```
+
+The Performance draft was written under Rev 1 too, but Rev 2 is current
+now.
+[`rebase_check()`](https://roeh-marketing.github.io/mediaplanr/reference/rebase_check.md)
+says whether replaying it on Rev 2 does to its rows what it did on
+Rev 1. Rev 2 changed only Brand’s rows, so it does:
+
+``` r
+
+rebase_check(master, set@scenarios[["Rev 2"]], perf_draft@edits)
+#> [1] op            side          row           issue         columns      
+#> [6] base_spend    current_spend
+#> <0 rows> (or 0-length row.names)
+set <- approve(set, perf_draft, "Rev 3", "2026-10-02")
+current_approved(set)
+#> [1] "Rev 3"
+```
+
+Rev 3 holds both planners’ changes, and neither had to wait for the
+other.
+
+### When a draft goes stale
+
+A third draft is written under Rev 3. Before it is approved, a
+reallocation from the top moves Q1 money from Brand to Performance and
+is approved as Rev 4:
+
+``` r
+
+rev3 <- set@scenarios[["Rev 3"]]
+brand_draft_2 <- build_scenario(rev3, op_transfer(
+  4000, from = list(partner = "Stream B", campaign = "Promo"),
+  to = list(partner = "Stream B", campaign = "Brand"), during = q1),
+  name = "Brand draft 2")
+top_down <- build_scenario(rev3, op_transfer(
+  20000, from = list(funnel = "Brand"), to = list(funnel = "Performance"),
+  during = q1), name = "Top-down reallocation")
+set <- approve(add_scenario(set, brand_draft_2), top_down, "Rev 4",
+               "2026-10-15")
+
+rebase_check(rev3, set@scenarios[["Rev 4"]], brand_draft_2@edits)[
+  , c("op", "side", "row", "issue", "base_spend", "current_spend")]
+#>   op side                                                             row
+#> 1  1 from    Brand | Streaming | Stream B | Promo | Regional | 2027-01-01
+#> 2  1 from    Brand | Streaming | Stream B | Promo | Regional | 2027-02-01
+#> 3  1 from    Brand | Streaming | Stream B | Promo | Regional | 2027-03-01
+#> 4  1   to Brand | Streaming | Stream B | Brand | Prospecting | 2027-01-01
+#> 5  1   to Brand | Streaming | Stream B | Brand | Prospecting | 2027-02-01
+#> 6  1   to Brand | Streaming | Stream B | Brand | Prospecting | 2027-03-01
+#>     issue base_spend current_spend
+#> 1 changed       6300      5628.895
+#> 2 changed       7200      6433.023
+#> 3 changed       9000      8041.278
+#> 4 changed      18900     16886.684
+#> 5 changed      21600     19299.068
+#> 6 changed      27000     24123.835
+```
+
+The rows the draft moves money between are not what they were when it
+was written, so replaying it would not do what its planner saw. The app
+sends the draft back to be rebuilt on Rev 4. It does not replay it
+anyway.
+
+Through all of this the approvals form one chain, and there is one
+current plan:
+
+``` r
+
+lineage(set)[, c("scenario", "parent", "status", "revision", "current")]
+#>            scenario parent         status revision current
+#> 1             Rev 1   <NA>       approved        1   FALSE
+#> 2       Brand draft  Rev 1 in development       NA   FALSE
+#> 3 Performance draft  Rev 1 in development       NA   FALSE
+#> 4             Rev 2  Rev 1       approved        2   FALSE
+#> 5             Rev 3  Rev 2       approved        3   FALSE
+#> 6     Brand draft 2  Rev 3 in development       NA   FALSE
+#> 7             Rev 4  Rev 3       approved        4    TRUE
+```
+
 ## What the agent may and may not do
 
 **May:** read the plan through
@@ -329,6 +556,11 @@ and
 - **Send something malformed or vague.** A typo in a target is an error
   naming the alternatives, never a silent no-op; ops are checked whether
   they came from JSON, a constructor or by hand.
+- **Reach outside its scope.** Which rows an op touches is decided by
+  the package’s matcher, so
+  [`ops_within()`](https://roeh-marketing.github.io/mediaplanr/reference/ops_within.md)
+  gives the app the same answer the edit would. The app enforces the
+  scope.
 - **Approve its own work.** The package records approval; the app
   decides who may give it.
 

@@ -172,7 +172,7 @@ media_plan_from_df(df, grain = "channel", time = "week", name = "Q3 plan",
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       240
-#>   id          plan_953693
+#>   id          plan_3f2628
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV           100
@@ -195,7 +195,7 @@ media_plan_from_df(spots, grain = "daypart", time = "airs",
 #>     daypart   primetime
 #>   rows        2
 #>   spend       97,000
-#>   id          plan_f80f02
+#>   id          plan_c0d89c
 #> 
 #>                   airs   daypart planned_spend
 #>    2026-07-06 20:30:00 primetime         45000

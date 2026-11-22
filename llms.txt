@@ -124,6 +124,7 @@ recording spend that cannot move.
 | Pair with a decomp or a budget | [`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md), [`check_budget()`](https://roeh-marketing.github.io/mediaplanr/reference/check_budget.md) |
 | Hand spend to response models | [`model_map()`](https://roeh-marketing.github.io/mediaplanr/reference/model_map.md), [`spend_by_model()`](https://roeh-marketing.github.io/mediaplanr/reference/spend_by_model.md) |
 | Rules a plan must keep | [`plan_constraints()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_constraints.md), [`rule_min_share()`](https://roeh-marketing.github.io/mediaplanr/reference/rules.md) and the other `rule_*()`, [`check_constraints()`](https://roeh-marketing.github.io/mediaplanr/reference/check_constraints.md), [`constraints_schema()`](https://roeh-marketing.github.io/mediaplanr/reference/constraints_schema.md) |
+| Sections and scopes | [`match_rows()`](https://roeh-marketing.github.io/mediaplanr/reference/match_rows.md), [`assign_sections()`](https://roeh-marketing.github.io/mediaplanr/reference/assign_sections.md), [`ops_within()`](https://roeh-marketing.github.io/mediaplanr/reference/ops_within.md), [`rebase_check()`](https://roeh-marketing.github.io/mediaplanr/reference/rebase_check.md), [`regrain()`](https://roeh-marketing.github.io/mediaplanr/reference/regrain.md) |
 
 ## Learn more
 
@@ -387,6 +388,26 @@ refused.
   : JSON Schema for the rules an agent may write
 - [`PlanConstraints()`](https://roeh-marketing.github.io/mediaplanr/reference/PlanConstraints.md)
   : A set of rules a plan must keep
+
+## Sections and scopes
+
+One master plan, several planners. A section of the organization is a
+target, a planner’s scope is a list of them, and every level of the
+organization is a grain column. These resolve rows through the matcher
+the edits use, so a scope check never disagrees with an edit – and a
+draft written under one revision can be checked before it is replayed on
+the current one.
+
+- [`match_rows()`](https://roeh-marketing.github.io/mediaplanr/reference/match_rows.md)
+  : The rows a target selects
+- [`assign_sections()`](https://roeh-marketing.github.io/mediaplanr/reference/assign_sections.md)
+  : Which section each line item belongs to
+- [`ops_within()`](https://roeh-marketing.github.io/mediaplanr/reference/ops_within.md)
+  : Do these ops stay inside a scope?
+- [`rebase_check()`](https://roeh-marketing.github.io/mediaplanr/reference/rebase_check.md)
+  : Would these ops do the same on the current revision?
+- [`regrain()`](https://roeh-marketing.github.io/mediaplanr/reference/regrain.md)
+  : Add an organization level to a plan's grain
 
 ## Saving and reloading
 

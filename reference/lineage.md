@@ -102,9 +102,9 @@ s2  <- build_scenario(s1, list(target = list(channel = "TV"), total = 70),
 set <- add_scenario(add_scenario(scenario_set(base), s1), s2)
 lineage(set)
 #>      scenario                         id                  parent_id    parent
-#> 1        base plan_20261119173008_696283                       <NA>      <NA>
-#> 2   Search up plan_20261119173008_2599c4 plan_20261119173008_696283      base
-#> 3 and TV down plan_20261119173008_e94a41 plan_20261119173008_2599c4 Search up
+#> 1        base plan_20261122212515_2599c4                       <NA>      <NA>
+#> 2   Search up plan_20261122212515_e94a41 plan_20261122212515_2599c4      base
+#> 3 and TV down plan_20261122212515_e6eb86 plan_20261122212515_e94a41 Search up
 #>   depth         status approved_on revision current spend spend_vs_parent
 #> 1     0                       <NA>       NA   FALSE   120              NA
 #> 2     1 in development        <NA>       NA   FALSE   140              20

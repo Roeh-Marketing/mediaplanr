@@ -15,6 +15,7 @@
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/PlanConstraints.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/ScenarioSet.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/add_scenario.html</loc></url>
+<url><loc>https://roeh-marketing.github.io/mediaplanr/reference/assign_sections.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/bound_cols.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.html</loc></url>
@@ -37,6 +38,7 @@
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/line_item_grain.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/line_item_summary.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/lineage.html</loc></url>
+<url><loc>https://roeh-marketing.github.io/mediaplanr/reference/match_rows.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_df.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/media_plan_from_flights.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/mediaplanr-package.html</loc></url>
@@ -44,6 +46,7 @@
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/op_rebound.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/op_transfer.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/ops.html</loc></url>
+<url><loc>https://roeh-marketing.github.io/mediaplanr/reference/ops_within.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/ownership_map.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/pacing_levels.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/period_basis_levels.html</loc></url>
@@ -54,6 +57,8 @@
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/plan_to_json.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/plan_tree.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/print.html</loc></url>
+<url><loc>https://roeh-marketing.github.io/mediaplanr/reference/rebase_check.html</loc></url>
+<url><loc>https://roeh-marketing.github.io/mediaplanr/reference/regrain.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/revise.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/roll_up.html</loc></url>
 <url><loc>https://roeh-marketing.github.io/mediaplanr/reference/rules.html</loc></url>

@@ -63,7 +63,7 @@ media_plan_from_df(
              planned_spend = c(50000, -4000)),
   grain = "channel", time = "week", name = "With a credit row"
 )
-#> Error:
+#> Error in `MediaPlan()`:
 #> ! <mediaplanr::MediaPlan> object is invalid:
 #> - 'planned_spend' must be non-negative.
 ```
@@ -213,7 +213,7 @@ media_plan_from_df(
   data.frame(week = as.Date("2026-07-06"), channel = c("TV", "TV"), planned_spend = c(1, 2)),
   grain = "channel", time = "week", name = "duplicated"
 )
-#> Error:
+#> Error in `MediaPlan()`:
 #> ! <mediaplanr::MediaPlan> object is invalid:
 #> - @data has duplicate rows at grain (channel, week): TV | 2026-07-06. One row per grain cell is required.
 ```

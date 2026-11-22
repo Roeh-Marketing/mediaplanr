@@ -12,9 +12,9 @@
 <link rel="manifest" href="../site.webmanifest">
 <script src="../lightswitch.js"></script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Lora-0.4.10/font.css" rel="stylesheet">
-<link href="../deps/Inter-0.4.10/font.css" rel="stylesheet">
-<link href="../deps/Fira_Code-0.4.10/font.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Lora-0.5.0/font.css" rel="stylesheet">
+<link href="../deps/Inter-0.5.0/font.css" rel="stylesheet">
+<link href="../deps/Fira_Code-0.5.0/font.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Getting started">
@@ -27,7 +27,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mediaplanr</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -150,7 +150,7 @@ is not a simple data.frame.</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="va">media_plan</span><span class="op">)</span></span>
 <span><span class="co">#&gt; &lt;mediaplanr::MediaPlan&gt;</span></span>
-<span><span class="co">#&gt;  @ data        :'data.frame':    3 obs. of  3 variables:</span></span>
+<span><span class="co">#&gt;  @ data        : 'data.frame':   3 obs. of  3 variables:</span></span>
 <span><span class="co">#&gt;  .. $ channel      : chr  "TV" "Search" "Social"</span></span>
 <span><span class="co">#&gt;  .. $ planned_spend: num  80000 40000 40000</span></span>
 <span><span class="co">#&gt;  .. $ week         : Date, format: "2026-09-14" "2026-09-21" ...</span></span>
@@ -158,7 +158,7 @@ is not a simple data.frame.</p>
 <span><span class="co">#&gt;  @ time_col    : chr "week"</span></span>
 <span><span class="co">#&gt;  @ time_basis  : chr "week"</span></span>
 <span><span class="co">#&gt;  @ tz          : chr ""</span></span>
-<span><span class="co">#&gt;  @ id          : chr "plan_20261119173018_acd597"</span></span>
+<span><span class="co">#&gt;  @ id          : chr "plan_20261122212525_acd597"</span></span>
 <span><span class="co">#&gt;  @ parent_id   : chr(0) </span></span>
 <span><span class="co">#&gt;  @ name        : chr "Q3 sketch"</span></span>
 <span><span class="co">#&gt;  @ nickname    : chr ""</span></span>
@@ -320,9 +320,9 @@ inside its week.</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/flights.html">flights</a></span><span class="op">(</span><span class="va">flighted</span><span class="op">)</span></span>
 <span><span class="co">#&gt;   channel  partner              flight_id flight_start flight_end period_basis</span></span>
-<span><span class="co">#&gt; 1     OOH JCDecaux fl_20261119173018_7766   2026-04-06 2026-05-03       flight</span></span>
-<span><span class="co">#&gt; 2      TV      NBC fl_20261119173018_c5c4   2026-04-06 2026-04-12         week</span></span>
-<span><span class="co">#&gt; 3  Search   Google fl_20261119173018_4a2f   2026-04-08 2026-04-08          day</span></span>
+<span><span class="co">#&gt; 1     OOH JCDecaux fl_20261122212525_7766   2026-04-06 2026-05-03       flight</span></span>
+<span><span class="co">#&gt; 2      TV      NBC fl_20261122212525_c5c4   2026-04-06 2026-04-12         week</span></span>
+<span><span class="co">#&gt; 3  Search   Google fl_20261122212525_4a2f   2026-04-08 2026-04-08          day</span></span>
 <span><span class="co">#&gt;   pacing planned_spend n_periods</span></span>
 <span><span class="co">#&gt; 1   even        120000         4</span></span>
 <span><span class="co">#&gt; 2   even         33333         1</span></span>
@@ -586,9 +586,9 @@ renaming the formal plans:</p>
 <div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/compare_scenarios.html">compare_scenarios</a></span><span class="op">(</span><span class="va">set</span>, <span class="st">"summary"</span><span class="op">)</span></span>
 <span><span class="co">#&gt;    scenario                    plan_id                  parent_id</span></span>
-<span><span class="co">#&gt; 1  baseline plan_20261119173018_cb283f                       &lt;NA&gt;</span></span>
-<span><span class="co">#&gt; 2   TV -20% plan_20261119173018_c45205 plan_20261119173018_cb283f</span></span>
-<span><span class="co">#&gt; 3 TV→Social plan_20261119173019_fe3218 plan_20261119173018_cb283f</span></span>
+<span><span class="co">#&gt; 1  baseline plan_20261122212525_cb283f                       &lt;NA&gt;</span></span>
+<span><span class="co">#&gt; 2   TV -20% plan_20261122212525_c45205 plan_20261122212525_cb283f</span></span>
+<span><span class="co">#&gt; 3 TV→Social plan_20261122212525_fe3218 plan_20261122212525_cb283f</span></span>
 <span><span class="co">#&gt;   total_planned_spend spend_vs_base spend_pct_vs_base</span></span>
 <span><span class="co">#&gt; 1             5824000             0             0.000</span></span>
 <span><span class="co">#&gt; 2             5096000       -728000            -0.125</span></span>

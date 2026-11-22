@@ -85,6 +85,6 @@ subplan_map(attach_subplan(topline, tv))
 #> 1     0 <NA>      Q3 topline                    channel + week  weekly
 #> 2     1   TV   TV  TV detail          channel + partner + week  weekly
 #>   line_items rows spend subplans status approved_on                         id
-#> 1          2    2   160        1               <NA> plan_20261119173012_283852
-#> 2          2    2   120        0               <NA> plan_20261119173012_5d3793
+#> 1          2    2   160        1               <NA> plan_20261122212519_e3fec1
+#> 2          2    2   120        0               <NA> plan_20261122212519_023707
 ```

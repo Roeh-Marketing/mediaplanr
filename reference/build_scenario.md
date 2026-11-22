@@ -298,7 +298,7 @@ build_scenario(base, edits = op_scale(1.2, target = list(channel = "Search")),
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       168
-#>   id          plan_e52cc9   derived from plan_9ec5c4
+#>   id          plan_c45205   derived from plan_e52cc9
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV            80
@@ -316,7 +316,7 @@ build_scenario(base, edits = list(scale = 1.2,
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       168
-#>   id          plan_c45205   derived from plan_9ec5c4
+#>   id          plan_fe3218   derived from plan_e52cc9
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV            80
@@ -332,7 +332,7 @@ build_scenario(base, edits = op_total(200), name = "Budget 200")
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       200
-#>   id          plan_fe3218   derived from plan_9ec5c4
+#>   id          plan_4e104d   derived from plan_e52cc9
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV           100
@@ -350,7 +350,7 @@ build_scenario(base, edits = op_transfer(10, from = list(channel = "TV"),
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       160
-#>   id          plan_4e104d   derived from plan_9ec5c4
+#>   id          plan_81f9be   derived from plan_e52cc9
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV            70
@@ -369,7 +369,7 @@ build_scenario(base, edits = list(
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       140
-#>   id          plan_81f9be   derived from plan_9ec5c4
+#>   id          plan_36adab   derived from plan_e52cc9
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV            70
@@ -390,7 +390,7 @@ build_scenario(
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       160
-#>   id          plan_36adab   derived from plan_9ec5c4
+#>   id          plan_3d322b   derived from plan_e52cc9
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV            50
@@ -407,7 +407,7 @@ build_scenario(base, edits = c("Search | 2026-07-06" = 120),
 #>     channel   Search, Social, TV
 #>   rows        3
 #>   spend       240
-#>   id          plan_3d322b   derived from plan_9ec5c4
+#>   id          plan_04bdd5   derived from plan_e52cc9
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV            80
@@ -425,7 +425,7 @@ build_scenario(base, edits = op_add(channel = "Audio", week = "2026-07-06",
 #>     channel   Audio, Search, Social, TV
 #>   rows        4
 #>   spend       185
-#>   id          plan_04bdd5   derived from plan_9ec5c4
+#>   id          plan_2b87bd   derived from plan_e52cc9
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV            80
@@ -441,7 +441,7 @@ build_scenario(base, edits = op_drop(target = list(channel = "TV")),
 #>     channel   Search, Social
 #>   rows        2
 #>   spend       80
-#>   id          plan_2b87bd   derived from plan_9ec5c4
+#>   id          plan_21b046   derived from plan_e52cc9
 #> 
 #>          week channel planned_spend
 #>    2026-07-06  Search            40

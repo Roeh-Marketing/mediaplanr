@@ -237,6 +237,26 @@ refused.
 - [`PlanConstraints()`](https://roeh-marketing.github.io/mediaplanr/reference/PlanConstraints.md)
   : A set of rules a plan must keep
 
+## Sections and scopes
+
+One master plan, several planners. A section of the organization is a
+target, a planner’s scope is a list of them, and every level of the
+organization is a grain column. These resolve rows through the matcher
+the edits use, so a scope check never disagrees with an edit – and a
+draft written under one revision can be checked before it is replayed on
+the current one.
+
+- [`match_rows()`](https://roeh-marketing.github.io/mediaplanr/reference/match_rows.md)
+  : The rows a target selects
+- [`assign_sections()`](https://roeh-marketing.github.io/mediaplanr/reference/assign_sections.md)
+  : Which section each line item belongs to
+- [`ops_within()`](https://roeh-marketing.github.io/mediaplanr/reference/ops_within.md)
+  : Do these ops stay inside a scope?
+- [`rebase_check()`](https://roeh-marketing.github.io/mediaplanr/reference/rebase_check.md)
+  : Would these ops do the same on the current revision?
+- [`regrain()`](https://roeh-marketing.github.io/mediaplanr/reference/regrain.md)
+  : Add an organization level to a plan's grain
+
 ## Saving and reloading
 
 Persist a plan or a whole scenario set as JSON and rebuild it. The

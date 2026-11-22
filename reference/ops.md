@@ -216,7 +216,7 @@ build_scenario(base, name = "trim TV, drop Social", edits = list(
 #>     channel   Search, TV
 #>   rows        2
 #>   spend       110
-#>   id          plan_04d5e7   derived from plan_f5a90e
+#>   id          plan_f0e365   derived from plan_72dfcc
 #> 
 #>          week channel planned_spend
 #>    2026-07-06      TV            70

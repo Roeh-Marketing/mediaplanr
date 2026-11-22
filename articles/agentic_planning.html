@@ -12,9 +12,9 @@
 <link rel="manifest" href="../site.webmanifest">
 <script src="../lightswitch.js"></script><script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.8/bootstrap.min.css" rel="stylesheet">
-<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Lora-0.4.10/font.css" rel="stylesheet">
-<link href="../deps/Inter-0.4.10/font.css" rel="stylesheet">
-<link href="../deps/Fira_Code-0.4.10/font.css" rel="stylesheet">
+<script src="../deps/bootstrap-5.3.8/bootstrap.bundle.min.js"></script><link href="../deps/Lora-0.5.0/font.css" rel="stylesheet">
+<link href="../deps/Inter-0.5.0/font.css" rel="stylesheet">
+<link href="../deps/Fira_Code-0.5.0/font.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
 <script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><meta property="og:title" content="Agentic planning">
@@ -27,7 +27,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">mediaplanr</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.3.0</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.4.0</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -162,7 +162,7 @@ rules are tight, and what the models cannot score.</p>
 <span><span class="co">#&gt;     "n_bounded_line_items": 3</span></span>
 <span><span class="co">#&gt;   },</span></span>
 <span><span class="co">#&gt;   "constraints": {</span></span>
-<span><span class="co">#&gt;     "id": "constraints_20261119173014_cb283f",</span></span>
+<span><span class="co">#&gt;     "id": "constraints_20261122212521_cb283f",</span></span>
 <span><span class="co">#&gt;     "n_rules": 5,</span></span>
 <span><span class="co">#&gt;     "n_ok": 5,</span></span>
 <span><span class="co">#&gt;     "violated": [],</span></span>
@@ -357,6 +357,202 @@ Approval is the person’s:
 starts from it.</p>
 </div>
 <div class="section level2">
+<h2 id="one-master-plan-several-planners">One master plan, several planners<a class="anchor" aria-label="anchor" href="#one-master-plan-several-planners"></a>
+</h2>
+<p>So far one agent edited one plan. In practice a client keeps
+<strong>one master plan per fiscal year</strong>, and several planners –
+people or agents – work on it at once, each over their own part of the
+organization. That needs no new object, only four ideas the package
+already has:</p>
+<ul>
+<li>A <strong>section</strong> of the organization is a target: the
+named list of grain columns and values an op already uses.</li>
+<li>A planner’s <strong>scope</strong> is a list of targets: the
+sections they own.</li>
+<li>A <strong>draft</strong> is a scenario under the revision it was
+written against. It is approved by replaying its ops on the
+<em>current</em> revision, so the approved revisions stay one
+chain.</li>
+<li>Every level of the organization is a grain column, because a target
+may only name grain columns.</li>
+</ul>
+<div class="section level3">
+<h3 id="every-level-is-a-column">Every level is a column<a class="anchor" aria-label="anchor" href="#every-level-is-a-column"></a>
+</h3>
+<p>The organization here splits Brand from Performance above the
+channels. The plan has no such column, so it gets one, read off
+<code>channel</code>:</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">master</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/regrain.html">regrain</a></span><span class="op">(</span><span class="va">plan</span>, <span class="st">"funnel"</span>, from <span class="op">=</span> <span class="st">"channel"</span>,</span>
+<span>                  groups <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>Brand <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Streaming"</span>, <span class="st">"Online Video"</span><span class="op">)</span>,</span>
+<span>                                Performance <span class="op">=</span> <span class="st">"Programmatic"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">master</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/revise.html">revise</a></span><span class="op">(</span><span class="va">master</span>, nickname <span class="op">=</span> <span class="st">"Rev 1"</span><span class="op">)</span></span>
+<span><span class="va">master</span><span class="op">@</span><span class="va">grain</span></span>
+<span><span class="co">#&gt; [1] "funnel"   "channel"  "partner"  "campaign" "tactic"   "month"</span></span></code></pre></div>
+<p>It is the same plan – same id, same approval – keyed one level
+deeper. The sections are the leaves of the organization tree, and
+<code><a href="../reference/assign_sections.html">assign_sections()</a></code> says where each line item falls; a line
+item in two leaves, or in none, would be listed under the table, not
+refused:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">sections</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  Streaming    <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>funnel <span class="op">=</span> <span class="st">"Brand"</span>, channel <span class="op">=</span> <span class="st">"Streaming"</span><span class="op">)</span>,</span>
+<span>  Video        <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>funnel <span class="op">=</span> <span class="st">"Brand"</span>, channel <span class="op">=</span> <span class="st">"Online Video"</span><span class="op">)</span>,</span>
+<span>  Programmatic <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>funnel <span class="op">=</span> <span class="st">"Performance"</span>, channel <span class="op">=</span> <span class="st">"Programmatic"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/assign_sections.html">assign_sections</a></span><span class="op">(</span><span class="va">master</span>, <span class="va">sections</span><span class="op">)</span></span>
+<span><span class="co">#&gt;                                                  line_item      section</span></span>
+<span><span class="co">#&gt; 1     Brand | Online Video | Video A | Brand | Added Value        Video</span></span>
+<span><span class="co">#&gt; 2     Brand | Online Video | Video A | Brand | Prospecting        Video</span></span>
+<span><span class="co">#&gt; 3        Brand | Online Video | Video B | Promo | Regional        Video</span></span>
+<span><span class="co">#&gt; 4 Performance | Programmatic | DSP A | Brand | Prospecting Programmatic</span></span>
+<span><span class="co">#&gt; 5 Performance | Programmatic | DSP A | Promo | Retargeting Programmatic</span></span>
+<span><span class="co">#&gt; 6 Performance | Programmatic | DSP B | Promo | Prospecting Programmatic</span></span>
+<span><span class="co">#&gt; 7           Brand | Streaming | Stream A | Brand | Upfront    Streaming</span></span>
+<span><span class="co">#&gt; 8       Brand | Streaming | Stream B | Brand | Prospecting    Streaming</span></span>
+<span><span class="co">#&gt; 9          Brand | Streaming | Stream B | Promo | Regional    Streaming</span></span>
+<span><span class="co">#&gt;   n_matches</span></span>
+<span><span class="co">#&gt; 1         1</span></span>
+<span><span class="co">#&gt; 2         1</span></span>
+<span><span class="co">#&gt; 3         1</span></span>
+<span><span class="co">#&gt; 4         1</span></span>
+<span><span class="co">#&gt; 5         1</span></span>
+<span><span class="co">#&gt; 6         1</span></span>
+<span><span class="co">#&gt; 7         1</span></span>
+<span><span class="co">#&gt; 8         1</span></span>
+<span><span class="co">#&gt; 9         1</span></span>
+<span><span class="co">#&gt; Every line item is in exactly one section.</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="a-draft-in-each-scope">A draft in each scope<a class="anchor" aria-label="anchor" href="#a-draft-in-each-scope"></a>
+</h3>
+<p>The Brand planner owns two sections, and the Performance planner owns
+one:</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">brand_scope</span> <span class="op">&lt;-</span> <span class="va">sections</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"Streaming"</span>, <span class="st">"Video"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="va">perf_scope</span>  <span class="op">&lt;-</span> <span class="va">sections</span><span class="op">[</span><span class="st">"Programmatic"</span><span class="op">]</span></span></code></pre></div>
+<p>The app asks <code><a href="../reference/ops_within.html">ops_within()</a></code> before it builds anything. It
+resolves each op’s rows exactly as <code><a href="../reference/build_scenario.html">build_scenario()</a></code> would,
+so the answer cannot disagree with the edit. The Brand planner’s move
+stays inside their scope:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">q1</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>from <span class="op">=</span> <span class="st">"2027-01-01"</span>, to <span class="op">=</span> <span class="st">"2027-03-31"</span><span class="op">)</span></span>
+<span><span class="va">brand_ops</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fu"><a href="../reference/op_transfer.html">op_transfer</a></span><span class="op">(</span><span class="fl">10000</span>, from <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>partner <span class="op">=</span> <span class="st">"Stream B"</span><span class="op">)</span>,</span>
+<span>                              to <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>partner <span class="op">=</span> <span class="st">"Video A"</span>,</span>
+<span>                                        tactic <span class="op">=</span> <span class="st">"Prospecting"</span><span class="op">)</span>,</span>
+<span>                              during <span class="op">=</span> <span class="va">q1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/ops_within.html">ops_within</a></span><span class="op">(</span><span class="va">master</span>, <span class="va">brand_ops</span>, <span class="va">brand_scope</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] op         side       line_items</span></span>
+<span><span class="co">#&gt; &lt;0 rows&gt; (or 0-length row.names)</span></span>
+<span><span class="va">brand_draft</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">master</span>, <span class="va">brand_ops</span>, name <span class="op">=</span> <span class="st">"Brand draft"</span><span class="op">)</span></span></code></pre></div>
+<p>The Performance planner’s second op takes money out of Streaming,
+which they do not own:</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">perf_ops</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  <span class="fu"><a href="../reference/op_transfer.html">op_transfer</a></span><span class="op">(</span><span class="fl">5000</span>, from <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>partner <span class="op">=</span> <span class="st">"DSP B"</span><span class="op">)</span>,</span>
+<span>              to <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>partner <span class="op">=</span> <span class="st">"DSP A"</span>, tactic <span class="op">=</span> <span class="st">"Prospecting"</span><span class="op">)</span>, during <span class="op">=</span> <span class="va">q1</span><span class="op">)</span>,</span>
+<span>  <span class="fu"><a href="../reference/op_transfer.html">op_transfer</a></span><span class="op">(</span><span class="fl">5000</span>, from <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>partner <span class="op">=</span> <span class="st">"Stream B"</span><span class="op">)</span>,</span>
+<span>              to <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>partner <span class="op">=</span> <span class="st">"DSP A"</span>, tactic <span class="op">=</span> <span class="st">"Prospecting"</span><span class="op">)</span>, during <span class="op">=</span> <span class="va">q1</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">outside</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/ops_within.html">ops_within</a></span><span class="op">(</span><span class="va">master</span>, <span class="va">perf_ops</span>, <span class="va">perf_scope</span><span class="op">)</span></span>
+<span><span class="va">outside</span></span>
+<span><span class="co">#&gt;   op side</span></span>
+<span><span class="co">#&gt; 1  2 from</span></span>
+<span><span class="co">#&gt;                                                                                            line_items</span></span>
+<span><span class="co">#&gt; 1 Brand | Streaming | Stream B | Brand | Prospecting, Brand | Streaming | Stream B | Promo | Regional</span></span></code></pre></div>
+<p>The app refuses that op, and the draft is built from the rest:</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">perf_draft</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">master</span>, <span class="va">perf_ops</span><span class="op">[</span><span class="op">-</span><span class="va">outside</span><span class="op">$</span><span class="va">op</span><span class="op">]</span>,</span>
+<span>                             name <span class="op">=</span> <span class="st">"Performance draft"</span><span class="op">)</span></span>
+<span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="fu"><a href="../reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="fu"><a href="../reference/scenario_set.html">scenario_set</a></span><span class="op">(</span><span class="va">master</span><span class="op">)</span>, <span class="va">brand_draft</span><span class="op">)</span>,</span>
+<span>                    <span class="va">perf_draft</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/current_approved.html">current_approved</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "Rev 1"</span></span></code></pre></div>
+</div>
+<div class="section level3">
+<h3 id="approving-a-draft-is-replaying-it">Approving a draft is replaying it<a class="anchor" aria-label="anchor" href="#approving-a-draft-is-replaying-it"></a>
+</h3>
+<p>Both drafts were written under Rev 1. Approving one means replaying
+its ops on whatever revision is current, which is Rev 1 for the first
+approval:</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">approve</span> <span class="op">&lt;-</span> <span class="kw">function</span><span class="op">(</span><span class="va">set</span>, <span class="va">draft</span>, <span class="va">nickname</span>, <span class="va">on</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="va">current</span> <span class="op">&lt;-</span> <span class="va">set</span><span class="op">@</span><span class="va">scenarios</span><span class="op">[[</span><span class="fu"><a href="../reference/current_approved.html">current_approved</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span><span class="op">]</span><span class="op">]</span></span>
+<span>  <span class="va">rev</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">current</span>, <span class="va">draft</span><span class="op">@</span><span class="va">edits</span><span class="op">$</span><span class="va">ops</span>, name <span class="op">=</span> <span class="va">master</span><span class="op">@</span><span class="va">name</span>,</span>
+<span>                        nickname <span class="op">=</span> <span class="va">nickname</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="../reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="va">set</span>, <span class="fu"><a href="../reference/revise.html">revise</a></span><span class="op">(</span><span class="va">rev</span>, status <span class="op">=</span> <span class="st">"approved"</span>, approved_on <span class="op">=</span> <span class="va">on</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu">approve</span><span class="op">(</span><span class="va">set</span>, <span class="va">brand_draft</span>, <span class="st">"Rev 2"</span>, <span class="st">"2026-10-01"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/current_approved.html">current_approved</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "Rev 2"</span></span></code></pre></div>
+<p>The Performance draft was written under Rev 1 too, but Rev 2 is
+current now. <code><a href="../reference/rebase_check.html">rebase_check()</a></code> says whether replaying it on
+Rev 2 does to its rows what it did on Rev 1. Rev 2 changed only Brand’s
+rows, so it does:</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/rebase_check.html">rebase_check</a></span><span class="op">(</span><span class="va">master</span>, <span class="va">set</span><span class="op">@</span><span class="va">scenarios</span><span class="op">[[</span><span class="st">"Rev 2"</span><span class="op">]</span><span class="op">]</span>, <span class="va">perf_draft</span><span class="op">@</span><span class="va">edits</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] op            side          row           issue         columns      </span></span>
+<span><span class="co">#&gt; [6] base_spend    current_spend</span></span>
+<span><span class="co">#&gt; &lt;0 rows&gt; (or 0-length row.names)</span></span>
+<span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu">approve</span><span class="op">(</span><span class="va">set</span>, <span class="va">perf_draft</span>, <span class="st">"Rev 3"</span>, <span class="st">"2026-10-02"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="../reference/current_approved.html">current_approved</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "Rev 3"</span></span></code></pre></div>
+<p>Rev 3 holds both planners’ changes, and neither had to wait for the
+other.</p>
+</div>
+<div class="section level3">
+<h3 id="when-a-draft-goes-stale">When a draft goes stale<a class="anchor" aria-label="anchor" href="#when-a-draft-goes-stale"></a>
+</h3>
+<p>A third draft is written under Rev 3. Before it is approved, a
+reallocation from the top moves Q1 money from Brand to Performance and
+is approved as Rev 4:</p>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">rev3</span> <span class="op">&lt;-</span> <span class="va">set</span><span class="op">@</span><span class="va">scenarios</span><span class="op">[[</span><span class="st">"Rev 3"</span><span class="op">]</span><span class="op">]</span></span>
+<span><span class="va">brand_draft_2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">rev3</span>, <span class="fu"><a href="../reference/op_transfer.html">op_transfer</a></span><span class="op">(</span></span>
+<span>  <span class="fl">4000</span>, from <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>partner <span class="op">=</span> <span class="st">"Stream B"</span>, campaign <span class="op">=</span> <span class="st">"Promo"</span><span class="op">)</span>,</span>
+<span>  to <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>partner <span class="op">=</span> <span class="st">"Stream B"</span>, campaign <span class="op">=</span> <span class="st">"Brand"</span><span class="op">)</span>, during <span class="op">=</span> <span class="va">q1</span><span class="op">)</span>,</span>
+<span>  name <span class="op">=</span> <span class="st">"Brand draft 2"</span><span class="op">)</span></span>
+<span><span class="va">top_down</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/build_scenario.html">build_scenario</a></span><span class="op">(</span><span class="va">rev3</span>, <span class="fu"><a href="../reference/op_transfer.html">op_transfer</a></span><span class="op">(</span></span>
+<span>  <span class="fl">20000</span>, from <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>funnel <span class="op">=</span> <span class="st">"Brand"</span><span class="op">)</span>, to <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>funnel <span class="op">=</span> <span class="st">"Performance"</span><span class="op">)</span>,</span>
+<span>  during <span class="op">=</span> <span class="va">q1</span><span class="op">)</span>, name <span class="op">=</span> <span class="st">"Top-down reallocation"</span><span class="op">)</span></span>
+<span><span class="va">set</span> <span class="op">&lt;-</span> <span class="fu">approve</span><span class="op">(</span><span class="fu"><a href="../reference/add_scenario.html">add_scenario</a></span><span class="op">(</span><span class="va">set</span>, <span class="va">brand_draft_2</span><span class="op">)</span>, <span class="va">top_down</span>, <span class="st">"Rev 4"</span>,</span>
+<span>               <span class="st">"2026-10-15"</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/rebase_check.html">rebase_check</a></span><span class="op">(</span><span class="va">rev3</span>, <span class="va">set</span><span class="op">@</span><span class="va">scenarios</span><span class="op">[[</span><span class="st">"Rev 4"</span><span class="op">]</span><span class="op">]</span>, <span class="va">brand_draft_2</span><span class="op">@</span><span class="va">edits</span><span class="op">)</span><span class="op">[</span></span>
+<span>  , <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"op"</span>, <span class="st">"side"</span>, <span class="st">"row"</span>, <span class="st">"issue"</span>, <span class="st">"base_spend"</span>, <span class="st">"current_spend"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;   op side                                                             row</span></span>
+<span><span class="co">#&gt; 1  1 from    Brand | Streaming | Stream B | Promo | Regional | 2027-01-01</span></span>
+<span><span class="co">#&gt; 2  1 from    Brand | Streaming | Stream B | Promo | Regional | 2027-02-01</span></span>
+<span><span class="co">#&gt; 3  1 from    Brand | Streaming | Stream B | Promo | Regional | 2027-03-01</span></span>
+<span><span class="co">#&gt; 4  1   to Brand | Streaming | Stream B | Brand | Prospecting | 2027-01-01</span></span>
+<span><span class="co">#&gt; 5  1   to Brand | Streaming | Stream B | Brand | Prospecting | 2027-02-01</span></span>
+<span><span class="co">#&gt; 6  1   to Brand | Streaming | Stream B | Brand | Prospecting | 2027-03-01</span></span>
+<span><span class="co">#&gt;     issue base_spend current_spend</span></span>
+<span><span class="co">#&gt; 1 changed       6300      5628.895</span></span>
+<span><span class="co">#&gt; 2 changed       7200      6433.023</span></span>
+<span><span class="co">#&gt; 3 changed       9000      8041.278</span></span>
+<span><span class="co">#&gt; 4 changed      18900     16886.684</span></span>
+<span><span class="co">#&gt; 5 changed      21600     19299.068</span></span>
+<span><span class="co">#&gt; 6 changed      27000     24123.835</span></span></code></pre></div>
+<p>The rows the draft moves money between are not what they were when it
+was written, so replaying it would not do what its planner saw. The app
+sends the draft back to be rebuilt on Rev 4. It does not replay it
+anyway.</p>
+<p>Through all of this the approvals form one chain, and there is one
+current plan:</p>
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/lineage.html">lineage</a></span><span class="op">(</span><span class="va">set</span><span class="op">)</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"scenario"</span>, <span class="st">"parent"</span>, <span class="st">"status"</span>, <span class="st">"revision"</span>, <span class="st">"current"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="co">#&gt;            scenario parent         status revision current</span></span>
+<span><span class="co">#&gt; 1             Rev 1   &lt;NA&gt;       approved        1   FALSE</span></span>
+<span><span class="co">#&gt; 2       Brand draft  Rev 1 in development       NA   FALSE</span></span>
+<span><span class="co">#&gt; 3 Performance draft  Rev 1 in development       NA   FALSE</span></span>
+<span><span class="co">#&gt; 4             Rev 2  Rev 1       approved        2   FALSE</span></span>
+<span><span class="co">#&gt; 5             Rev 3  Rev 2       approved        3   FALSE</span></span>
+<span><span class="co">#&gt; 6     Brand draft 2  Rev 3 in development       NA   FALSE</span></span>
+<span><span class="co">#&gt; 7             Rev 4  Rev 3       approved        4    TRUE</span></span></code></pre></div>
+</div>
+</div>
+<div class="section level2">
 <h2 id="what-the-agent-may-and-may-not-do">What the agent may and may not do<a class="anchor" aria-label="anchor" href="#what-the-agent-may-and-may-not-do"></a>
 </h2>
 <p><strong>May:</strong> read the plan through
@@ -380,6 +576,10 @@ through the <code>rebound</code> op, which shows in
 <strong>Send something malformed or vague.</strong> A typo in a
 target is an error naming the alternatives, never a silent no-op; ops
 are checked whether they came from JSON, a constructor or by hand.</li>
+<li>
+<strong>Reach outside its scope.</strong> Which rows an op touches
+is decided by the package’s matcher, so <code><a href="../reference/ops_within.html">ops_within()</a></code> gives
+the app the same answer the edit would. The app enforces the scope.</li>
 <li>
 <strong>Approve its own work.</strong> The package records approval;
 the app decides who may give it.</li>

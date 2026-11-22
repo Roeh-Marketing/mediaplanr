@@ -68,6 +68,44 @@ runs one turn of it with real calls.
 
 ------------------------------------------------------------------------
 
+## Sections and scopes
+
+Built in 0.4.0. A client keeps **one master plan per fiscal year**,
+worked on by several planners at once. The client’s organization – brand
+and performance, lines of business, channels – is a tree of
+**sections**, and each planner is **scoped** to some of them.
+
+### Decided
+
+- **A section is a target**: the same named list of grain columns and
+  values an op, a
+  [`check_budget()`](https://roeh-marketing.github.io/mediaplanr/reference/check_budget.md)
+  row and a `PlanConstraints` rule already use. A **scope** is a list of
+  targets. A section’s envelope is a
+  [`check_budget()`](https://roeh-marketing.github.io/mediaplanr/reference/check_budget.md)
+  row. Nothing new is stored.
+- **A draft is a scenario** under a base revision. It is approved by
+  replaying its `@edits` on the *current* revision, so approved
+  revisions stay one chain and
+  [`current_approved()`](https://roeh-marketing.github.io/mediaplanr/reference/current_approved.md)
+  returns one plan.
+  [`rebase_check()`](https://roeh-marketing.github.io/mediaplanr/reference/rebase_check.md)
+  says whether the replay does what the draft did.
+- **Every organization level is a grain column**, because a target may
+  only name grain columns. A grouping the plan lacks (funnel over
+  `channel`) is added with
+  [`regrain()`](https://roeh-marketing.github.io/mediaplanr/reference/regrain.md),
+  which keeps the plan’s id, lineage and approval.
+- **The app does not match rows itself.**
+  [`match_rows()`](https://roeh-marketing.github.io/mediaplanr/reference/match_rows.md),
+  [`ops_within()`](https://roeh-marketing.github.io/mediaplanr/reference/ops_within.md)
+  and the rest resolve rows through the matcher the edits use, so a
+  scope check cannot disagree with what an edit would touch. They read:
+  they do not refuse subplan-owned rows the way every edit door still
+  does.
+
+------------------------------------------------------------------------
+
 ## API style
 
 ### Decided
@@ -350,6 +388,15 @@ edits on weekly rows and nothing else:
   `@spend_basis`;
   [`check_budget()`](https://roeh-marketing.github.io/mediaplanr/reference/check_budget.md);
   and the two additions below, both now built.
+- **Since 0.4.0.** The master-plan verbs:
+  [`match_rows()`](https://roeh-marketing.github.io/mediaplanr/reference/match_rows.md)
+  in place of any row matching of its own,
+  [`assign_sections()`](https://roeh-marketing.github.io/mediaplanr/reference/assign_sections.md)
+  for the organization tree,
+  [`ops_within()`](https://roeh-marketing.github.io/mediaplanr/reference/ops_within.md)
+  to enforce a planner’s scope before building, and
+  [`rebase_check()`](https://roeh-marketing.github.io/mediaplanr/reference/rebase_check.md)
+  before replaying a draft onto the current revision.
 
 Two package-side additions would make that integration deterministic
 rather than prose-steered, and belong here because the app’s own charter
@@ -486,13 +533,16 @@ work:
 - **Metrics beyond spend** — built. `unit_type`, `planned_units`,
   `planned_rate`, bound by one identity, with the rate as the invariant
   under an edit.
+
 - **Flighting** — built. Plans can be authored as flights and are held
   as weeks;
   [`flights()`](https://roeh-marketing.github.io/mediaplanr/reference/flights.md)
   inverts it exactly, and
   [`calendarize()`](https://roeh-marketing.github.io/mediaplanr/reference/calendarize.md)
   re-cuts onto any calendar.
+
 - **Adding and dropping line items** — built, via the structural ops.
+
 - **[`check_coverage()`](https://roeh-marketing.github.io/mediaplanr/reference/check_coverage.md)
   scoping on spans** — built. It now selects rows through the same
   `.row_span()` every other date question uses, so it follows a flight
@@ -504,6 +554,7 @@ work:
   [`vignette("plan_concepts")`](https://roeh-marketing.github.io/mediaplanr/articles/plan_concepts.md)
   — which was the actual gap, since the behaviour was defensible but
   unstated.
+
 - **Serialization to JSON** — built.
   [`plan_to_json()`](https://roeh-marketing.github.io/mediaplanr/reference/plan_to_json.md)
   and
@@ -515,6 +566,7 @@ work:
   shown in
   [`vignette("getting_started")`](https://roeh-marketing.github.io/mediaplanr/articles/getting_started.md).
   The design reasoning is above, under *Serialization to JSON*.
+
 - **SubPlans** — built. One slot, no class:
   [`attach_subplan()`](https://roeh-marketing.github.io/mediaplanr/reference/attach_subplan.md)
   replaces the cell’s rows with the subplan’s rollup and locks them,
@@ -532,6 +584,7 @@ work:
   trap, and JSON went to schema 2 with a recursive writer and a
   re-attaching reader. Depth is legal; one level is tested. The design
   reasoning is above, under *SubPlans*.
+
 - **Op constructors and the ops schema** — built. One registry in
   `R/ops.R` names every op, its fields and their types; `.apply_op()`,
   the `op_*()` constructors and
@@ -541,12 +594,14 @@ work:
   made – gets the same plan-free checks when applied. With a plan, the
   schema narrows targets to its grain values and dates to its basis. The
   style reasoning is above, under *API style*.
+
 - **`transfer`** — built. The commonest real edit, a zero-sum move
   between line items, as one op rather than two deltas whose pairing is
   lost. Each side spreads like `delta`; a destination that plans nothing
   fills evenly by in-market days, the rule an even flight follows. All
   three of `delta`, `total` and `transfer` spread money through one
   helper, `.distribute()`, which is where spend bounds are enforced.
+
 - **Spend bounds** — built. Optional `min_spend` / `max_spend` per row
   ([`bound_cols()`](https://roeh-marketing.github.io/mediaplanr/reference/bound_cols.md))
   record commitments, floors and caps; the validator holds
@@ -560,6 +615,7 @@ work:
   only through the `rebound` op. Line-total commitments (“\$300K
   upfront, phasing flexible”) are group rules, planned with
   `PlanConstraints`.
+
 - **Provenance** — built. A derived plan carries `@edits`, the canonical
   record of what
   [`build_scenario()`](https://roeh-marketing.github.io/mediaplanr/reference/build_scenario.md)
@@ -573,6 +629,7 @@ work:
   may set a rationale.
   [`edit_log()`](https://roeh-marketing.github.io/mediaplanr/reference/edit_log.md)
   reads a set’s records as a change log. JSON went to schema 4.
+
 - **[`describe_plan()`](https://roeh-marketing.github.io/mediaplanr/reference/describe_plan.md)**
   — built. The agent’s view of a plan: identity and provenance, shape,
   spend by each line item column, commitments, units, spend by month,
@@ -581,6 +638,7 @@ work:
   number of rows (only the by-month section grows, with the plan’s
   duration), and every number reconciles to `@data`. Later phases add
   their facts to it.
+
 - **Approvals** — built. `@revision` is gone. A plan carries its
   approval as `@status = "approved"` and an optional `@approved_on` date
   (never defaulted from today; cleared when the status moves on; never
@@ -595,6 +653,7 @@ work:
   [`compare_scenarios()`](https://roeh-marketing.github.io/mediaplanr/reference/compare_scenarios.md)
   takes `against = "base" | "parent" | "current_approved"`. Older JSON
   carrying `revision` reads with it ignored.
+
 - **Spend basis** — built. `@spend_basis` declares what `planned_spend`
   measures (`"media_net"`, `"client_net"`, `"gross"`, or anything else;
   `""` undeclared). Set at import or corrected with
@@ -602,6 +661,7 @@ work:
   carried by scenarios and rollups. Plans combine – in a `ScenarioSet`,
   or as a subplan – only when their bases match exactly, undeclared
   included.
+
 - **[`check_budget()`](https://roeh-marketing.github.io/mediaplanr/reference/check_budget.md)**
   — built. The envelope check: a budget table of windows and amounts,
   each naming any subset of the line item columns (or none), compared
@@ -614,6 +674,7 @@ work:
   `describe_plan(budget = )` summarises it. The help pages contrast an
   envelope (a target, with tolerance) with a subplan (ownership, with
   equality).
+
 - **The model map** — built (0.3.0).
   [`model_map()`](https://roeh-marketing.github.io/mediaplanr/reference/model_map.md)
   assigns every line item exactly one response model from a list fitted
@@ -626,6 +687,7 @@ work:
   keeping unmodeled spend under `model_id = NA` so totals reconcile.
   Data frames in and out; no dependency on `mrmopt`.
   `describe_plan(models = )` reports coverage.
+
 - **The constraint object** — built (0.3.0). `PlanConstraints` holds the
   group rules a plan lives under – min/max spend, min/max share, a fixed
   total with free phasing, max change (absolute or %) from a reference
@@ -643,6 +705,23 @@ work:
   rules, and a scenario’s `rationale$constraints_id` names the rule set
   it was checked against.
 
+- **Sections and scopes** – built (0.4.0).
+  [`match_rows()`](https://roeh-marketing.github.io/mediaplanr/reference/match_rows.md)
+  is the public face of the edit path’s matcher: one target or a list of
+  targets, `during`, strict or lenient.
+  [`assign_sections()`](https://roeh-marketing.github.io/mediaplanr/reference/assign_sections.md)
+  places line items in an organization tree’s leaves, reporting overlaps
+  and gaps without refusing them.
+  [`ops_within()`](https://roeh-marketing.github.io/mediaplanr/reference/ops_within.md)
+  checks a list of ops against a scope in order, so an `add` creates
+  rows a later op may target.
+  [`rebase_check()`](https://roeh-marketing.github.io/mediaplanr/reference/rebase_check.md)
+  compares the rows a draft touches on its base and on the current
+  revision.
+  [`regrain()`](https://roeh-marketing.github.io/mediaplanr/reference/regrain.md)
+  adds an organization level as a grain column. The reasoning is above,
+  under *Sections and scopes*.
+
 ------------------------------------------------------------------------
 
 ## Not yet built
@@ -654,6 +733,11 @@ work:
   documents the semantics it must match: spend measured day by day
   inside each rule’s window, shares against the whole plan in the same
   window. Not started here; `mrmopt` is untouched.
+- **[`regrain()`](https://roeh-marketing.github.io/mediaplanr/reference/regrain.md)
+  beyond one flat plan.** It takes one plan: a set of revisions and
+  drafts is regrained plan by plan with the same arguments (ids, and so
+  lineage, are unchanged), and a topline is refused because its subplans
+  would need the column too.
 - **A spreadsheet importer, as a companion package** (`mediaplanr.io`):
   a declarative column map plus regex rules that turn an agency workbook
   into a `MediaPlan` and a lint report. A companion so that `readxl` and

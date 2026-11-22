@@ -143,11 +143,11 @@ p <- media_plan_from_flights(buys, grain = c("channel", "partner"),
                              name = "Q2 flights")
 p@data
 #>   channel  partner       week planned_spend              flight_id flight_start
-#> 1     OOH JCDecaux 2026-04-06         30000 fl_20261119173008_2628   2026-04-06
-#> 2     OOH JCDecaux 2026-04-13         30000 fl_20261119173008_2628   2026-04-06
-#> 3     OOH JCDecaux 2026-04-20         30000 fl_20261119173008_2628   2026-04-06
-#> 4     OOH JCDecaux 2026-04-27         30000 fl_20261119173008_2628   2026-04-06
-#> 5  Search   Google 2026-04-06          3100 fl_20261119173008_d89c   2026-04-08
+#> 1     OOH JCDecaux 2026-04-06         30000 fl_20261122212515_3dc7   2026-04-06
+#> 2     OOH JCDecaux 2026-04-13         30000 fl_20261122212515_3dc7   2026-04-06
+#> 3     OOH JCDecaux 2026-04-20         30000 fl_20261122212515_3dc7   2026-04-06
+#> 4     OOH JCDecaux 2026-04-27         30000 fl_20261122212515_3dc7   2026-04-06
+#> 5  Search   Google 2026-04-06          3100 fl_20261122212515_d5b6   2026-04-08
 #>   flight_end period_basis pacing
 #> 1 2026-05-03       flight   even
 #> 2 2026-05-03       flight   even
@@ -156,8 +156,8 @@ p@data
 #> 5 2026-04-08          day   even
 flights(p)
 #>   channel  partner              flight_id flight_start flight_end period_basis
-#> 1     OOH JCDecaux fl_20261119173008_2628   2026-04-06 2026-05-03       flight
-#> 2  Search   Google fl_20261119173008_d89c   2026-04-08 2026-04-08          day
+#> 1     OOH JCDecaux fl_20261122212515_3dc7   2026-04-06 2026-05-03       flight
+#> 2  Search   Google fl_20261122212515_d5b6   2026-04-08 2026-04-08          day
 #>   pacing planned_spend n_periods
 #> 1   even        120000         4
 #> 2   even          3100         1

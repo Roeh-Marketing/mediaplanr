@@ -88,7 +88,7 @@ can have.
 
 str(media_plan)
 #> <mediaplanr::MediaPlan>
-#>  @ data        :'data.frame':    3 obs. of  3 variables:
+#>  @ data        : 'data.frame':   3 obs. of  3 variables:
 #>  .. $ channel      : chr  "TV" "Search" "Social"
 #>  .. $ planned_spend: num  80000 40000 40000
 #>  .. $ week         : Date, format: "2026-09-14" "2026-09-21" ...
@@ -96,7 +96,7 @@ str(media_plan)
 #>  @ time_col    : chr "week"
 #>  @ time_basis  : chr "week"
 #>  @ tz          : chr ""
-#>  @ id          : chr "plan_20261119173018_acd597"
+#>  @ id          : chr "plan_20261122212525_acd597"
 #>  @ parent_id   : chr(0) 
 #>  @ name        : chr "Q3 sketch"
 #>  @ nickname    : chr ""
@@ -264,9 +264,9 @@ Going back the other way is exact:
 
 flights(flighted)
 #>   channel  partner              flight_id flight_start flight_end period_basis
-#> 1     OOH JCDecaux fl_20261119173018_7766   2026-04-06 2026-05-03       flight
-#> 2      TV      NBC fl_20261119173018_c5c4   2026-04-06 2026-04-12         week
-#> 3  Search   Google fl_20261119173018_4a2f   2026-04-08 2026-04-08          day
+#> 1     OOH JCDecaux fl_20261122212525_7766   2026-04-06 2026-05-03       flight
+#> 2      TV      NBC fl_20261122212525_c5c4   2026-04-06 2026-04-12         week
+#> 3  Search   Google fl_20261122212525_4a2f   2026-04-08 2026-04-08          day
 #>   pacing planned_spend n_periods
 #> 1   even        120000         4
 #> 2   even         33333         1
@@ -508,9 +508,9 @@ Two levels of comparison:
 
 compare_scenarios(set, "summary")
 #>    scenario                    plan_id                  parent_id
-#> 1  baseline plan_20261119173018_cb283f                       <NA>
-#> 2   TV -20% plan_20261119173018_c45205 plan_20261119173018_cb283f
-#> 3 TV→Social plan_20261119173019_fe3218 plan_20261119173018_cb283f
+#> 1  baseline plan_20261122212525_cb283f                       <NA>
+#> 2   TV -20% plan_20261122212525_c45205 plan_20261122212525_cb283f
+#> 3 TV→Social plan_20261122212525_fe3218 plan_20261122212525_cb283f
 #>   total_planned_spend spend_vs_base spend_pct_vs_base
 #> 1             5824000             0             0.000
 #> 2             5096000       -728000            -0.125
