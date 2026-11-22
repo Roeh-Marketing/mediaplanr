@@ -1,3 +1,44 @@
+# mediaplanr 0.4.0
+
+One master plan, several planners: the plan can say which rows a section of
+the client's organization holds, whether a planner's ops stay inside their
+scope, and whether a draft written under one revision still means the same
+thing on the current one. A section is a target and a scope is a list of
+targets, so nothing new is stored; and every verb resolves rows through the
+matcher the edits use, so the app never has to match rows itself.
+
+## New features
+
+* **`match_rows()`** returns the rows a target selects, exactly as an op's
+  `target` and `during` resolve them. It takes one target or a list of
+  targets (AND within a target, OR across the list). `strict = TRUE` errors
+  as an op does; `strict = FALSE` lets a value the plan no longer has match
+  nothing. It reads rows a subplan owns rather than refusing them.
+* **`assign_sections()`** places every line item in the leaves of an
+  organization tree. Line items in two sections, or in none, are listed
+  beneath the table and in attributes -- never an error.
+* **`ops_within()`** checks that every row a list of ops would touch lies
+  inside a scope, in order, so an `add` creates rows a later op may target.
+  One row per op side that reaches outside; zero rows means every op stays
+  in. Takes ops however written, or a scenario's `@edits`.
+* **`rebase_check()`** compares the rows a draft's ops touch on the revision
+  it was written under and on the current one: spend, bounds and flight
+  columns, plus rows present on only one. Zero rows means replaying the ops
+  on the current revision does what they did on the base.
+* **`regrain()`** adds an organization level -- a funnel over channels -- as
+  a grain column read off an existing one, refusing values with no group or
+  two. The plan keeps its id, lineage, approval and provenance; stored
+  `add`s and allocations gain the column, so `@edits` still replay.
+* `vignette("agentic_planning")` gains a section running the master-plan
+  case end to end: a plan regrained by funnel, two scoped drafts, one op
+  refused, approvals replayed onto one chain, and a stale draft caught.
+
+## Internal
+
+* The op matcher's read path is split from its subplan refusal
+  (`.find_rows()` / `.select_rows()`), so `match_rows()` and its kin read
+  what every edit door still refuses.
+
 # mediaplanr 0.3.0
 
 The agent can be scored and checked: its proposals map onto the response

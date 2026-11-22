@@ -185,6 +185,21 @@ reference:
   - constraints_schema
   - PlanConstraints
 
+- title: Sections and scopes
+  desc: >
+    One master plan, several planners. A section of the organization is a
+    target, a planner's scope is a list of them, and every level of the
+    organization is a grain column. These resolve rows through the matcher
+    the edits use, so a scope check never disagrees with an edit -- and a
+    draft written under one revision can be checked before it is replayed
+    on the current one.
+  contents:
+  - match_rows
+  - assign_sections
+  - ops_within
+  - rebase_check
+  - regrain
+
 - title: Saving and reloading
   desc: >
     Persist a plan or a whole scenario set as JSON and rebuild it. The rebuild
