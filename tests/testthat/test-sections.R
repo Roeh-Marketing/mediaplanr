@@ -358,3 +358,114 @@ test_that("ops_within refuses an allocation and a missing scope", {
   expect_error(ops_within(p, op_scale(2), list(funnel = "Brand")),
                "`scope`: `target` may only name grain columns")
 })
+
+# ---- rebase_check ----------------------------------------------------------------
+
+# A Brand draft: money from Stream B into Video A prospecting, in Q1.
+brand_draft <- function() {
+  op_transfer(10000, from = list(partner = "Stream B"),
+              to = list(partner = "Video A", tactic = "Prospecting"),
+              during = q1())
+}
+
+test_that("a sibling section changed in between is clean", {
+  base <- fix_agency_plan()
+  current <- build_scenario(
+    base, op_transfer(5000, from = list(partner = "DSP B"),
+                      to = list(partner = "DSP A", tactic = "Prospecting"),
+                      during = q1()),
+    name = "Rev 2")
+  out <- rebase_check(base, current, brand_draft())
+  expect_equal(nrow(out), 0)
+  expect_named(out, c("op", "side", "row", "issue", "columns", "base_spend",
+                      "current_spend"))
+  # and so the replay does to those rows what the draft did
+  draft    <- build_scenario(base, brand_draft(), name = "draft")
+  replayed <- build_scenario(current, draft@edits$ops, name = "Rev 3")
+  touched  <- match_rows(base, list(channel = c("Streaming", "Online Video")))
+  expect_equal(replayed@data$planned_spend[touched],
+               draft@data$planned_spend[touched])
+})
+
+test_that("the same rows changed in between are reported", {
+  base <- fix_agency_plan()
+  current <- build_scenario(base, op_scale(0.9, list(partner = "Stream B"),
+                                           during = q1()),
+                            name = "Rev 2")
+  out <- rebase_check(base, current, brand_draft())
+  expect_equal(nrow(out), 6)   # Stream B's two line items, three months
+  expect_true(all(out$issue == "changed"))
+  expect_true(all(out$side == "from"))
+  expect_true(all(out$columns == "planned_spend"))
+  expect_equal(out$current_spend, round(out$base_spend * 0.9, 6))
+  row <- "Streaming | Stream B | Brand | Prospecting | 2027-01-01"
+  expect_true(row %in% out$row)
+})
+
+test_that("a changed bound under the target is reported", {
+  base <- fix_agency_plan()
+  current <- build_scenario(
+    base, op_rebound(max = 50000, target = list(partner = "Video A",
+                                                tactic = "Prospecting"),
+                     during = q1()),
+    name = "Rev 2")
+  out <- rebase_check(base, current, brand_draft())
+  expect_true(all(out$side == "to"))
+  expect_true(all(out$columns == "max_spend"))
+  expect_equal(nrow(out), 3)
+})
+
+test_that("a row added under the ops' target on current is reported", {
+  base <- fix_agency_plan()
+  current <- build_scenario(
+    base, op_add(channel = "Streaming", partner = "Stream B", campaign = "Brand",
+                 tactic = "Retargeting", month = "2027-02-01",
+                 planned_spend = 8000),
+    name = "Rev 2")
+  out <- rebase_check(base, current, brand_draft())
+  expect_equal(out$issue, "current only")
+  expect_equal(out$row, "Streaming | Stream B | Brand | Retargeting | 2027-02-01")
+  expect_true(is.na(out$base_spend))
+  expect_equal(out$current_spend, 8000)
+})
+
+test_that("a row gone from current is reported as base only", {
+  base <- fix_agency_plan()
+  current <- build_scenario(
+    base, op_drop(list(partner = "Stream B", campaign = "Promo")), name = "Rev 2")
+  out <- rebase_check(base, current, brand_draft())
+  expect_equal(unique(out$issue), "base only")
+  expect_equal(nrow(out), 3)
+})
+
+test_that("ops are resolved in order on both plans", {
+  base <- fix_agency_plan()
+  add_c <- op_add(channel = "Streaming", partner = "Stream C",
+                  campaign = "Brand", tactic = "Prospecting",
+                  month = "2027-01-01", planned_spend = 0)
+  ops <- list(add_c, op_transfer(5000, from = list(partner = "Stream B"),
+                                 to = list(partner = "Stream C"), during = q1()))
+  sibling <- build_scenario(base, op_scale(1.1, list(channel = "Programmatic")),
+                            name = "Rev 2")
+  expect_equal(nrow(rebase_check(base, sibling, ops)), 0)
+
+  # current already has the row the draft adds: the replay would fail
+  clash <- build_scenario(base, add_c, name = "Rev 2")
+  expect_error(rebase_check(base, clash, ops),
+               "cannot be replayed on `current`: edit op 1: the plan already has")
+})
+
+test_that("rebase_check takes the draft's own record", {
+  base <- fix_agency_plan()
+  current <- build_scenario(base, op_scale(0.9, list(partner = "Stream B")),
+                            name = "Rev 2")
+  draft <- build_scenario(base, brand_draft(), name = "draft")
+  expect_equal(rebase_check(base, current, draft@edits),
+               rebase_check(base, current, brand_draft()))
+})
+
+test_that("rebase_check refuses plans of different grains", {
+  base <- fix_agency_plan()
+  other <- roll_up(base, c("channel", "partner"))
+  expect_error(rebase_check(base, other, brand_draft()), "must share a grain")
+})

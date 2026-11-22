@@ -389,3 +389,173 @@ ops_within <- function(plan, ops, scope) {
   out$line_items <- lapply(found, function(f) f$line_items)
   out
 }
+
+# ---- rebase_check ------------------------------------------------------------------
+
+#' Would these ops do the same on the current revision?
+#'
+#' A draft is a scenario under a base revision, and its ops are approved by
+#' replaying them on the **current** revision, so approved revisions stay one
+#' chain. That is safe when the rows the ops touch are the same on both
+#' plans. This finds the rows where they are not.
+#'
+#' The ops are resolved on both plans, in order, as [build_scenario()] would
+#' apply them. For each op side, the rows it selects on `base` are compared
+#' with the rows it selects on `current`: a row selected on one and not the
+#' other is reported, and so is a row selected on both whose `planned_spend`,
+#' spend bounds ([bound_cols()]) or flight columns ([flight_cols()]) differ.
+#' Those are the facts an op's arithmetic reads -- a `delta` spreads by the
+#' group's spend, a transfer routes around its bounds, money moved into an
+#' empty line spreads by its flight days -- so **zero rows means replaying
+#' the ops on `current` does to those rows what it did on `base`**.
+#'
+#' Rows the ops do not touch may differ freely: a sibling section approved
+#' in between is not a conflict. An `add` selects nothing, so it is compared
+#' only through the ops after it. An op that cannot be applied to one of the
+#' plans at all -- its target is gone -- is an error naming the plan, since
+#' replaying it there would fail the same way.
+#'
+#' @param base The plan the ops were written against: the draft's parent.
+#' @param current The plan they would be replayed on: normally the current
+#'   approved revision. Must share `base`'s grain.
+#' @param ops The ops, in any form [ops_within()] takes -- including the
+#'   draft's own `@edits` record.
+#' @return A data frame with one row per op side and row that differs:
+#'   \describe{
+#'     \item{`op`, `side`}{As in [ops_within()].}
+#'     \item{`row`}{The row's key: [line_item()] at the full grain.}
+#'     \item{`issue`}{`"changed"`, `"base only"` or `"current only"`.}
+#'     \item{`columns`}{For `"changed"`, the columns that differ, joined
+#'       with `", "`; `NA` otherwise.}
+#'     \item{`base_spend`, `current_spend`}{The row's planned spend on each
+#'       plan as the op finds it; `NA` where the op does not select it.}
+#'   }
+#' @examples
+#' base <- media_plan_from_df(
+#'   data.frame(week = as.Date("2026-07-06"),
+#'              channel = c("TV", "TV", "Search", "Social"),
+#'              partner = c("NBC", "ESPN", "Google", "Meta"),
+#'              planned_spend = c(50, 30, 40, 40)),
+#'   grain = c("channel", "partner"), time = "week", name = "Rev 1"
+#' )
+#' draft <- op_transfer(10, from = list(partner = "NBC"),
+#'                      to = list(partner = "ESPN"))
+#'
+#' # Search was cut in the meantime: no conflict with a TV draft
+#' current <- build_scenario(base, op_scale(0.5, list(channel = "Search")),
+#'                           name = "Rev 2")
+#' rebase_check(base, current, draft)
+#'
+#' # NBC was cut: the draft's source is not what it was
+#' current <- build_scenario(base, op_scale(0.5, list(partner = "NBC")),
+#'                           name = "Rev 2")
+#' rebase_check(base, current, draft)
+#' @seealso [ops_within()], [current_approved()]
+#' @export
+rebase_check <- function(base, current, ops) {
+  .stop_if_not_plan(base, "base")
+  .stop_if_not_plan(current, "current")
+  if (!identical(base@grain, current@grain)) {
+    stop("`base` and `current` must share a grain; base is (",
+         paste(base@grain, collapse = ", "), "), current is (",
+         paste(current@grain, collapse = ", "), "). Regrain the older one ",
+         "with regrain().", call. = FALSE)
+  }
+  ops <- .as_op_list(base, ops, "rebase_check()")
+
+  # Starts with the empty table, so no differences still has the columns.
+  found <- list(.rebase_diff(0L, "", base@data[0, ], current@data[0, ],
+                             base@grain))
+  db <- base@data
+  dc <- current@data
+  for (i in seq_along(ops)) {
+    op  <- ops[[i]]
+    key <- .op_key(op)
+    if (!identical(key, "add")) {
+      sides <- .op_sides(op, key)
+      for (side in names(sides)) {
+        s  <- sides[[side]]
+        at <- .side_where(i, key, side)
+        on_base    <- .find_rows(db, base, s$target, s$during, at, strict = FALSE)
+        on_current <- .find_rows(dc, current, s$target, s$during, at,
+                                 strict = FALSE)
+        found <- c(found, list(.rebase_diff(
+          i, side, db[on_base, , drop = FALSE], dc[on_current, , drop = FALSE],
+          base@grain)))
+      }
+    }
+    # Applied to both, so the next op finds each plan as the replay would.
+    db <- .rebase_apply(db, base, op, i, "base")
+    dc <- .rebase_apply(dc, current, op, i, "current")
+  }
+
+  out <- do.call(rbind, found)
+  rownames(out) <- NULL
+  out
+}
+
+.rebase_apply <- function(d, plan, op, i, which) {
+  tryCatch(.apply_op(d, plan, op, i), error = function(e) {
+    stop("`ops` cannot be replayed on `", which, "`: ", conditionMessage(e),
+         call. = FALSE)
+  })
+}
+
+# One op side's selections on the two plans, compared row by row.
+.rebase_diff <- function(i, side, on_base, on_current, grain) {
+  kb <- line_item(on_base, grain)
+  kc <- line_item(on_current, grain)
+  both <- intersect(kb, kc)
+  rb <- on_base[match(both, kb), , drop = FALSE]
+  rc <- on_current[match(both, kc), , drop = FALSE]
+
+  # The facts an op's arithmetic reads. A column only one plan carries reads
+  # as NA (no bound, no flight) on the other.
+  cols <- intersect(c("planned_spend", bound_cols(), flight_cols()),
+                    union(names(on_base), names(on_current)))
+  differs <- matrix(FALSE, nrow = length(both), ncol = length(cols),
+                    dimnames = list(NULL, cols))
+  for (col in cols) {
+    differs[, col] <- !.same_values(rb[[col]], rc[[col]], length(both))
+  }
+  changed <- which(rowSums(differs) > 0)
+  only_b  <- setdiff(kb, kc)
+  only_c  <- setdiff(kc, kb)
+
+  spend_of <- function(d, k, keys) d[["planned_spend"]][match(keys, k)]
+  n_only <- length(only_b) + length(only_c)
+  n <- length(changed) + n_only
+  data.frame(
+    op      = rep(as.integer(i), n),
+    side    = rep(side, n),
+    row     = c(both[changed], only_b, only_c),
+    issue   = c(rep("changed", length(changed)),
+                rep("base only", length(only_b)),
+                rep("current only", length(only_c))),
+    columns = c(vapply(changed, function(r) {
+                  paste(cols[differs[r, ]], collapse = ", ")
+                }, character(1)), rep(NA_character_, n_only)),
+    base_spend    = c(spend_of(on_base, kb, both[changed]),
+                      spend_of(on_base, kb, only_b),
+                      rep(NA_real_, length(only_c))),
+    current_spend = c(spend_of(on_current, kc, both[changed]),
+                      rep(NA_real_, length(only_b)),
+                      spend_of(on_current, kc, only_c)),
+    stringsAsFactors = FALSE
+  )
+}
+
+# Equal row by row: numbers to the cent, anything else as text, NA equal to
+# NA. A column one side lacks (NULL) is all NA.
+.same_values <- function(x, y, n) {
+  if (is.null(x)) x <- rep(NA, n)
+  if (is.null(y)) y <- rep(NA, n)
+  if (is.numeric(x) && is.numeric(y)) {
+    same <- abs(x - y) < 0.005
+  } else {
+    same <- as.character(x) == as.character(y)
+  }
+  same[is.na(x) & is.na(y)] <- TRUE
+  same[is.na(same)] <- FALSE
+  same
+}
