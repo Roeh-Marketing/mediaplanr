@@ -21,20 +21,32 @@
 
 # One target, or a list of them, as a list of targets.
 #
-# One target is a NAMED list (`list(channel = "TV")`); a list of targets is an
-# UNNAMED list of those. Empty or NULL is one empty target: the whole plan,
-# exactly as an op with no target.
+# One target is a named list of column -> value(s): `list(channel = "TV")`. A
+# list of targets is a list of those, unnamed or named -- named is how a
+# planner's sections are written, so `sections[c("TV", "Search")]` is a scope.
+# The two cannot be confused: a target's values are vectors, or unnamed lists
+# when parsed from a JSON array, never named lists. Empty or NULL is one empty
+# target: the whole plan, exactly as an op with no target.
 .as_targets <- function(x, what = "target") {
   if (is.null(x) || !length(x)) return(list(list()))
+  is_named  <- function(v) !is.null(names(v)) && all(nzchar(names(v)))
+  is_target <- function(v) is.list(v) && length(v) > 0 && is_named(v)
   if (is.list(x) && !is.data.frame(x)) {
-    nm <- names(x)
-    if (!is.null(nm) && all(nzchar(nm))) return(list(x))
-    is_target <- vapply(x, is.list, logical(1))
-    if (is.null(nm) && all(is_target)) return(x)
+    if (is.null(names(x)) &&
+        all(vapply(x, function(v) is_target(v) || identical(v, list()),
+                   logical(1)))) {
+      return(x)
+    }
+    # Named: a list of targets only if every entry is a non-empty one, so a
+    # JSON `{"channel": []}` is still refused as a target with no value
+    # rather than read as an empty target that matches everything.
+    if (is_named(x)) {
+      return(if (all(vapply(x, is_target, logical(1)))) unname(x) else list(x))
+    }
   }
   stop("`", what, "` must be a target -- a named list of grain column = ",
-       "value(s), such as list(channel = \"TV\") -- or an unnamed list of ",
-       "them.", call. = FALSE)
+       "value(s), such as list(channel = \"TV\") -- or a list of them.",
+       call. = FALSE)
 }
 
 # Rows matching ANY of `targets` (each narrowed by `during`), through the one
@@ -76,9 +88,10 @@
 #' not edit.
 #'
 #' @param plan A [MediaPlan].
-#' @param target One target (`list(channel = "TV")`), or an unnamed list of
-#'   targets (`list(list(channel = "TV"), list(partner = "DSP A"))`). Empty or
-#'   `NULL` is the whole plan, as for an op.
+#' @param target One target (`list(channel = "TV")`), or a list of targets
+#'   (`list(list(channel = "TV"), list(partner = "DSP A"))`), named or not --
+#'   so a planner's sections, `sections[c("Video", "Search")]`, are a scope.
+#'   Empty or `NULL` is the whole plan, as for an op.
 #' @param during Optional `list(from =, to =)`: narrows to rows whose period
 #'   **overlaps** the window, as an op's `during` does.
 #' @param strict With `TRUE` (the default), a value the plan does not have, a
@@ -208,10 +221,11 @@ assign_sections <- function(plan, sections) {
   out
 }
 
-#' @rdname assign_sections
-#' @param x A `section_assignment`, as returned by `assign_sections()`.
-#' @param ... Passed to the data frame print method.
-#' @export
+# Registered against base::print explicitly: a bare S3method(print, ...)
+# would be registered against the namespace's own copy of `print`, which
+# S7::method(print, ...) <- leaves there, and base::print would never find it.
+#' @exportS3Method base::print
+#' @noRd
 print.section_assignment <- function(x, ...) {
   print.data.frame(x, ...)
   # Read off the columns, not the attributes, so a subset prints its own.

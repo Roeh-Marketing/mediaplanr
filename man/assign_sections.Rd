@@ -2,22 +2,15 @@
 % Please edit documentation in R/sections.R
 \name{assign_sections}
 \alias{assign_sections}
-\alias{print.section_assignment}
 \title{Which section each line item belongs to}
 \usage{
 assign_sections(plan, sections)
-
-\method{print}{section_assignment}(x, ...)
 }
 \arguments{
 \item{plan}{A \link{MediaPlan}.}
 
 \item{sections}{A named list, one entry per leaf section: its target, or a
 list of targets. Names must be distinct.}
-
-\item{x}{A \code{section_assignment}, as returned by \code{assign_sections()}.}
-
-\item{...}{Passed to the data frame print method.}
 }
 \value{
 A data frame with one row per line item (\code{\link[=line_item_grain]{line_item_grain()}}):

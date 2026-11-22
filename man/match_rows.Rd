@@ -9,9 +9,10 @@ match_rows(plan, target, during = NULL, strict = TRUE)
 \arguments{
 \item{plan}{A \link{MediaPlan}.}
 
-\item{target}{One target (\code{list(channel = "TV")}), or an unnamed list of
-targets (\code{list(list(channel = "TV"), list(partner = "DSP A"))}). Empty or
-\code{NULL} is the whole plan, as for an op.}
+\item{target}{One target (\code{list(channel = "TV")}), or a list of targets
+(\code{list(list(channel = "TV"), list(partner = "DSP A"))}), named or not --
+so a planner's sections, \code{sections[c("Video", "Search")]}, are a scope.
+Empty or \code{NULL} is the whole plan, as for an op.}
 
 \item{during}{Optional \code{list(from =, to =)}: narrows to rows whose period
 \strong{overlaps} the window, as an op's \code{during} does.}

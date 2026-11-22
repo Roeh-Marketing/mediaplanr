@@ -32,6 +32,18 @@ test_that("a list of targets matches any of them", {
   expect_equal(m, want)
 })
 
+test_that("a named list of targets is a scope, as sections are written", {
+  p <- fix_agency_plan()
+  sections <- list(Stream = list(channel = "Streaming"),
+                   Video  = list(channel = "Online Video"),
+                   DSP    = list(channel = "Programmatic"))
+  expect_equal(match_rows(p, sections[c("Stream", "Video")]),
+               p@data$channel != "Programmatic")
+  # an empty array is a target with no value, never an empty target
+  empty <- jsonlite::fromJSON('{"channel": []}', simplifyVector = FALSE)
+  expect_error(match_rows(p, empty), "names no value for: channel")
+})
+
 test_that("a list of targets parsed from JSON reads the same", {
   p <- fix_agency_plan()
   scope <- jsonlite::fromJSON(
@@ -158,6 +170,14 @@ test_that("a clean partition puts every line item in one section", {
   expect_equal(nrow(attr(a, "overlaps")), 0)
   expect_length(attr(a, "unmatched"), 0)
   expect_output(print(a), "Every line item is in exactly one section")
+})
+
+test_that("the print method is registered with base::print", {
+  # Inside the test environment the method is found lexically either way;
+  # outside it, dispatch reads base's table. A bare S3method(print, ...) lands
+  # in the package's own table (S7 leaves a `print` there) and is never found.
+  tbl <- get(".__S3MethodsTable__.", envir = baseenv())
+  expect_true(exists("print.section_assignment", envir = tbl, inherits = FALSE))
 })
 
 test_that("an overlap is reported, not refused", {
@@ -468,4 +488,98 @@ test_that("rebase_check refuses plans of different grains", {
   base <- fix_agency_plan()
   other <- roll_up(base, c("channel", "partner"))
   expect_error(rebase_check(base, other, brand_draft()), "must share a grain")
+})
+
+# ---- end to end: one master plan, two planners -------------------------------
+
+test_that("one master plan, scoped drafts, replayed onto one approved chain", {
+  # One plan, regrained by funnel, approved.
+  rev1 <- regrain(fix_agency_plan(), "funnel", from = "channel",
+                  groups = list(Brand = c("Streaming", "Online Video"),
+                                Performance = "Programmatic"))
+  rev1 <- revise(rev1, name = "Rev 1", status = "approved",
+                 approved_on = "2026-09-15")
+  set <- scenario_set(rev1)
+
+  sections <- list(
+    Streaming    = list(funnel = "Brand", channel = "Streaming"),
+    Video        = list(funnel = "Brand", channel = "Online Video"),
+    Programmatic = list(funnel = "Performance", channel = "Programmatic")
+  )
+  expect_true(all(assign_sections(rev1, sections)$n_matches == 1L))
+  brand_scope <- sections[c("Streaming", "Video")]
+  perf_scope  <- sections["Programmatic"]
+
+  # A draft in each scope, both under Rev 1.
+  brand_ops <- list(op_transfer(10000, from = list(partner = "Stream B"),
+                                to = list(partner = "Video A",
+                                          tactic = "Prospecting"),
+                                during = q1()))
+  expect_equal(nrow(ops_within(rev1, brand_ops, brand_scope)), 0)
+  brand_draft <- build_scenario(rev1, brand_ops, name = "Brand draft")
+
+  perf_ops <- list(
+    op_transfer(5000, from = list(partner = "DSP B"),
+                to = list(partner = "DSP A", tactic = "Prospecting"),
+                during = q1()),
+    op_transfer(5000, from = list(partner = "Stream B"),
+                to = list(partner = "DSP A", tactic = "Prospecting"),
+                during = q1())
+  )
+  refused <- ops_within(rev1, perf_ops, perf_scope)
+  expect_equal(refused$op, 2L)
+  expect_equal(refused$side, "from")
+  perf_draft <- build_scenario(rev1, perf_ops[-refused$op], name = "Performance draft")
+
+  set <- add_scenario(add_scenario(set, brand_draft), perf_draft)
+  expect_identical(current_approved(set), "Rev 1")
+
+  # Approving a draft is replaying it onto the current revision.
+  approve <- function(set, draft, name, on) {
+    current <- set@scenarios[[current_approved(set)]]
+    rev <- build_scenario(current, draft@edits$ops, name = name)
+    add_scenario(set, revise(rev, status = "approved", approved_on = on))
+  }
+  current <- function(set) set@scenarios[[current_approved(set)]]
+
+  expect_equal(nrow(rebase_check(rev1, current(set), brand_draft@edits)), 0)
+  set <- approve(set, brand_draft, "Rev 2", "2026-10-01")
+  expect_identical(current_approved(set), "Rev 2")
+  expect_equal(set@scenarios[["Rev 2"]]@data$planned_spend,
+               brand_draft@data$planned_spend)
+
+  # The second draft was written under Rev 1; Brand's approval did not touch
+  # its rows, so it replays cleanly.
+  expect_equal(nrow(rebase_check(rev1, current(set), perf_draft@edits)), 0)
+  set <- approve(set, perf_draft, "Rev 3", "2026-10-02")
+  expect_identical(current_approved(set), "Rev 3")
+  rev3 <- set@scenarios[["Rev 3"]]
+  brand_rows <- match_rows(rev3, brand_scope)
+  expect_equal(rev3@data$planned_spend[brand_rows],
+               brand_draft@data$planned_spend[brand_rows])
+  expect_equal(rev3@data$planned_spend[!brand_rows],
+               perf_draft@data$planned_spend[!brand_rows])
+
+  # A third draft, under Rev 3 -- and then a reallocation from the top moves
+  # Q1 money out of Brand before it is approved.
+  third <- build_scenario(rev3, op_transfer(
+    4000, from = list(partner = "Stream B", campaign = "Promo"),
+    to = list(partner = "Stream B", campaign = "Brand"), during = q1()),
+    name = "Brand draft 2")
+  set <- add_scenario(set, third)
+  top <- build_scenario(rev3, op_transfer(
+    20000, from = list(funnel = "Brand"), to = list(funnel = "Performance"),
+    during = q1()), name = "Top-down")
+  set <- approve(set, top, "Rev 4", "2026-10-15")
+  expect_identical(current_approved(set), "Rev 4")
+
+  conflict <- rebase_check(rev3, current(set), third@edits)
+  expect_gt(nrow(conflict), 0)
+  expect_true(all(conflict$issue == "changed"))
+  expect_setequal(unique(conflict$side), c("from", "to"))
+
+  # One chain of approvals throughout: drafts hang off it, unapproved.
+  lin <- lineage(set)
+  expect_equal(sum(lin$current), 1)
+  expect_equal(lin$revision[lin$status == "approved"], 1:4)
 })
