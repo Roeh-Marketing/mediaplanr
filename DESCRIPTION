@@ -45,6 +45,7 @@ Collate:
     'models.R'
     'constraints.R'
     'sections.R'
+    'regrain.R'
     'describe.R'
     'subplan.R'
     'scenario-set.R'
