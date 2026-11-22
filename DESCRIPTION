@@ -44,6 +44,7 @@ Collate:
     'budget.R'
     'models.R'
     'constraints.R'
+    'sections.R'
     'describe.R'
     'subplan.R'
     'scenario-set.R'

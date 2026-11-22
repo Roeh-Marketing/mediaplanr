@@ -14,7 +14,13 @@
 #
 # `none_hint` is appended when nothing matches, for a caller that knows what
 # the fix is likely to be.
-.match_target <- function(d, grain, target, where = "", none_hint = "") {
+#
+# `strict = FALSE` is for READING, never for an edit: a value the plan does not
+# have matches nothing instead of erroring, because a scope or a section may
+# name a channel the plan no longer buys. An unknown column is still an error
+# either way -- that is a typo, not an absence.
+.match_target <- function(d, grain, target, where = "", none_hint = "",
+                          strict = TRUE) {
   if (is.null(target) || length(target) == 0) return(rep(TRUE, nrow(d)))
 
   .check_target_shape(target, "target", where)
@@ -27,7 +33,7 @@
 
   # Per-column check first, so a typo names the offending value and the
   # alternatives instead of producing a bare "matched no rows".
-  for (nm in names(target)) {
+  if (strict) for (nm in names(target)) {
     have <- unique(as.character(d[[nm]]))
     bad <- setdiff(as.character(target[[nm]]), have)
     if (length(bad)) {
@@ -43,7 +49,7 @@
   for (nm in names(target)) {
     keep <- keep & (as.character(d[[nm]]) %in% as.character(target[[nm]]))
   }
-  if (!any(keep)) {
+  if (strict && !any(keep)) {
     stop(where, "target matched no rows: the values are individually valid but ",
          "do not co-occur in the plan.", none_hint, call. = FALSE)
   }
@@ -121,15 +127,25 @@
 # owns are refused here, so every edit door gets that check.
 .select_rows <- function(d, plan, target, during = NULL, where = "",
                          none_hint = "") {
-  keep <- .match_target(d, plan@grain, target, where, none_hint)
+  keep <- .find_rows(d, plan, target, during, where, none_hint)
+  .stop_if_backed(plan, d, keep, where)
+  keep
+}
+
+# The same selection with no subplan refusal: the read path, shared by
+# .select_rows() and by match_rows() and its kin in sections.R, so a scope
+# check and an edit can never resolve a target differently. `strict` as in
+# .match_target(); a window that leaves nothing is an error only when strict.
+.find_rows <- function(d, plan, target, during = NULL, where = "",
+                       none_hint = "", strict = TRUE) {
+  keep <- .match_target(d, plan@grain, target, where, none_hint, strict)
   if (!is.null(during)) {
     keep <- keep & .match_during(d, plan, during, where)
-    if (!any(keep)) {
+    if (strict && !any(keep)) {
       stop(where, "no rows are in market during that window.", none_hint,
            call. = FALSE)
     }
   }
-  .stop_if_backed(plan, d, keep, where)
   keep
 }
 
