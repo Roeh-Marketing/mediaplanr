@@ -137,3 +137,72 @@ test_that("match_rows refuses what is not a target", {
   expect_error(match_rows(p, list(), strict = NA), "TRUE or FALSE")
   expect_error(match_rows(list(), list()), "must be a MediaPlan")
 })
+
+# ---- assign_sections -------------------------------------------------------------
+
+agency_leaves <- function() {
+  list(Streaming    = list(channel = "Streaming"),
+       Programmatic = list(channel = "Programmatic"),
+       Video        = list(channel = "Online Video"))
+}
+
+test_that("a clean partition puts every line item in one section", {
+  p <- fix_agency_plan()
+  a <- assign_sections(p, agency_leaves())
+  expect_s3_class(a, "data.frame")
+  expect_named(a, c("line_item", "section", "n_matches"))
+  expect_equal(nrow(a), 9)
+  expect_true(all(a$n_matches == 1L))
+  expect_equal(a$section[a$line_item == "Programmatic | DSP B | Promo | Prospecting"],
+               "Programmatic")
+  expect_equal(nrow(attr(a, "overlaps")), 0)
+  expect_length(attr(a, "unmatched"), 0)
+  expect_output(print(a), "Every line item is in exactly one section")
+})
+
+test_that("an overlap is reported, not refused", {
+  p <- fix_agency_plan()
+  leaves <- c(agency_leaves(),
+              list(Retargeting = list(partner = "DSP A", tactic = "Retargeting")))
+  a <- assign_sections(p, leaves)
+  li <- "Programmatic | DSP A | Promo | Retargeting"
+  expect_equal(a$n_matches[a$line_item == li], 2L)
+  expect_true(is.na(a$section[a$line_item == li]))
+  expect_equal(attr(a, "overlaps"),
+               data.frame(line_item = li, sections = "Programmatic, Retargeting"))
+  expect_output(print(a), "1 in more than one section \\(Programmatic \\| DSP A")
+})
+
+test_that("an unmatched line item is reported, not refused", {
+  p <- fix_agency_plan()
+  leaves <- agency_leaves()
+  leaves$Video <- list(partner = "Video A")
+  a <- assign_sections(p, leaves)
+  li <- "Online Video | Video B | Promo | Regional"
+  expect_equal(attr(a, "unmatched"), li)
+  expect_equal(a$n_matches[a$line_item == li], 0L)
+  expect_true(is.na(a$section[a$line_item == li]))
+  expect_output(print(a), "1 in none \\(Online Video \\| Video B")
+})
+
+test_that("a section may be a list of targets, and name values the plan lacks", {
+  p <- fix_agency_plan()
+  a <- assign_sections(p, list(
+    Brand       = list(list(channel = "Streaming"), list(channel = "Online Video"),
+                       list(channel = "Linear TV")),
+    Performance = list(channel = c("Programmatic", "Search"))
+  ))
+  expect_true(all(a$n_matches == 1L))
+  expect_equal(sum(a$section == "Brand"), 6)
+})
+
+test_that("assign_sections refuses a malformed tree, and a column not in the grain", {
+  p <- fix_agency_plan()
+  expect_error(assign_sections(p, list(list(channel = "Streaming"))),
+               "named list")
+  expect_error(assign_sections(p, list(A = list(channel = "Streaming"),
+                                       A = list(channel = "Programmatic"))),
+               "distinct names")
+  expect_error(assign_sections(p, list(Brand = list(funnel = "Brand"))),
+               "section 'Brand': `target` may only name grain columns")
+})
